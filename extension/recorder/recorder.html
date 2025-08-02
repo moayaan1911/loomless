@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="recorder.css" />
+    <title>LoomLess</title>
+  </head>
+  <body>
+    <div class="recorder-container">
+      <div class="header">
+        <div class="logo-section">
+          <img
+            src="../icons/icon48.png"
+            alt="LoomLess"
+            class="logo" />
+          <h1 class="blue">LoomLess</h1>
+        </div>
+        <div class="status-section">
+          <div
+            id="recordingStatus"
+            class="status blue">
+            Ready to Record
+          </div>
+          <div
+            id="timer"
+            class="timer blue">
+            00:00
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="control-section">
+          <button
+            id="startRecordBtn"
+            class="control-btn start-btn">
+            <span class="btn-icon">⚫</span>
+            <span class="btn-text blue">Start Recording</span>
+          </button>
+
+          <button
+            id="stopRecordBtn"
+            class="control-btn stop-btn"
+            disabled>
+            <span class="btn-icon">⏹️</span>
+            <span class="btn-text blue">Stop Recording</span>
+          </button>
+        </div>
+
+        <div class="instructions">
+          <div
+            id="initialInstructions"
+            class="instruction-set">
+            <h3 class="blue">Ready to capture your screen?</h3>
+            <ol>
+              <li>Click "Start Recording" below</li>
+              <li>Choose which screen/window/tab to share</li>
+              <li>Start your presentation or demo</li>
+              <li>Click "Stop Recording" when done</li>
+              <li>Save your video instantly - no cloud needed!</li>
+            </ol>
+          </div>
+
+          <div
+            id="recordingInstructions"
+            class="instruction-set hidden">
+            <h3 class="blue">🔴 Recording in progress...</h3>
+            <p>
+              Your screen is being recorded. Click "Stop Recording" when you're
+              finished, or use the system stop button.
+            </p>
+            <div class="recording-info">
+              <p>
+                <strong>Privacy Notice:</strong> Your recording stays completely
+                local on your device. Nothing is uploaded to any cloud or
+                server.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>LoomLess - Minimalist • Forever Free • Privacy-First</p>
+        <div class="credit">
+          Created with ❤️ by
+          <a
+            href="https://moayaan.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            >moayaan.eth</a
+          >
+        </div>
+      </div>
+    </div>
+
+    <script src="recorder.js"></script>
+  </body>
+</html>
