@@ -60,7 +60,7 @@ LoomLess is a **privacy-first, minimalist screen recording extension** that puts
 
 ## 📥 Installation
 
-### Option 1: Chrome Web Store (Coming Soon)
+### Option 1: Chrome Web Store
 
 [**Download from Chrome Web Store**](https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj) 🚀
 
