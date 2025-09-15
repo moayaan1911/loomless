@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LoomLess",
   "version": "2.0.0",
-  "description": "Minimalist forever-free screen recording extension with built-in video editing. Record, trim, crop, adjust speed - all locally. No sign-up, no payment, no cloud storage.",
+  "description": "Minimalist Forever-Free Screen Recording Extension by Mohammad Ayaan Siddiqui",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
