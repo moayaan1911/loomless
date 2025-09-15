@@ -29,6 +29,8 @@ LoomLess is a **privacy-first, minimalist screen recording extension** that puts
 
 ## ✨ Features
 
+### 🎬 Recording Features
+
 - 🎥 **Instant Screen Recording** - Start recording with one click
 - 🔒 **Complete Privacy** - No data collection, no cloud uploads
 - 💾 **Local Storage Only** - Your recordings stay on your device
@@ -39,6 +41,15 @@ LoomLess is a **privacy-first, minimalist screen recording extension** that puts
 - 💰 **Forever Free** - No hidden costs or premium features
 - 🛡️ **Privacy-First Design** - Your content never leaves your device
 - 📱 **Simple Interface** - Clean, distraction-free UI
+
+### 🎞️ Video Editing Features (v2)
+
+- ✂️ **Trim Videos** - Cut unwanted parts from start and end
+- 🎯 **Free-Form Crop** - Select any rectangular area to crop
+- ⚡ **Speed Adjustment** - Change playback speed (0.5x to 2x)
+- 🎨 **Format Options** - Export as WebM or MP4
+- 🔄 **Real-time Preview** - See changes instantly
+- 💾 **Client-Side Processing** - All editing done locally in your browser
 
 ---
 
@@ -89,15 +100,16 @@ LoomLess is a **privacy-first, minimalist screen recording extension** that puts
 # 👨‍💻 About the Developer
 
 <p align="center">
-  <img src="image.png" alt="Mohammad Ayaan Siddiqui" width="150" height="150" />
+  <img src="https://gateway.lighthouse.storage/ipfs/bafybeidlpfu7vy2rgevvo2msiebtvjfjtejlgjsgjja4jixly45sq3woii/profile.jpeg" alt="Mohammad Ayaan Siddiqui" width="200" />
 </p>
 
-Assalamualaikum guys! 🙌 This is Mohammad Ayaan Siddiqui (♦moayaan.eth♦). I’m a **Full Stack Blockchain Developer** with over **2 years of experience** rocking the Web3 world! 🚀 I’ve worn many hats:
+Assalamualaikum guys! 🙌 This is Mohammad Ayaan Siddiqui (♦moayaan.eth♦). I’m a **Full Stack Blockchain Developer** and **MBA in Blockchain Management** with over **2 years of experience** rocking the Web3 world! 🚀 I’ve worn many hats:
 
 - Research Intern at a Hong Kong-based firm 🇭🇰
 - Technical Co-Founder at a Netherlands-based firm 🇳🇱
 - Full Stack Intern at a Singapore-based crypto hardware wallet firm 🇸🇬
 - Currently a Blockchain Developer on a US-based Bitcoin DeFi project 🇺🇸
+- Completed PG Diploma in Blockchain Management from Cambridge International Qualifications (CIQ) 🇬🇧
 - Currently pursuing an online MBA in Blockchain Management from University of Studies Guglielmo Marconi, Italy 🇮🇹
 
 Let’s connect and build something epic! Find me at [moayaan.com](https://moayaan.com) 🌐

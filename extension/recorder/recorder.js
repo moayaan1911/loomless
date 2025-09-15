@@ -4,6 +4,7 @@ let stream = null;
 let startTime = null;
 let timerInterval = null;
 let isRecording = false;
+let recordingDuration = 0;
 
 // DOM elements
 let startBtn,
@@ -113,7 +114,7 @@ function stopRecording() {
     // Update UI
     stopBtn.disabled = true;
     stopBtn.innerHTML =
-      '<span class="btn-icon">⏳</span><span class="btn-text">Processing...</span>';
+      '<span class="btn-icon">⏹️</span><span class="btn-text">Stop Recording</span>';
     status.textContent = "Processing recording...";
 
     // Stop recording
@@ -132,36 +133,74 @@ function stopRecording() {
   }
 }
 
-function handleRecordingComplete() {
+async function handleRecordingComplete() {
   try {
+    // Update UI for processing
+    status.textContent = "Processing recording...";
+
     // Create blob from recorded chunks
     const blob = new Blob(recordedChunks, {
       type: mediaRecorder.mimeType || "video/webm",
     });
 
-    // Create download URL
-    const url = URL.createObjectURL(blob);
+    // Calculate recording duration
+    recordingDuration = startTime ? Date.now() - startTime : 0;
 
     // Generate filename with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, -5);
     const filename = `loomless-recording-${timestamp}.webm`;
 
-    // Trigger download
-    downloadRecording(url, filename);
+    // Store recording in IndexedDB
+    const recordingId = await window.videoStorage.storeRecording(
+      blob,
+      mediaRecorder.mimeType || "video/webm",
+      {
+        filename,
+        duration: recordingDuration,
+        timestamp: now.toISOString(),
+      }
+    );
+
+    console.log(`Recording stored with ID: ${recordingId}`);
 
     // Update UI
-    status.textContent = "Recording saved successfully!";
-    showSuccessMessage();
+    status.textContent = "Recording processed! Opening editor...";
 
-    // Reset after a delay
+    // Open editing tab
     setTimeout(() => {
-      resetUIToInitial();
-    }, 3000);
+      openEditingTab(recordingId);
+    }, 1000);
   } catch (error) {
     console.error("Error processing recording:", error);
     handleRecordingError(error);
   }
+}
+
+function openEditingTab(recordingId) {
+  // Create the editing tab URL with the recording ID
+  const editUrl =
+    chrome.runtime.getURL("recorder/editor.html") + `?recording=${recordingId}`;
+
+  // Open editing tab
+  chrome.tabs.create(
+    {
+      url: editUrl,
+      active: true,
+    },
+    (tab) => {
+      console.log("Opened editing tab:", tab.id);
+
+      // Close the current recorder tab after a short delay
+      setTimeout(() => {
+        chrome.tabs.getCurrent((currentTab) => {
+          if (currentTab) {
+            chrome.tabs.remove(currentTab.id);
+          }
+        });
+      }, 500);
+    }
+  );
 }
 
 function downloadRecording(url, filename) {
