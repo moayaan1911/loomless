@@ -869,6 +869,68 @@ function updateCropSettingsFromSelection() {
 }
 
 /**
+ * Decide encoding settings for the selected export format.
+ * Ensures extension matches the actual container produced by MediaRecorder.
+ * @param {string} format - Desired export format (`webm` or `mp4`).
+ * @returns {{mimeType:string, extension:string, needsDurationFix:boolean, warned:boolean}}
+ */
+function selectExportSettings(format) {
+  const mediaRecorderSupported = (type) => {
+    try {
+      return MediaRecorder.isTypeSupported(type);
+    } catch (error) {
+      console.warn("MediaRecorder support check failed for", type, error);
+      return false;
+    }
+  };
+
+  if (format === "mp4") {
+    const mp4Candidates = [
+      "video/mp4;codecs=avc1.640028,mp4a.40.2",
+      "video/mp4;codecs=avc1.4d401f,mp4a.40.2",
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4;codecs=avc1.42E01E",
+      "video/mp4",
+    ];
+
+    const supportedMp4 = mp4Candidates.find(mediaRecorderSupported);
+    if (supportedMp4) {
+      return {
+        mimeType: supportedMp4,
+        extension: "mp4",
+        needsDurationFix: false,
+        warningMessage: "",
+      };
+    }
+
+    console.warn(
+      "MP4 encoding not supported on this platform, falling back to WebM"
+    );
+  }
+
+  const webmCandidates = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ];
+
+  const supportedWebm = webmCandidates.find(mediaRecorderSupported);
+  if (supportedWebm) {
+    return {
+      mimeType: supportedWebm,
+      extension: "webm",
+      needsDurationFix: supportedWebm.startsWith("video/webm"),
+      warningMessage:
+        format === "mp4"
+          ? "MP4 export not supported by this browser. Falling back to WebM."
+          : "",
+    };
+  }
+
+  throw new Error("No supported MediaRecorder formats available");
+}
+
+/**
  * Handle download button click
  */
 async function handleDownload() {
@@ -965,10 +1027,19 @@ async function handleDownload() {
     canvas.height = canvasHeight;
 
     // Create MediaRecorder with appropriate settings
-    const mimeType =
-      exportFormat === "mp4"
-        ? "video/webm;codecs=vp9,opus"
-        : "video/webm;codecs=vp9,opus";
+    const exportSettings = selectExportSettings(exportFormat);
+    const {
+      mimeType,
+      extension: downloadExtension,
+      needsDurationFix,
+      warningMessage,
+    } =
+      exportSettings;
+
+    if (warningMessage) {
+      showStatus(warningMessage, "warning");
+      showStatus("Processing video...", "info", true);
+    }
 
     const stream = canvas.captureStream(30);
     const mediaRecorder = new MediaRecorder(stream, {
@@ -985,10 +1056,21 @@ async function handleDownload() {
       }
     };
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       const processedBlob = new Blob(chunks, {
         type: mimeType,
       });
+
+      let downloadBlob = processedBlob;
+
+      if (needsDurationFix) {
+        const playbackDuration = Math.max(0.1, rawDuration / playbackSpeed);
+        try {
+          downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
+        } catch (durationError) {
+          console.warn("Unable to patch WebM duration", durationError);
+        }
+      }
 
       // Set progress bar to 100% - download will happen after this
       if (statusProgress && statusProgressBar) {
@@ -996,10 +1078,10 @@ async function handleDownload() {
       }
 
       // Download the file
-      const url = URL.createObjectURL(processedBlob);
+      const url = URL.createObjectURL(downloadBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `loomless-edited-${Date.now()}.${exportFormat}`;
+      a.download = `loomless-edited-${Date.now()}.${downloadExtension}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1204,4 +1286,85 @@ function formatTime(seconds) {
   return `${mins.toString().padStart(2, "0")}:${secs
     .toString()
     .padStart(2, "0")}`;
+}
+
+/**
+ * Patch WebM duration metadata so external players display correct runtime.
+ * @param {Blob} blob - Original WebM blob
+ * @param {number} durationSeconds - Expected playback duration in seconds
+ * @returns {Promise<Blob>} Blob with updated duration metadata
+ */
+async function fixWebmDuration(blob, durationSeconds) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return blob;
+  }
+
+  const buffer = await blob.arrayBuffer();
+  const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+
+  const durationElementId = [0x44, 0x89];
+
+  for (let i = 0; i < bytes.length - durationElementId.length; i++) {
+    if (bytes[i] !== durationElementId[0] || bytes[i + 1] !== durationElementId[1]) {
+      continue;
+    }
+
+    const sizeInfo = readVint(bytes, i + 2);
+    if (!sizeInfo) {
+      continue;
+    }
+
+    const { length: sizeLength, value: dataLength } = sizeInfo;
+    const dataStart = i + 2 + sizeLength;
+
+    if (dataStart + dataLength > bytes.length) {
+      continue;
+    }
+
+    if (dataLength !== 4 && dataLength !== 8) {
+      continue;
+    }
+
+    if (dataLength === 4) {
+      view.setFloat32(dataStart, durationSeconds, false);
+    } else {
+      view.setFloat64(dataStart, durationSeconds, false);
+    }
+    return new Blob([buffer], { type: blob.type });
+  }
+
+  throw new Error("Duration element not found in WebM");
+}
+
+/**
+ * Read a variable-length integer (VINT) from EBML data.
+ * @param {Uint8Array} bytes - EBML byte array
+ * @param {number} index - Byte index to read from
+ * @returns {{length:number,value:number}|null}
+ */
+function readVint(bytes, index) {
+  if (index >= bytes.length) {
+    return null;
+  }
+
+  const firstByte = bytes[index];
+  let mask = 0x80;
+  let length = 1;
+
+  while (length <= 8 && (firstByte & mask) === 0) {
+    mask >>= 1;
+    length += 1;
+  }
+
+  if (length > 8) {
+    return null;
+  }
+
+  let value = firstByte & (mask - 1);
+  for (let i = 1; i < length; i++) {
+    value = (value << 8) | bytes[index + i];
+  }
+
+  return { length, value };
 }
