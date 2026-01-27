@@ -3,3 +3,4 @@
 .env
 AGENTS.md
 *.zip
+/my-video
