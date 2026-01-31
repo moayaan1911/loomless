@@ -2,291 +2,348 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0" />
-    <title>LoomLess - Video Editor</title>
-    <link
-      rel="stylesheet"
-      href="editor.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LoomLess Studio</title>
+    <link rel="stylesheet" href="editor.css" />
   </head>
   <body>
-    <div class="editor-container">
-      <!-- Header -->
-      <header class="editor-header">
-        <div class="logo">
-          <h1>🎬 LoomLess</h1>
-          <span class="subtitle">Video Editor</span>
+    <div class="studio-container">
+      <!-- Top Toolbar -->
+      <header class="studio-toolbar">
+        <div class="toolbar-left">
+          <div class="brand">
+            <div class="brand-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </div>
+            <span class="brand-name">LoomLess<span class="brand-pro">Studio</span></span>
+          </div>
         </div>
-        <div class="actions">
-          <button
-            id="downloadBtn"
-            class="btn btn-primary">
-            <span class="btn-icon">📥</span>
-            <span class="btn-text">Download</span>
+        <div class="toolbar-center">
+          <div class="tool-group">
+            <button class="tool-btn" id="playPauseBtn" title="Play/Pause">
+              <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <svg viewBox="0 0 24 24" fill="currentColor" id="pauseIcon" class="hidden">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </button>
+            <button class="tool-btn" id="stopBtn" title="Stop">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="1"></rect>
+              </svg>
+            </button>
+            <div class="tool-divider"></div>
+            <button class="tool-btn" id="skipBackBtn" title="Skip Back 5s">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 17l-5-5 5-5"></path>
+                <path d="M18 17l-5-5 5-5"></path>
+              </svg>
+            </button>
+            <button class="tool-btn" id="skipForwardBtn" title="Skip Forward 5s">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 17l5-5-5-5"></path>
+                <path d="M6 17l5-5-5-5"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="time-display">
+            <span id="currentTime">00:00.00</span>
+            <span class="time-separator">/</span>
+            <span id="totalTime">00:00.00</span>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <button class="export-btn" id="downloadBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Export</span>
           </button>
         </div>
       </header>
 
-      <!-- Main Content -->
-      <main class="editor-main">
-        <!-- Video Preview Section -->
-        <section class="video-section">
-          <div class="video-container">
-            <video
-              id="videoPlayer"
-              controls>
-              Your browser does not support the video tag.
-            </video>
-            <div
-              id="videoLoading"
-              class="video-loading">
-              <div class="loading-spinner"></div>
-              <p>Loading video...</p>
-            </div>
+      <!-- Main Workspace -->
+      <main class="studio-workspace">
+        <!-- Left Panel - Tools -->
+        <aside class="panel panel-left">
+          <div class="panel-tabs">
+            <button class="panel-tab active" data-panel="speed">Speed</button>
+            <button class="panel-tab" data-panel="crop">Crop</button>
+            <button class="panel-tab" data-panel="export">Export</button>
+          </div>
 
-            <!-- Crop Overlay -->
-            <div
-              id="cropOverlay"
-              class="crop-overlay">
-              <div
-                id="cropSelection"
-                class="crop-selection">
-                <div class="crop-handle nw"></div>
-                <div class="crop-handle ne"></div>
-                <div class="crop-handle sw"></div>
-                <div class="crop-handle se"></div>
-                <div class="crop-handle n"></div>
-                <div class="crop-handle e"></div>
-                <div class="crop-handle s"></div>
-                <div class="crop-handle w"></div>
-                <div class="crop-guide">Crop Selection Area</div>
+          <!-- Speed Panel -->
+          <div class="panel-content" id="speedPanel">
+            <div class="panel-section">
+              <div class="section-header">
+                <span class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </span>
+                <span>Playback Speed</span>
               </div>
-              <div class="crop-instructions-overlay">
-                <div class="crop-instruction-box">
-                  <h4>🎯 Adjust Crop Area:</h4>
-                  <p>1. Drag corners to resize</p>
-                  <p>2. Drag edges to adjust</p>
-                  <p>3. Drag inside to move selection</p>
+              <div class="speed-slider-container">
+                <input type="range" id="speedSlider" min="0.25" max="2" step="0.25" value="1" class="speed-slider" />
+                <div class="speed-value" id="speedValue">1.0x</div>
+              </div>
+              <div class="speed-presets">
+                <button class="preset-btn" data-speed="0.5">0.5x</button>
+                <button class="preset-btn" data-speed="0.75">0.75x</button>
+                <button class="preset-btn active" data-speed="1">1x</button>
+                <button class="preset-btn" data-speed="1.5">1.5x</button>
+                <button class="preset-btn" data-speed="2">2x</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Crop Panel -->
+          <div class="panel-content hidden" id="cropPanel">
+            <div class="panel-section">
+              <div class="section-header">
+                <span class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                    <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+                  </svg>
+                </span>
+                <span>Crop Mode</span>
+              </div>
+              <button class="action-btn full-width" id="cropModeBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+                <span>Enable Free Crop</span>
+              </button>
+              <div class="crop-dimensions">
+                <div class="dimension-group">
+                  <label>X</label>
+                  <input type="number" id="cropX" placeholder="0" min="0" />
+                </div>
+                <div class="dimension-group">
+                  <label>Y</label>
+                  <input type="number" id="cropY" placeholder="0" min="0" />
+                </div>
+                <div class="dimension-group">
+                  <label>W</label>
+                  <input type="number" id="cropWidth" placeholder="Width" min="1" />
+                </div>
+                <div class="dimension-group">
+                  <label>H</label>
+                  <input type="number" id="cropHeight" placeholder="Height" min="1" />
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Timeline Controls -->
-          <div class="timeline-container">
-            <div class="timeline">
-              <div
-                id="timelineTrack"
-                class="timeline-track">
-                <div
-                  id="timelineProgress"
-                  class="timeline-progress"></div>
-                <div
-                  id="trimStartHandle"
-                  class="trim-handle trim-start">
-                  <div class="handle-line"></div>
-                </div>
-                <div
-                  id="trimEndHandle"
-                  class="trim-handle trim-end">
-                  <div class="handle-line"></div>
-                </div>
+          <!-- Export Panel -->
+          <div class="panel-content hidden" id="exportPanel">
+            <div class="panel-section">
+              <div class="section-header">
+                <span class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </span>
+                <span>Format</span>
               </div>
-            </div>
-            <div class="timeline-controls">
-              <button
-                id="trimStartBtn"
-                class="btn btn-secondary">
-                <span class="btn-text">Set Start</span>
-              </button>
-              <button
-                id="trimEndBtn"
-                class="btn btn-secondary">
-                <span class="btn-text">Set End</span>
-              </button>
-              <button
-                id="resetTrimBtn"
-                class="btn btn-secondary">
-                <span class="btn-text">Reset</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Edit Controls Sidebar -->
-        <aside class="controls-sidebar">
-          <!-- Playback Speed -->
-          <div class="control-group">
-            <h3>⚡ Playback Speed</h3>
-            <div class="speed-controls">
-              <button
-                id="speed05x"
-                class="speed-btn"
-                data-speed="0.5">
-                0.5x
-              </button>
-              <button
-                id="speed075x"
-                class="speed-btn"
-                data-speed="0.75">
-                0.75x
-              </button>
-              <button
-                id="speed1x"
-                class="speed-btn active"
-                data-speed="1">
-                1x
-              </button>
-              <button
-                id="speed125x"
-                class="speed-btn"
-                data-speed="1.25">
-                1.25x
-              </button>
-              <button
-                id="speed15x"
-                class="speed-btn"
-                data-speed="1.5">
-                1.5x
-              </button>
-              <button
-                id="speed2x"
-                class="speed-btn"
-                data-speed="2">
-                2x
-              </button>
-            </div>
-          </div>
-
-          <!-- Crop Controls -->
-          <div class="control-group">
-            <h3>✂️ Crop Video</h3>
-            <div class="crop-controls">
-              <div class="crop-mode-toggle">
-                <button
-                  id="cropModeBtn"
-                  class="btn btn-secondary">
-                  <span class="btn-icon">✂️</span>
-                  <span class="btn-text">Free Crop</span>
+              <div class="format-selector">
+                <button class="format-option active" id="formatWebM" data-format="webm">
+                  <div class="format-icon">WebM</div>
+                  <span class="format-label">Smaller size</span>
+                </button>
+                <button class="format-option" id="formatMP4" data-format="mp4">
+                  <div class="format-icon">MP4</div>
+                  <span class="format-label">Universal</span>
                 </button>
               </div>
-              <div class="crop-info">
-                <p class="crop-instruction">
-                  Click "Free Crop" above to select a custom crop area
-                </p>
+            </div>
+            <div class="panel-section">
+              <div class="section-header">
+                <span class="section-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                </span>
+                <span>Video Info</span>
               </div>
-              <div class="crop-custom">
-                <label>Custom Crop:</label>
-                <div class="crop-inputs">
-                  <input
-                    type="number"
-                    id="cropX"
-                    placeholder="X"
-                    min="0" />
-                  <input
-                    type="number"
-                    id="cropY"
-                    placeholder="Y"
-                    min="0" />
-                  <input
-                    type="number"
-                    id="cropWidth"
-                    placeholder="Width"
-                    min="1" />
-                  <input
-                    type="number"
-                    id="cropHeight"
-                    placeholder="Height"
-                    min="1" />
+              <div class="info-grid">
+                <div class="info-row">
+                  <span class="info-label">Duration</span>
+                  <span class="info-value" id="infoDuration">--:--</span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Export Format -->
-          <div class="control-group">
-            <h3>📦 Export Format</h3>
-            <div class="format-controls">
-              <button
-                id="formatWebM"
-                class="format-btn active"
-                data-format="webm">
-                WebM
-              </button>
-              <button
-                id="formatMP4"
-                class="format-btn"
-                data-format="mp4">
-                MP4
-              </button>
-            </div>
-          </div>
-
-          <!-- Video Info -->
-          <div class="control-group">
-            <h3>📊 Video Info</h3>
-            <div
-              id="videoInfo"
-              class="video-info">
-              <div class="info-item">
-                <span class="info-label">Duration:</span>
-                <span
-                  id="infoDuration"
-                  class="info-value"
-                  >--:--</span
-                >
-              </div>
-              <div class="info-item">
-                <span class="info-label">Size:</span>
-                <span
-                  id="infoSize"
-                  class="info-value"
-                  >-- MB</span
-                >
-              </div>
-              <div class="info-item">
-                <span class="info-label">Trimmed:</span>
-                <span
-                  id="infoTrimmed"
-                  class="info-value"
-                  >--:-- to --:--</span
-                >
+                <div class="info-row">
+                  <span class="info-label">File Size</span>
+                  <span class="info-value" id="infoSize">-- MB</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Trim Range</span>
+                  <span class="info-value" id="infoTrimmed">Full</span>
+                </div>
               </div>
             </div>
           </div>
         </aside>
+
+        <!-- Center - Video Preview -->
+        <section class="preview-area">
+          <div class="preview-container">
+            <div class="preview-wrapper">
+              <video id="videoPlayer">
+                Your browser does not support the video tag.
+              </video>
+              <div id="videoLoading" class="video-loading">
+                <div class="loader">
+                  <div class="loader-ring"></div>
+                  <div class="loader-ring"></div>
+                  <div class="loader-ring"></div>
+                </div>
+                <p>Loading video...</p>
+              </div>
+
+              <!-- Crop Overlay -->
+              <div id="cropOverlay" class="crop-overlay">
+                <div id="cropSelection" class="crop-selection">
+                  <div class="crop-handle nw"></div>
+                  <div class="crop-handle ne"></div>
+                  <div class="crop-handle sw"></div>
+                  <div class="crop-handle se"></div>
+                  <div class="crop-handle n"></div>
+                  <div class="crop-handle e"></div>
+                  <div class="crop-handle s"></div>
+                  <div class="crop-handle w"></div>
+                  <div class="crop-dimensions-display">
+                    <span id="cropDimensionsText">1920 x 1080</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      <!-- Status Messages -->
-      <div
-        id="statusMessage"
-        class="status-message hidden">
-        <span id="statusText"></span>
-        <div
-          id="statusProgress"
-          class="status-progress hidden">
-          <div
-            id="statusProgressBar"
-            class="status-progress-bar"></div>
-        </div>
-      </div>
+      <!-- Bottom - Timeline -->
+      <footer class="studio-timeline">
+        <div class="timeline-wrapper">
+          <!-- Zoom Controls -->
+          <div class="timeline-controls-left">
+            <button class="timeline-btn" id="zoomOutBtn" title="Zoom Out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+            <button class="timeline-btn" id="zoomInBtn" title="Zoom In">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="11" y1="8" x2="11" y2="14"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+          </div>
 
-      <!-- Footer -->
-      <footer class="editor-footer">
-        <div class="footer-content">
-          <p>✨ LoomLess Video Editor • 🔒 Privacy-First • 💻 Local Processing</p>
-          <div class="credit">
-            Built with 💜 by
-            <a
-              href="https://moayaan.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              >♦moayaan.eth♦</a
-            >
+          <!-- Timeline Track -->
+          <div class="timeline-main">
+            <div class="timeline-ruler">
+              <div class="ruler-marks" id="rulerMarks"></div>
+            </div>
+            <div class="timeline-track-container">
+              <div id="timelineTrack" class="timeline-track">
+                <div class="track-visualization" id="trackVisualization"></div>
+                <div id="trimRegion" class="trim-region"></div>
+                <div id="playhead" class="playhead">
+                  <div class="playhead-line"></div>
+                  <div class="playhead-handle"></div>
+                </div>
+                <div id="trimStartHandle" class="trim-handle trim-start">
+                  <div class="handle-grip">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+                <div id="trimEndHandle" class="trim-handle trim-end">
+                  <div class="handle-grip">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trim Controls -->
+          <div class="timeline-controls-right">
+            <button class="trim-action-btn" id="trimStartBtn" title="Set Trim Start">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 19l-7-7 7-7"></path>
+                <path d="M4 12h16"></path>
+              </svg>
+              <span>In</span>
+            </button>
+            <button class="trim-action-btn" id="trimEndBtn" title="Set Trim End">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 5l7 7-7 7"></path>
+                <path d="M20 12H4"></path>
+              </svg>
+              <span>Out</span>
+            </button>
+            <button class="trim-action-btn" id="resetTrimBtn" title="Reset Trim">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+              <span>Reset</span>
+            </button>
           </div>
         </div>
       </footer>
+
+      <!-- Status Toast -->
+      <div id="statusMessage" class="status-toast hidden">
+        <div class="toast-icon" id="toastIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="toast-content">
+          <span id="statusText">Processing...</span>
+          <div id="statusProgress" class="toast-progress hidden">
+            <div id="statusProgressBar" class="toast-progress-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Credit Badge -->
+      <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="credit-badge">
+        Built by moayaan.eth
+      </a>
     </div>
 
     <script src="storage.js"></script>

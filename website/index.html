@@ -1,0 +1,1231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0" />
+    <title>LoomLess - Privacy-First Screen Recorder</title>
+    <link
+      rel="icon"
+      type="image/png"
+      href="logo.png" />
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com" />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet" />
+    <style>
+      :root {
+        --bg-primary: #0f0f23;
+        --bg-secondary: #1a1a2e;
+        --bg-card: #16213e;
+        --text-primary: #ffffff;
+        --text-secondary: #a0a0b0;
+        --accent: #6366f1;
+        --accent-hover: #4f46e5;
+        --accent-glow: rgba(99, 102, 241, 0.3);
+        --border: rgba(255, 255, 255, 0.1);
+        --gradient-start: #6366f1;
+        --gradient-end: #8b5cf6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --shadow: rgba(0, 0, 0, 0.3);
+      }
+
+      [data-theme="light"] {
+        --bg-primary: #f8fafc;
+        --bg-secondary: #ffffff;
+        --bg-card: #f1f5f9;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --accent: #4f46e5;
+        --accent-hover: #4338ca;
+        --accent-glow: rgba(79, 70, 229, 0.2);
+        --border: rgba(0, 0, 0, 0.1);
+        --gradient-start: #4f46e5;
+        --gradient-end: #7c3aed;
+        --success: #059669;
+        --warning: #d97706;
+        --shadow: rgba(0, 0, 0, 0.1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+        transition:
+          background 0.3s ease,
+          color 0.3s ease;
+        overflow-x: hidden;
+      }
+
+      /* Animated background */
+      .bg-animation {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: -1;
+        overflow: hidden;
+      }
+
+      .bg-animation::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background:
+          radial-gradient(
+            circle at 20% 80%,
+            var(--accent-glow) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 80% 20%,
+            var(--accent-glow) 0%,
+            transparent 50%
+          );
+        animation: float 20s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translate(0, 0) rotate(0deg);
+        }
+        33% {
+          transform: translate(30px, -30px) rotate(120deg);
+        }
+        66% {
+          transform: translate(-20px, 20px) rotate(240deg);
+        }
+      }
+
+      /* Theme Toggle */
+      .theme-toggle {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 50px;
+        padding: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px var(--shadow);
+      }
+
+      .theme-toggle:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px var(--shadow);
+      }
+
+      .theme-toggle svg {
+        width: 20px;
+        height: 20px;
+        fill: var(--text-secondary);
+        transition: fill 0.3s ease;
+      }
+
+      .theme-toggle:hover svg {
+        fill: var(--accent);
+      }
+
+      /* Header */
+      header {
+        padding: 120px 20px 80px;
+        text-align: center;
+        position: relative;
+      }
+
+      .logo-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .logo {
+        width: 120px;
+        height: 120px;
+        border-radius: 24px;
+        box-shadow: 0 20px 60px var(--accent-glow);
+        animation: pulse 3s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      h1 {
+        font-size: clamp(2.5rem, 8vw, 4.5rem);
+        font-weight: 800;
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.02em;
+      }
+
+      .tagline {
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        margin-bottom: 10px;
+      }
+
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        margin: 30px 0;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.3s ease;
+      }
+
+      .badge:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .badge svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      /* CTA Buttons */
+      .cta-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        margin: 40px 0;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: none;
+      }
+
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        color: white;
+        box-shadow: 0 10px 30px var(--accent-glow);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 40px var(--accent-glow);
+      }
+
+      .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-secondary);
+        border-color: var(--accent);
+        transform: translateY(-3px);
+      }
+
+      .btn svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      /* Container */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* Sections */
+      section {
+        padding: 80px 0;
+      }
+
+      .section-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .section-subtitle {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin: 0 auto 60px;
+      }
+
+      /* Comparison Table */
+      .comparison {
+        background: var(--bg-secondary);
+        border-radius: 24px;
+        padding: 40px;
+        margin: 40px 0;
+        border: 1px solid var(--border);
+      }
+
+      .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .comparison-table th,
+      .comparison-table td {
+        padding: 20px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .comparison-table th {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .comparison-table td {
+        font-size: 1rem;
+      }
+
+      .comparison-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .check {
+        color: var(--success);
+        font-weight: 600;
+      }
+
+      .cross {
+        color: #ef4444;
+      }
+
+      /* Features Grid */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin: 40px 0;
+      }
+
+      .feature-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 30px;
+        transition: all 0.3s ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-5px);
+        border-color: var(--accent);
+        box-shadow: 0 20px 40px var(--shadow);
+      }
+
+      .feature-icon {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+      }
+
+      .feature-card h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      .feature-card p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      /* Privacy Box */
+      .privacy-box {
+        background: linear-gradient(
+          135deg,
+          rgba(99, 102, 241, 0.1),
+          rgba(139, 92, 246, 0.1)
+        );
+        border: 1px solid var(--accent);
+        border-radius: 20px;
+        padding: 40px;
+        margin: 40px 0;
+        text-align: center;
+      }
+
+      .privacy-box h3 {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+        color: var(--accent);
+      }
+
+      .privacy-features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+      }
+
+      .privacy-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: center;
+        font-weight: 500;
+      }
+
+      /* Screenshots */
+      .screenshots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin: 40px 0;
+      }
+
+      .screenshot-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .screenshot-card:hover {
+        transform: scale(1.02);
+        box-shadow: 0 20px 40px var(--shadow);
+      }
+
+      .screenshot-placeholder {
+        aspect-ratio: 16/10;
+        background: linear-gradient(135deg, var(--bg-card), var(--bg-primary));
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        color: var(--text-secondary);
+      }
+
+      .screenshot-placeholder svg {
+        width: 60px;
+        height: 60px;
+        opacity: 0.5;
+      }
+
+      .screenshot-info {
+        padding: 20px;
+      }
+
+      .screenshot-info h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 5px;
+      }
+
+      .screenshot-info p {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      /* How to Use */
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        max-width: 800px;
+        margin: 40px auto;
+      }
+
+      .step {
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 25px;
+        transition: all 0.3s ease;
+      }
+
+      .step:hover {
+        border-color: var(--accent);
+        transform: translateX(10px);
+      }
+
+      .step-number {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+
+      .step-content h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 5px;
+      }
+
+      .step-content p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+      }
+
+      /* Footer */
+      footer {
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border);
+        padding: 60px 20px 30px;
+        margin-top: 80px;
+      }
+
+      .footer-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 40px;
+      }
+
+      .footer-section h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: var(--accent);
+      }
+
+      .footer-section a {
+        display: block;
+        color: var(--text-secondary);
+        text-decoration: none;
+        padding: 8px 0;
+        transition: color 0.3s ease;
+      }
+
+      .footer-section a:hover {
+        color: var(--accent);
+      }
+
+      .footer-bottom {
+        max-width: 1200px;
+        margin: 40px auto 0;
+        padding-top: 30px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      .footer-bottom a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        header {
+          padding: 100px 20px 60px;
+        }
+
+        .comparison {
+          padding: 20px;
+          overflow-x: auto;
+        }
+
+        .comparison-table {
+          min-width: 500px;
+        }
+
+        .features-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .step {
+          flex-direction: column;
+          text-align: center;
+        }
+
+        .step:hover {
+          transform: translateY(-5px);
+        }
+      }
+
+      /* Animations */
+      .fade-in {
+        opacity: 0;
+        transform: translateY(30px);
+        animation: fadeIn 0.8s ease forwards;
+      }
+
+      @keyframes fadeIn {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .delay-1 {
+        animation-delay: 0.1s;
+      }
+      .delay-2 {
+        animation-delay: 0.2s;
+      }
+      .delay-3 {
+        animation-delay: 0.3s;
+      }
+      .delay-4 {
+        animation-delay: 0.4s;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Theme Toggle -->
+    <button
+      class="theme-toggle"
+      onclick="toggleTheme()"
+      aria-label="Toggle theme">
+      <svg
+        class="sun"
+        viewBox="0 0 24 24"
+        style="display: none">
+        <path
+          d="M12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-13.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5zm0 17c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm-9.5-8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5zm17 0c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5.67-1.5 1.5-1.5 1.5.67 1.5 1.5zM4.22 5.64c.59-.59 1.54-.59 2.12 0 .59.59.59 1.54 0 2.12-.59.59-1.54.59-2.12 0-.59-.59-.59-1.54 0-2.12zm14.14 14.14c-.59.59-1.54.59-2.12 0-.59-.59-.59-1.54 0-2.12.59-.59 1.54-.59 2.12 0 .59.59.59 1.54 0 2.12zm0-14.14c.59.59.59 1.54 0 2.12-.59.59-1.54.59-2.12 0-.59-.59-.59-1.54 0-2.12.59-.59 1.54-.59 2.12 0zM5.64 19.78c-.59-.59-.59-1.54 0-2.12.59-.59 1.54-.59 2.12 0 .59.59.59 1.54 0 2.12-.59.59-1.54.59-2.12 0z" />
+      </svg>
+      <svg
+        class="moon"
+        viewBox="0 0 24 24">
+        <path
+          d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-3.03 0-5.5-2.47-5.5-5.5 0-1.82.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z" />
+      </svg>
+    </button>
+
+    <!-- Background Animation -->
+    <div class="bg-animation"></div>
+
+    <!-- Header -->
+    <header>
+      <div class="logo-container fade-in">
+        <img
+          src="logo.png"
+          alt="LoomLess Logo"
+          class="logo" />
+        <h1>LoomLess</h1>
+        <p class="tagline">The Privacy-First Screen Recorder</p>
+      </div>
+
+      <div class="badges fade-in delay-1">
+        <span class="badge">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          </svg>
+          No Sign-up
+        </span>
+        <span class="badge">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          </svg>
+          No Payment
+        </span>
+        <span class="badge">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          </svg>
+          No Cloud
+        </span>
+        <span class="badge">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          </svg>
+          No Tracking
+        </span>
+      </div>
+
+      <div class="cta-container fade-in delay-2">
+        <a
+          href="https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj"
+          class="btn btn-primary"
+          target="_blank">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 22c-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm-1-15v6h2V7h-2zm0 8v2h2v-2h-2z" />
+          </svg>
+          Install from Chrome Web Store
+        </a>
+        <a
+          href="https://github.com/moayaan1911/loomless"
+          class="btn btn-secondary"
+          target="_blank">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+          </svg>
+          View on GitHub
+        </a>
+        <a
+          href="https://moayaan.com/donate"
+          class="btn btn-secondary"
+          target="_blank">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor">
+            <path
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>
+          Donate
+        </a>
+      </div>
+    </header>
+
+    <!-- Why LoomLess -->
+    <section class="container">
+      <h2 class="section-title fade-in">Why LoomLess?</h2>
+      <p class="section-subtitle fade-in">
+        See how we compare to other screen recording tools
+      </p>
+
+      <div class="comparison fade-in delay-1">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Other Tools</th>
+              <th>LoomLess</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Account Required</td>
+              <td class="cross">❌ Required</td>
+              <td class="check">✅ Works Instantly</td>
+            </tr>
+            <tr>
+              <td>Pricing</td>
+              <td class="cross">❌ Monthly Subscription</td>
+              <td class="check">✅ Forever Free</td>
+            </tr>
+            <tr>
+              <td>Data Storage</td>
+              <td class="cross">❌ Cloud Upload</td>
+              <td class="check">✅ 100% Local</td>
+            </tr>
+            <tr>
+              <td>Privacy</td>
+              <td class="cross">❌ Tracks Usage</td>
+              <td class="check">✅ Zero Tracking</td>
+            </tr>
+            <tr>
+              <td>Interface</td>
+              <td class="cross">❌ Bloated</td>
+              <td class="check">✅ Clean & Focused</td>
+            </tr>
+            <tr>
+              <td>Watermarks</td>
+              <td class="cross">❌ On Free Tier</td>
+              <td class="check">✅ Never</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="container">
+      <h2 class="section-title fade-in">Powerful Features</h2>
+      <p class="section-subtitle fade-in">
+        Everything you need for professional screen recording
+      </p>
+
+      <div class="features-grid">
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">🎬</div>
+          <h3>One-Click Recording</h3>
+          <p>
+            Start recording instantly with a single click. No complicated setup
+            or configuration needed.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">🖥️</div>
+          <h3>Flexible Capture</h3>
+          <p>
+            Record your entire screen, a specific application window, or just a
+            browser tab.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">🔊</div>
+          <h3>Audio Support</h3>
+          <p>
+            Capture system audio along with your video for complete recordings.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">✂️</div>
+          <h3>Smart Trimming</h3>
+          <p>
+            Cut unwanted portions from the start and end of your recordings with
+            precision.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">🎯</div>
+          <h3>Free-Form Crop</h3>
+          <p>
+            Select any rectangular area to focus on what matters most in your
+            video.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">⚡</div>
+          <h3>Speed Control</h3>
+          <p>
+            Adjust playback speed from 0.5x to 2x for tutorials and
+            presentations.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">📦</div>
+          <h3>Multiple Formats</h3>
+          <p>
+            Export your recordings as WebM or MP4 for maximum compatibility.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">👁️</div>
+          <h3>Live Preview</h3>
+          <p>See your edits in real-time before exporting the final video.</p>
+        </div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">💾</div>
+          <h3>Local Processing</h3>
+          <p>
+            All editing happens in your browser. Nothing is ever uploaded to
+            servers.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy -->
+    <section class="container">
+      <div class="privacy-box fade-in">
+        <h3>🔒 Our Privacy Promise</h3>
+        <p>Your data belongs to you. Period.</p>
+        <div class="privacy-features">
+          <div class="privacy-item">
+            <span>📍</span> Recordings NEVER leave your device
+          </div>
+          <div class="privacy-item">
+            <span>🚫</span> We collect ZERO data about you
+          </div>
+          <div class="privacy-item">
+            <span>🔐</span> No accounts = No data to breach
+          </div>
+          <div class="privacy-item">
+            <span>💾</span> Everything processed locally
+          </div>
+          <div class="privacy-item">
+            <span>🛡️</span> Open source = Full transparency
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section class="container">
+      <h2 class="section-title fade-in">Screenshots</h2>
+      <p class="section-subtitle fade-in">See LoomLess in action</p>
+
+      <div class="screenshots">
+        <div class="screenshot-card fade-in delay-1">
+          <div class="screenshot-placeholder">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor">
+              <path
+                d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+            </svg>
+            <span>Recording Interface</span>
+          </div>
+          <div class="screenshot-info">
+            <h4>Simple Recording UI</h4>
+            <p>Clean interface for starting your recordings</p>
+          </div>
+        </div>
+        <div class="screenshot-card fade-in delay-2">
+          <div class="screenshot-placeholder">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
+            <span>Video Editor</span>
+          </div>
+          <div class="screenshot-info">
+            <h4>Built-in Editor</h4>
+            <p>Trim, crop, and adjust your videos</p>
+          </div>
+        </div>
+        <div class="screenshot-card fade-in delay-3">
+          <div class="screenshot-placeholder">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor">
+              <path
+                d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
+            </svg>
+            <span>Export Options</span>
+          </div>
+          <div class="screenshot-info">
+            <h4>Easy Export</h4>
+            <p>Download in WebM or MP4 format</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Use -->
+    <section class="container">
+      <h2 class="section-title fade-in">How to Use</h2>
+      <p class="section-subtitle fade-in">Get started in seconds</p>
+
+      <div class="steps">
+        <div class="step fade-in delay-1">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Click the LoomLess Icon</h4>
+            <p>
+              Find the LoomLess icon in your Chrome toolbar and click it to open
+              the popup.
+            </p>
+          </div>
+        </div>
+        <div class="step fade-in delay-2">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Start Recording</h4>
+            <p>
+              Click "Start Recording" and choose what to capture: entire screen,
+              window, or tab.
+            </p>
+          </div>
+        </div>
+        <div class="step fade-in delay-3">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Record Your Content</h4>
+            <p>
+              Do your thing! Record tutorials, demos, presentations, or anything
+              you need.
+            </p>
+          </div>
+        </div>
+        <div class="step fade-in delay-1">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h4>Edit (Optional)</h4>
+            <p>
+              Use the built-in editor to trim, crop, or adjust the speed of your
+              recording.
+            </p>
+          </div>
+        </div>
+        <div class="step fade-in delay-2">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <h4>Download</h4>
+            <p>Save your video directly to your device. That's it!</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Perfect For -->
+    <section class="container">
+      <h2 class="section-title fade-in">Perfect For</h2>
+      <p class="section-subtitle fade-in">Who can benefit from LoomLess?</p>
+
+      <div class="features-grid">
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">👨‍💻</div>
+          <h3>Developers</h3>
+          <p>
+            Create bug reports, code demos, and technical documentation with
+            ease.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-2">
+          <div class="feature-icon">👨‍🏫</div>
+          <h3>Educators</h3>
+          <p>
+            Record tutorials, lessons, and educational content for your
+            students.
+          </p>
+        </div>
+        <div class="feature-card fade-in delay-3">
+          <div class="feature-icon">👨‍💼</div>
+          <h3>Professionals</h3>
+          <p>Create presentations, feedback videos, and async communication.</p>
+        </div>
+        <div class="feature-card fade-in delay-1">
+          <div class="feature-icon">🎮</div>
+          <h3>Creators</h3>
+          <p>Record gameplay, create content, and share your experiences.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section
+      class="container"
+      style="text-align: center">
+      <div class="privacy-box fade-in">
+        <h2>Ready to Start Recording?</h2>
+        <p style="margin: 20px 0">
+          Join thousands of users who trust LoomLess for their screen recording
+          needs.
+        </p>
+        <div
+          class="cta-container"
+          style="margin-top: 30px">
+          <a
+            href="https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj"
+            class="btn btn-primary"
+            target="_blank">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              style="width: 20px; height: 20px">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 22c-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm-1-15v6h2V7h-2zm0 8v2h2v-2h-2z" />
+            </svg>
+            Install Now - It's Free
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-content">
+        <div class="footer-section">
+          <h4>Product</h4>
+          <a
+            href="https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj"
+            target="_blank"
+            >Chrome Web Store</a
+          >
+          <a href="#features">Features</a>
+          <a href="#how-to-use">How to Use</a>
+        </div>
+        <div class="footer-section">
+          <h4>Resources</h4>
+          <a
+            href="https://github.com/moayaan1911/loomless"
+            target="_blank"
+            >GitHub Repository</a
+          >
+          <a
+            href="https://github.com/moayaan1911/loomless/issues"
+            target="_blank"
+            >Report an Issue</a
+          >
+          <a
+            href="https://github.com/moayaan1911/loomless/blob/main/README.md"
+            target="_blank"
+            >Documentation</a
+          >
+        </div>
+        <div class="footer-section">
+          <h4>Support</h4>
+          <a
+            href="https://moayaan.com/donate"
+            target="_blank"
+            >Donate</a
+          >
+          <a
+            href="https://moayaan.com"
+            target="_blank"
+            >Developer Website</a
+          >
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>
+          Made with 💜 by
+          <a
+            href="https://moayaan.com"
+            target="_blank"
+            >Mohammad Ayaan Siddiqui</a
+          >
+        </p>
+        <p style="margin-top: 10px">
+          ©
+          <script>
+            document.write(new Date().getFullYear());
+          </script>
+          LoomLess. Open source under MIT License.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      // Theme Toggle
+      function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute("data-theme");
+        const newTheme = currentTheme === "light" ? "dark" : "light";
+        html.setAttribute("data-theme", newTheme);
+        localStorage.setItem("theme", newTheme);
+        updateThemeIcons(newTheme);
+      }
+
+      function updateThemeIcons(theme) {
+        const sun = document.querySelector(".sun");
+        const moon = document.querySelector(".moon");
+        if (theme === "light") {
+          sun.style.display = "block";
+          moon.style.display = "none";
+        } else {
+          sun.style.display = "none";
+          moon.style.display = "block";
+        }
+      }
+
+      // Load saved theme
+      const savedTheme = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+      updateThemeIcons(savedTheme);
+
+      // Intersection Observer for animations
+      const observerOptions = {
+        threshold: 0.1,
+        rootMargin: "0px 0px -50px 0px",
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.style.animationPlayState = "running";
+          }
+        });
+      }, observerOptions);
+
+      document.querySelectorAll(".fade-in").forEach((el) => {
+        el.style.animationPlayState = "paused";
+        observer.observe(el);
+      });
+    </script>
+  </body>
+</html>

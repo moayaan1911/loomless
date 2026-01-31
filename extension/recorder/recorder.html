@@ -1,138 +1,197 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="stylesheet"
-      href="recorder.css" />
-    <title>LoomLess</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="recorder.css" />
+    <title>LoomLess Studio</title>
   </head>
   <body>
-    <div class="recorder-container">
-      <div class="header">
-        <div class="logo-section">
-          <img
-            src="../icons/icon48.png"
-            alt="LoomLess"
-            class="logo" />
-          <h1>🎥 LoomLess</h1>
-        </div>
-        <div class="status-section">
-          <div
-            id="recordingStatus"
-            class="status">
-            ✅ Ready to Record
+    <div class="studio-container">
+      <!-- Background Gradient Orbs -->
+      <div class="bg-orb orb-1"></div>
+      <div class="bg-orb orb-2"></div>
+
+      <!-- Header -->
+      <header class="studio-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
           </div>
-          <div
-            id="timer"
-            class="timer">
-            00:00
+          <span class="brand-name">LoomLess<span class="brand-pro">Studio</span></span>
+        </div>
+        <div class="status-display">
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <div class="status-indicator" id="statusIndicator">
+            <span class="status-dot"></span>
+            <span class="status-text" id="recordingStatus">Ready</span>
           </div>
+          <div class="timer-display" id="timer">00:00</div>
         </div>
-      </div>
+      </header>
 
-      <div class="main-content">
-        <div class="control-section">
-          <button
-            id="startRecordBtn"
-            class="control-btn start-btn">
-            <span class="btn-icon">🔴</span>
-            <span class="btn-text">Start Recording</span>
-          </button>
+      <!-- Main Content -->
+      <main class="studio-main">
+        <!-- Recording Control Center -->
+        <section class="recording-center">
+          <div class="recording-ring" id="recordingRing">
+            <div class="ring-glow"></div>
+            <button class="record-btn" id="startRecordBtn">
+              <div class="record-btn-inner">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="record-icon" id="recordIcon">
+                  <circle cx="12" cy="12" r="8"></circle>
+                </svg>
+                <svg viewBox="0 0 24 24" fill="currentColor" class="stop-icon hidden" id="stopIcon">
+                  <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                </svg>
+              </div>
+            </button>
+          </div>
+          <div class="recording-label" id="recordingLabel">Click to Start Recording</div>
 
-          <button
-            id="stopRecordBtn"
-            class="control-btn stop-btn"
-            disabled>
-            <span class="btn-icon">⏹️</span>
-            <span class="btn-text">Stop Recording</span>
-          </button>
-        </div>
+          <!-- Waveform Visualization -->
+          <div class="waveform" id="waveform">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+        </section>
 
-        <div class="instructions">
-          <div
-            id="initialInstructions"
-            class="instruction-set">
-            <h3>🎬 Complete Screen Recording & Editing Flow ✨</h3>
-            <ol>
-              <li>
-                🔴 <strong>Record:</strong> Click "Start Recording" below and
-                choose screen/window/tab
-              </li>
-              <li>
-                🎤 <strong>Present:</strong> Start your presentation, demo, or
-                tutorial
-              </li>
-              <li>
-                ⏹️ <strong>Stop:</strong> Click "Stop Recording" when finished
-              </li>
-              <li>
-                🎞️ <strong>Edit:</strong> Automatically opens video editor with
-                trim, crop, and speed controls
-              </li>
-              <li>
-                🎨 <strong>Customize:</strong> Adjust video length, crop area, and
-                playback speed
-              </li>
-              <li>
-                📥 <strong>Export:</strong> Download edited video instantly - 100%
-                local, no cloud!
-              </li>
-            </ol>
-            <div class="feature-highlights">
-              <div class="feature">
-                <span class="feature-icon">✂️</span>
-                <span class="feature-text">Trim unwanted parts</span>
+        <!-- Instructions Panel -->
+        <section class="info-panel" id="initialInstructions">
+          <div class="panel-header">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 16v-4"></path>
+                <path d="M12 8h.01"></path>
+              </svg>
+            </div>
+            <h2>How It Works</h2>
+          </div>
+          <div class="steps-grid">
+            <div class="step-card">
+              <div class="step-number">1</div>
+              <div class="step-content">
+                <h3>Record</h3>
+                <p>Click the button above and choose your screen, window, or tab</p>
               </div>
-              <div class="feature">
-                <span class="feature-icon">🎯</span>
-                <span class="feature-text">Free-form crop</span>
+            </div>
+            <div class="step-card">
+              <div class="step-number">2</div>
+              <div class="step-content">
+                <h3>Present</h3>
+                <p>Start your presentation, demo, or tutorial</p>
               </div>
-              <div class="feature">
-                <span class="feature-icon">⚡</span>
-                <span class="feature-text">Speed adjustment (0.5x - 2x)</span>
+            </div>
+            <div class="step-card">
+              <div class="step-number">3</div>
+              <div class="step-content">
+                <h3>Edit</h3>
+                <p>Trim, crop, and adjust speed in the built-in editor</p>
               </div>
-              <div class="feature">
-                <span class="feature-icon">💾</span>
-                <span class="feature-text">Local download only</span>
+            </div>
+            <div class="step-card">
+              <div class="step-number">4</div>
+              <div class="step-content">
+                <h3>Export</h3>
+                <p>Download instantly - 100% local, no cloud</p>
               </div>
             </div>
           </div>
+        </section>
 
-          <div
-            id="recordingInstructions"
-            class="instruction-set hidden">
-            <h3>🔴 Recording in progress... 🎬</h3>
-            <p>
-              Your screen is being recorded. Click "Stop Recording" when you're
-              finished, or use the system stop button.
-            </p>
-            <div class="recording-info">
-              <p>
-                🔒 <strong>Privacy Notice:</strong> Your recording stays completely
-                local on your device. Nothing is uploaded to any cloud or
-                server. 💯
-              </p>
+        <!-- Recording Active Panel -->
+        <section class="info-panel recording-panel hidden" id="recordingInstructions">
+          <div class="panel-header">
+            <div class="panel-icon recording-active">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="8"></circle>
+              </svg>
+            </div>
+            <h2>Recording in Progress</h2>
+          </div>
+          <div class="recording-info-content">
+            <p>Your screen is being recorded. Click the stop button when you're finished.</p>
+            <div class="privacy-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>100% Local - Nothing uploaded to any server</span>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="footer">
-        <p>✨ LoomLess ✨ Minimalist 🎯 Forever Free 💝 Privacy-First 🔒</p>
-        <div class="credit">
-          Built with 💜 by
-          <a
-            href="https://moayaan.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            >♦moayaan.eth♦</a
-          >
-        </div>
-      </div>
+        <!-- Features Grid -->
+        <section class="features-section" id="featuresSection">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <span>Speed Control</span>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+              </svg>
+            </div>
+            <span>Free Crop</span>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </div>
+            <span>Trim & Cut</span>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <span>Privacy First</span>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer class="studio-footer">
+        <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="credit-link">
+          Built by moayaan.eth
+        </a>
+      </footer>
     </div>
 
     <script src="storage.js"></script>

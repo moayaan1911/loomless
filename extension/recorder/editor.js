@@ -1,5 +1,5 @@
 /**
- * LoomLess Video Editor
+ * LoomLess Studio - Professional Video Editor
  * Handles video editing functionality including trim, crop, speed, and format conversion
  */
 
@@ -9,7 +9,8 @@
 let videoPlayer,
   videoLoading,
   timelineTrack,
-  timelineProgress,
+  playhead,
+  trimRegion,
   trimStartHandle,
   trimEndHandle,
   trimStartBtn,
@@ -20,16 +21,27 @@ let videoPlayer,
   statusText,
   statusProgress,
   statusProgressBar,
-  speedButtons,
-  cropButtons,
+  speedSlider,
+  speedValue,
+  presetButtons,
   formatButtons,
-  videoInfo,
   infoDuration,
   infoSize,
   infoTrimmed,
   cropOverlay,
   cropSelection,
-  cropModeBtn;
+  cropModeBtn,
+  cropDimensionsText,
+  panelTabs,
+  panelContents,
+  currentTimeDisplay,
+  totalTimeDisplay,
+  playPauseBtn,
+  playIcon,
+  pauseIcon,
+  stopBtn,
+  skipBackBtn,
+  skipForwardBtn;
 
 // Video state
 let currentRecording = null;
@@ -49,12 +61,42 @@ let cropDragStart = { x: 0, y: 0 };
 let cropSelectionRect = { x: 0, y: 0, width: 0, height: 0 };
 let cropResizeHandle = null;
 
+// Theme toggle element
+let themeToggle;
+
 // Initialize when DOM is loaded
 document.addEventListener("DOMContentLoaded", async function () {
   initializeElements();
   setupEventListeners();
+  initializeTheme();
   await loadVideoFromStorage();
 });
+
+/**
+ * Initialize theme from localStorage or system preference
+ */
+function initializeTheme() {
+  const savedTheme = localStorage.getItem("loomless-theme");
+
+  if (savedTheme) {
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  } else {
+    // Check system preference
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+  }
+}
+
+/**
+ * Toggle between light and dark themes
+ */
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute("data-theme");
+  const newTheme = currentTheme === "light" ? "dark" : "light";
+
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("loomless-theme", newTheme);
+}
 
 /**
  * Initialize DOM element references
@@ -63,7 +105,8 @@ function initializeElements() {
   videoPlayer = document.getElementById("videoPlayer");
   videoLoading = document.getElementById("videoLoading");
   timelineTrack = document.getElementById("timelineTrack");
-  timelineProgress = document.getElementById("timelineProgress");
+  playhead = document.getElementById("playhead");
+  trimRegion = document.getElementById("trimRegion");
   trimStartHandle = document.getElementById("trimStartHandle");
   trimEndHandle = document.getElementById("trimEndHandle");
   trimStartBtn = document.getElementById("trimStartBtn");
@@ -76,13 +119,12 @@ function initializeElements() {
   statusProgressBar = document.getElementById("statusProgressBar");
 
   // Speed controls
-  speedButtons = document.querySelectorAll(".speed-btn");
-
-  // Crop controls
-  cropButtons = document.querySelectorAll(".crop-btn");
+  speedSlider = document.getElementById("speedSlider");
+  speedValue = document.getElementById("speedValue");
+  presetButtons = document.querySelectorAll(".preset-btn");
 
   // Format controls
-  formatButtons = document.querySelectorAll(".format-btn");
+  formatButtons = document.querySelectorAll(".format-option");
 
   // Video info
   infoDuration = document.getElementById("infoDuration");
@@ -93,6 +135,30 @@ function initializeElements() {
   cropOverlay = document.getElementById("cropOverlay");
   cropSelection = document.getElementById("cropSelection");
   cropModeBtn = document.getElementById("cropModeBtn");
+  cropDimensionsText = document.getElementById("cropDimensionsText");
+
+  // Panel tabs
+  panelTabs = document.querySelectorAll(".panel-tab");
+  panelContents = {
+    speed: document.getElementById("speedPanel"),
+    crop: document.getElementById("cropPanel"),
+    export: document.getElementById("exportPanel"),
+  };
+
+  // Time display
+  currentTimeDisplay = document.getElementById("currentTime");
+  totalTimeDisplay = document.getElementById("totalTime");
+
+  // Playback controls
+  playPauseBtn = document.getElementById("playPauseBtn");
+  playIcon = document.getElementById("playIcon");
+  pauseIcon = document.getElementById("pauseIcon");
+  stopBtn = document.getElementById("stopBtn");
+  skipBackBtn = document.getElementById("skipBackBtn");
+  skipForwardBtn = document.getElementById("skipForwardBtn");
+
+  // Theme toggle
+  themeToggle = document.getElementById("themeToggle");
 }
 
 /**
@@ -103,6 +169,14 @@ function setupEventListeners() {
   videoPlayer.addEventListener("loadedmetadata", handleVideoLoaded);
   videoPlayer.addEventListener("timeupdate", updateTimelineProgress);
   videoPlayer.addEventListener("ended", handleVideoEnded);
+  videoPlayer.addEventListener("play", updatePlayPauseIcon);
+  videoPlayer.addEventListener("pause", updatePlayPauseIcon);
+
+  // Playback controls
+  playPauseBtn.addEventListener("click", togglePlayPause);
+  stopBtn.addEventListener("click", stopVideo);
+  skipBackBtn.addEventListener("click", () => skipTime(-5));
+  skipForwardBtn.addEventListener("click", () => skipTime(5));
 
   // Timeline interactions
   timelineTrack.addEventListener("click", handleTimelineClick);
@@ -122,13 +196,9 @@ function setupEventListeners() {
   resetTrimBtn.addEventListener("click", resetTrim);
 
   // Speed controls
-  speedButtons.forEach((btn) => {
-    btn.addEventListener("click", handleSpeedChange);
-  });
-
-  // Crop controls
-  cropButtons.forEach((btn) => {
-    btn.addEventListener("click", handleCropChange);
+  speedSlider.addEventListener("input", handleSpeedSlider);
+  presetButtons.forEach((btn) => {
+    btn.addEventListener("click", handleSpeedPreset);
   });
 
   // Format controls
@@ -147,12 +217,141 @@ function setupEventListeners() {
   document.addEventListener("mousemove", handleCropDrag);
   document.addEventListener("mouseup", stopCropDrag);
 
+  // Panel tabs
+  panelTabs.forEach((tab) => {
+    tab.addEventListener("click", handlePanelTabClick);
+  });
+
   // Window resize to update crop overlay size
   window.addEventListener("resize", () => {
     if (videoPlayer && videoPlayer.videoWidth) {
       initializeCropOverlay();
     }
   });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", handleKeyboardShortcuts);
+
+  // Theme toggle
+  themeToggle.addEventListener("click", toggleTheme);
+}
+
+/**
+ * Handle keyboard shortcuts
+ */
+function handleKeyboardShortcuts(event) {
+  // Don't trigger if typing in an input
+  if (event.target.tagName === "INPUT") return;
+
+  switch (event.code) {
+    case "Space":
+      event.preventDefault();
+      togglePlayPause();
+      break;
+    case "ArrowLeft":
+      skipTime(-5);
+      break;
+    case "ArrowRight":
+      skipTime(5);
+      break;
+    case "KeyI":
+      setTrimStart();
+      break;
+    case "KeyO":
+      setTrimEnd();
+      break;
+  }
+}
+
+/**
+ * Toggle play/pause
+ */
+function togglePlayPause() {
+  if (videoPlayer.paused) {
+    videoPlayer.play();
+  } else {
+    videoPlayer.pause();
+  }
+}
+
+/**
+ * Update play/pause icon
+ */
+function updatePlayPauseIcon() {
+  if (videoPlayer.paused) {
+    playIcon.classList.remove("hidden");
+    pauseIcon.classList.add("hidden");
+  } else {
+    playIcon.classList.add("hidden");
+    pauseIcon.classList.remove("hidden");
+  }
+}
+
+/**
+ * Stop video
+ */
+function stopVideo() {
+  videoPlayer.pause();
+  videoPlayer.currentTime = trimStartTime;
+}
+
+/**
+ * Skip time
+ */
+function skipTime(seconds) {
+  const newTime = Math.max(0, Math.min(videoPlayer.duration, videoPlayer.currentTime + seconds));
+  videoPlayer.currentTime = newTime;
+}
+
+/**
+ * Handle panel tab click
+ */
+function handlePanelTabClick(event) {
+  const tabName = event.target.dataset.panel;
+
+  // Update tab states
+  panelTabs.forEach((tab) => tab.classList.remove("active"));
+  event.target.classList.add("active");
+
+  // Update panel visibility
+  Object.entries(panelContents).forEach(([name, panel]) => {
+    if (name === tabName) {
+      panel.classList.remove("hidden");
+    } else {
+      panel.classList.add("hidden");
+    }
+  });
+}
+
+/**
+ * Handle speed slider
+ */
+function handleSpeedSlider(event) {
+  const speed = parseFloat(event.target.value);
+  playbackSpeed = speed;
+  videoPlayer.playbackRate = speed;
+  speedValue.textContent = `${speed.toFixed(1)}x`;
+
+  // Update preset buttons
+  presetButtons.forEach((btn) => {
+    const btnSpeed = parseFloat(btn.dataset.speed);
+    btn.classList.toggle("active", btnSpeed === speed);
+  });
+}
+
+/**
+ * Handle speed preset
+ */
+function handleSpeedPreset(event) {
+  const speed = parseFloat(event.target.dataset.speed);
+  playbackSpeed = speed;
+  videoPlayer.playbackRate = speed;
+  speedSlider.value = speed;
+  speedValue.textContent = `${speed.toFixed(1)}x`;
+
+  // Update preset buttons
+  presetButtons.forEach((btn) => btn.classList.remove("active"));
+  event.target.classList.add("active");
 }
 
 /**
@@ -263,10 +462,64 @@ async function handleVideoLoaded() {
   // Update video info
   updateVideoInfo();
 
+  // Update time displays
+  updateTimeDisplays();
+
+  // Generate timeline visualization
+  generateTimelineRuler(duration);
+
   // Show success message
   showStatus("Video loaded successfully!", "success");
 
   console.log("Video duration:", duration);
+}
+
+/**
+ * Generate timeline ruler marks
+ */
+function generateTimelineRuler(duration) {
+  const rulerMarks = document.getElementById("rulerMarks");
+  if (!rulerMarks) return;
+
+  rulerMarks.innerHTML = "";
+
+  // Create marks at regular intervals
+  const markCount = Math.min(10, Math.ceil(duration));
+  for (let i = 0; i <= markCount; i++) {
+    const time = (duration / markCount) * i;
+    const mark = document.createElement("span");
+    mark.textContent = formatTimePrecise(time);
+    mark.style.fontSize = "10px";
+    mark.style.color = "var(--text-muted)";
+    rulerMarks.appendChild(mark);
+  }
+}
+
+/**
+ * Update time displays
+ */
+function updateTimeDisplays() {
+  if (!videoPlayer) return;
+
+  const current = videoPlayer.currentTime || 0;
+  const total = Number.isFinite(videoPlayer.duration) ? videoPlayer.duration : trimEndTime;
+
+  currentTimeDisplay.textContent = formatTimePrecise(current);
+  totalTimeDisplay.textContent = formatTimePrecise(total);
+}
+
+/**
+ * Format time with centiseconds
+ */
+function formatTimePrecise(seconds) {
+  if (!Number.isFinite(seconds) || Number.isNaN(seconds)) {
+    return "00:00.00";
+  }
+  const safeSeconds = Math.max(0, seconds);
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = Math.floor(safeSeconds % 60);
+  const cs = Math.floor((safeSeconds % 1) * 100);
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -297,7 +550,12 @@ function updateVideoInfo() {
       ? trimEndTime
       : durationSeconds;
   const trimmedEnd = formatTime(endSeconds);
-  infoTrimmed.textContent = `${trimmedStart} to ${trimmedEnd}`;
+
+  if (trimStartTime === 0 && trimEndTime === durationSeconds) {
+    infoTrimmed.textContent = "Full";
+  } else {
+    infoTrimmed.textContent = `${trimmedStart} - ${trimmedEnd}`;
+  }
 }
 
 /**
@@ -324,16 +582,17 @@ function initializeCropOverlay() {
 function createDefaultCropSelection() {
   const overlayRect = cropOverlay.getBoundingClientRect();
 
-  // Create a centered square that's 70% of the smaller dimension
-  const size = Math.min(overlayRect.width, overlayRect.height) * 0.7;
-  const x = (overlayRect.width - size) / 2;
-  const y = (overlayRect.height - size) / 2;
+  // Create a centered rectangle that's 70% of the dimensions
+  const width = overlayRect.width * 0.7;
+  const height = overlayRect.height * 0.7;
+  const x = (overlayRect.width - width) / 2;
+  const y = (overlayRect.height - height) / 2;
 
   cropSelectionRect = {
     x: x,
     y: y,
-    width: size,
-    height: size,
+    width: width,
+    height: height,
   };
 
   updateCropSelectionDisplay();
@@ -391,14 +650,30 @@ function updateTimelineProgress() {
     return;
 
   const percentage = (videoPlayer.currentTime / videoPlayer.duration) * 100;
-  timelineProgress.style.width = `${percentage}%`;
 
-  // Update trim handle positions
+  // Update playhead position
+  if (playhead) {
+    playhead.style.left = `${percentage}%`;
+  }
+
+  // Update trim region
   const startPercentage = (trimStartTime / videoPlayer.duration) * 100;
   const endPercentage = (trimEndTime / videoPlayer.duration) * 100;
 
-  trimStartHandle.style.left = `${startPercentage}%`;
-  trimEndHandle.style.right = `${100 - endPercentage}%`;
+  if (trimRegion) {
+    trimRegion.style.left = `${startPercentage}%`;
+    trimRegion.style.right = `${100 - endPercentage}%`;
+  }
+
+  if (trimStartHandle) {
+    trimStartHandle.style.left = `${startPercentage}%`;
+  }
+  if (trimEndHandle) {
+    trimEndHandle.style.right = `${100 - endPercentage}%`;
+  }
+
+  // Update time displays
+  updateTimeDisplays();
 }
 
 /**
@@ -406,7 +681,7 @@ function updateTimelineProgress() {
  */
 function startTrimDrag(event) {
   isDraggingTrim = true;
-  draggedHandle = event.target.id === "trimStartHandle" ? "start" : "end";
+  draggedHandle = event.target.closest(".trim-handle").id === "trimStartHandle" ? "start" : "end";
   event.preventDefault();
 }
 
@@ -422,15 +697,16 @@ function handleTrimDrag(event) {
   const time = percentage * videoPlayer.duration;
 
   if (draggedHandle === "start") {
-    trimStartTime = Math.max(0, Math.min(time, trimEndTime - 1));
+    trimStartTime = Math.max(0, Math.min(time, trimEndTime - 0.5));
   } else {
     trimEndTime = Math.min(
       videoPlayer.duration,
-      Math.max(time, trimStartTime + 1)
+      Math.max(time, trimStartTime + 0.5)
     );
   }
 
   updateVideoInfo();
+  updateTimelineProgress();
 }
 
 /**
@@ -448,9 +724,10 @@ function setTrimStart() {
   if (!videoPlayer.duration) return;
   trimStartTime = Math.max(
     0,
-    Math.min(videoPlayer.currentTime, trimEndTime - 1)
+    Math.min(videoPlayer.currentTime, trimEndTime - 0.5)
   );
   updateVideoInfo();
+  updateTimelineProgress();
   showStatus("Trim start set", "success");
 }
 
@@ -461,9 +738,10 @@ function setTrimEnd() {
   if (!videoPlayer.duration) return;
   trimEndTime = Math.min(
     videoPlayer.duration,
-    Math.max(videoPlayer.currentTime, trimStartTime + 1)
+    Math.max(videoPlayer.currentTime, trimStartTime + 0.5)
   );
   updateVideoInfo();
+  updateTimelineProgress();
   showStatus("Trim end set", "success");
 }
 
@@ -475,24 +753,8 @@ function resetTrim() {
   trimStartTime = 0;
   trimEndTime = videoPlayer.duration;
   updateVideoInfo();
+  updateTimelineProgress();
   showStatus("Trim reset", "success");
-}
-
-/**
- * Handle playback speed change
- */
-function handleSpeedChange(event) {
-  const speed = parseFloat(event.target.dataset.speed);
-
-  // Update UI
-  speedButtons.forEach((btn) => btn.classList.remove("active"));
-  event.target.classList.add("active");
-
-  // Update video speed
-  playbackSpeed = speed;
-  videoPlayer.playbackRate = speed;
-
-  showStatus(`Playback speed set to ${speed}x`, "success");
 }
 
 /**
@@ -501,84 +763,45 @@ function handleSpeedChange(event) {
 function toggleCropMode() {
   isCropModeActive = !isCropModeActive;
 
-  const cropControls = document.querySelector(".crop-controls");
-
   if (isCropModeActive) {
     cropModeBtn.classList.add("active");
     cropOverlay.classList.add("active");
-    cropControls.classList.add("crop-mode-active");
 
-    // Update button text to indicate it's active
-    cropModeBtn.innerHTML =
-      '<span class="btn-icon">✂️</span><span class="btn-text">Crop Active - Adjust Area</span>';
-
-    // Show instructions overlay
-    const instructions = cropOverlay.querySelector(
-      ".crop-instructions-overlay"
-    );
-    if (instructions) instructions.style.display = "block";
+    // Update button text
+    cropModeBtn.querySelector("span").textContent = "Disable Crop";
 
     // Create default crop selection immediately
     createDefaultCropSelection();
 
-    showStatus(
-      "Adjust the crop area using the handles or drag to move",
-      "info"
-    );
+    showStatus("Adjust the crop area using the handles", "info");
   } else {
     cropModeBtn.classList.remove("active");
     cropOverlay.classList.remove("active");
-    cropControls.classList.remove("crop-mode-active");
 
     // Reset button text
-    cropModeBtn.innerHTML =
-      '<span class="btn-icon">✂️</span><span class="btn-text">Free Crop</span>';
-
-    // Hide instructions overlay
-    const instructions = cropOverlay.querySelector(
-      ".crop-instructions-overlay"
-    );
-    if (instructions) instructions.style.display = "none";
+    cropModeBtn.querySelector("span").textContent = "Enable Free Crop";
 
     // Clear crop selection
     cropSelectionRect = { x: 0, y: 0, width: 0, height: 0 };
+    cropSettings = { aspect: "none", x: 0, y: 0, width: 0, height: 0 };
     updateCropSelectionDisplay();
 
-    showStatus("Crop mode deactivated", "info");
+    showStatus("Crop mode disabled", "info");
   }
-}
-
-/**
- * Handle crop change
- */
-function handleCropChange(event) {
-  const aspect = event.target.dataset.aspect;
-
-  // Update UI
-  cropButtons.forEach((btn) => btn.classList.remove("active"));
-  event.target.classList.add("active");
-
-  // Update crop settings
-  cropSettings.aspect = aspect;
-
-  // Reset free crop selection if using presets
-  if (aspect !== "none") {
-    cropSelectionRect = { x: 0, y: 0, width: 0, height: 0 };
-    updateCropSelectionDisplay();
-  }
-
-  showStatus(`Crop set to ${aspect}`, "success");
 }
 
 /**
  * Handle format change
  */
 function handleFormatChange(event) {
-  const format = event.target.dataset.format;
+  const btn = event.target.closest(".format-option");
+  if (!btn) return;
+
+  const format = btn.dataset.format;
 
   // Update UI
-  formatButtons.forEach((btn) => btn.classList.remove("active"));
-  event.target.classList.add("active");
+  formatButtons.forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
 
   // Update export format
   exportFormat = format;
@@ -838,6 +1061,30 @@ function updateCropSelectionDisplay() {
     cropSelection.style.width = `${cropSelectionRect.width}px`;
     cropSelection.style.height = `${cropSelectionRect.height}px`;
     cropSelection.style.display = "block";
+
+    // Update dimensions display
+    if (cropDimensionsText && videoPlayer.videoWidth) {
+      const scaleX = videoPlayer.videoWidth / cropOverlay.clientWidth;
+      const scaleY = videoPlayer.videoHeight / cropOverlay.clientHeight;
+      const w = Math.round(cropSelectionRect.width * scaleX);
+      const h = Math.round(cropSelectionRect.height * scaleY);
+      cropDimensionsText.textContent = `${w} x ${h}`;
+    }
+
+    // Update input fields
+    const cropX = document.getElementById("cropX");
+    const cropY = document.getElementById("cropY");
+    const cropWidth = document.getElementById("cropWidth");
+    const cropHeight = document.getElementById("cropHeight");
+
+    if (cropX && videoPlayer.videoWidth) {
+      const scaleX = videoPlayer.videoWidth / cropOverlay.clientWidth;
+      const scaleY = videoPlayer.videoHeight / cropOverlay.clientHeight;
+      cropX.value = Math.round(cropSelectionRect.x * scaleX);
+      cropY.value = Math.round(cropSelectionRect.y * scaleY);
+      cropWidth.value = Math.round(cropSelectionRect.width * scaleX);
+      cropHeight.value = Math.round(cropSelectionRect.height * scaleY);
+    }
   } else {
     cropSelection.style.display = "none";
   }
@@ -849,7 +1096,6 @@ function updateCropSelectionDisplay() {
 function updateCropSettingsFromSelection() {
   // Convert pixel coordinates to video coordinates
   const videoRect = videoPlayer.getBoundingClientRect();
-  const overlayRect = cropOverlay.getBoundingClientRect();
 
   // Calculate scale factors
   const scaleX = videoPlayer.videoWidth / videoRect.width;
@@ -861,11 +1107,6 @@ function updateCropSettingsFromSelection() {
   cropSettings.width = Math.round(cropSelectionRect.width * scaleX);
   cropSettings.height = Math.round(cropSelectionRect.height * scaleY);
   cropSettings.aspect = "custom";
-
-  // Update UI to show custom crop is selected
-  // Note: No preset crop buttons to update since we use free-form cropping
-
-  showStatus("Custom crop area selected", "success");
 }
 
 /**
@@ -946,16 +1187,16 @@ async function handleDownload() {
 
     // Disable ALL buttons during processing
     downloadBtn.disabled = true;
-    downloadBtn.innerHTML =
-      '<span class="btn-icon">⏳</span><span class="btn-text">Processing...</span>';
+    downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"></circle></svg><span>Processing...</span>';
 
     // Disable trim buttons
     trimStartBtn.disabled = true;
     trimEndBtn.disabled = true;
     resetTrimBtn.disabled = true;
 
-    // Disable speed buttons
-    speedButtons.forEach((btn) => (btn.disabled = true));
+    // Disable speed slider and presets
+    speedSlider.disabled = true;
+    presetButtons.forEach((btn) => (btn.disabled = true));
 
     // Disable crop button
     cropModeBtn.disabled = true;
@@ -1095,16 +1336,16 @@ async function handleDownload() {
 
         // Re-enable ALL buttons
         downloadBtn.disabled = false;
-        downloadBtn.innerHTML =
-          '<span class="btn-icon">⬇️</span><span class="btn-text">Download</span>';
+        downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Export</span>';
 
         // Re-enable trim buttons
         trimStartBtn.disabled = false;
         trimEndBtn.disabled = false;
         resetTrimBtn.disabled = false;
 
-        // Re-enable speed buttons
-        speedButtons.forEach((btn) => (btn.disabled = false));
+        // Re-enable speed controls
+        speedSlider.disabled = false;
+        presetButtons.forEach((btn) => (btn.disabled = false));
 
         // Re-enable crop button
         cropModeBtn.disabled = false;
@@ -1113,7 +1354,7 @@ async function handleDownload() {
         formatButtons.forEach((btn) => (btn.disabled = false));
       }, 1000);
 
-      showStatus("Video downloaded successfully!", "success");
+      showStatus("Video exported successfully!", "success");
 
       // Clean up storage
       setTimeout(async () => {
@@ -1217,16 +1458,16 @@ async function handleDownload() {
 
     // Re-enable ALL buttons on error
     downloadBtn.disabled = false;
-    downloadBtn.innerHTML =
-      '<span class="btn-icon">⬇️</span><span class="btn-text">Download</span>';
+    downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Export</span>';
 
     // Re-enable trim buttons
     trimStartBtn.disabled = false;
     trimEndBtn.disabled = false;
     resetTrimBtn.disabled = false;
 
-    // Re-enable speed buttons
-    speedButtons.forEach((btn) => (btn.disabled = false));
+    // Re-enable speed controls
+    speedSlider.disabled = false;
+    presetButtons.forEach((btn) => (btn.disabled = false));
 
     // Re-enable crop button
     cropModeBtn.disabled = false;
@@ -1258,7 +1499,7 @@ function handleVideoEnded() {
  */
 function showStatus(message, type = "info", withProgress = false) {
   statusText.textContent = message;
-  statusMessage.className = `status-message ${type}`;
+  statusMessage.className = `status-toast ${type}`;
   statusMessage.classList.remove("hidden");
 
   if (withProgress && statusProgress) {
