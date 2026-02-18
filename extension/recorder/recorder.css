@@ -717,6 +717,130 @@ body {
   background: var(--border-default);
 }
 
+/* Mode Selector */
+.mode-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: opacity 0.3s ease;
+}
+
+.mode-selector-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+  color: var(--text-secondary);
+}
+
+.mode-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.mode-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mode-btn svg:first-child {
+  display: block;
+}
+
+.mode-btn .mode-icon-secondary {
+  width: 14px;
+  height: 14px;
+  margin-left: -4px;
+}
+
+.mode-btn span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Camera Preview Container */
+.camera-preview-container {
+  position: fixed;
+  bottom: 100px;
+  right: 30px;
+  z-index: 100;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  animation: fadeSlideUp 0.4s var(--ease-out);
+}
+
+.camera-preview-container.dragging {
+  cursor: grabbing;
+}
+
+.camera-preview-container.hidden {
+  display: none;
+}
+
+.camera-preview {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+  transform: scaleX(-1); /* Mirror for natural view */
+  border: 3px solid var(--accent-primary);
+  box-shadow:
+    0 0 0 4px var(--bg-primary),
+    0 8px 32px rgba(99, 102, 241, 0.3);
+  background: var(--bg-tertiary);
+}
+
+/* Recording state adjustments for mode selector */
+.studio-container.recording .mode-selector {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Light theme adjustments for new elements */
+[data-theme="light"] .mode-buttons {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="light"] .mode-btn.active {
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+[data-theme="light"] .camera-preview {
+  box-shadow:
+    0 0 0 4px var(--bg-primary),
+    0 8px 32px rgba(99, 102, 241, 0.2);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .studio-header {
@@ -765,5 +889,30 @@ body {
 
   .feature-card {
     justify-content: center;
+  }
+
+  /* Mode selector responsive */
+  .mode-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .mode-btn {
+    padding: 8px 12px;
+  }
+
+  .mode-btn span {
+    font-size: 12px;
+  }
+
+  /* Camera preview responsive */
+  .camera-preview-container {
+    bottom: 80px;
+    right: 16px;
+  }
+
+  .camera-preview {
+    width: 120px;
+    height: 120px;
   }
 }

@@ -15,10 +15,6 @@ Assalamualaikum guys! 🙌 This is Mohammad Ayaan Siddiqui (♦moayaan.eth♦). 
 
 Let’s connect and build something epic! Find me at [moayaan.com](https://moayaan.com) 🌐
 
-If you liked this project, please donate to Gaza 🇵🇸 [UNRWA Donation Link](https://donate.unrwa.org/-landing-page/en_EN)
-
-Happy coding, fam! 😎✨
-
 ---
 
 # 🎬 LoomLess
@@ -32,6 +28,7 @@ Happy coding, fam! 😎✨
 **✨ Minimalist • 🔒 Private • 💸 Forever Free ✨**
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install_Now-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj)
+[![Website](https://img.shields.io/badge/Website-loomless.fun-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://loomless.fun)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Support](https://img.shields.io/badge/Support_My_Work-💜_Donate-ff69b4?style=for-the-badge)](https://moayaan.com/donate)
 
@@ -56,6 +53,8 @@ Happy coding, fam! 😎✨
 </div>
 
 **LoomLess** is a powerful yet minimalist screen recording Chrome extension designed for users who value **privacy**, **simplicity**, and **freedom**. In a world where most tools require accounts, subscriptions, and upload your data to the cloud, LoomLess takes a radically different approach.
+
+Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots, and the latest updates.
 
 ### 🤔 Why LoomLess?
 
@@ -106,9 +105,23 @@ Happy coding, fam! 😎✨
 | 🖱️ **One-Click Recording** | Start recording instantly with a single click         |
 | 🖥️ **Flexible Capture**    | Record entire screen, specific window, or browser tab |
 | 🔊 **Audio Support**       | Capture system audio along with video                 |
+| 🎙️ **Microphone Support**  | Record your voice narration simultaneously            |
 | ⏱️ **Unlimited Duration**  | Record as long as you need - no time limits           |
 | 🎯 **High Quality**        | Crystal clear recordings at native resolution         |
 | ⚡ **Lightweight**         | Minimal CPU/memory footprint                          |
+
+<div align="center">
+
+### 📷 **Webcam Overlay** _(New in v3.5!)_
+
+</div>
+
+| Feature                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| 📷 **Camera Overlay**     | Show your webcam feed as a draggable circle over the screen |
+| 🖱️ **Drag to Reposition** | Move the camera bubble anywhere on screen before recording  |
+| 🎭 **Smart Compositing**  | Automatically handles all capture modes without duplication |
+| 🔇 **Mic + Cam Combo**    | Record screen, webcam, and microphone all at once           |
 
 <div align="center">
 
@@ -152,6 +165,8 @@ Happy coding, fam! 😎✨
 </div>
 
 Just click the button above and hit **"Add to Chrome"** - that's it! 🎉
+
+Or visit **[loomless.fun](https://loomless.fun)** to learn more before installing.
 
 ### 🛠️ Option 2: Manual Installation (For Developers)
 
@@ -208,23 +223,29 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 │                                                                  │
 │   1️⃣  Click LoomLess icon in toolbar                             │
 │                    ↓                                             │
-│   2️⃣  Click "Start Recording" button                             │
+│   2️⃣  Choose recording mode:                                     │
+│       • 🖥️  Screen only                                          │
+│       • 🎙️  Screen + Mic                                         │
+│       • 📷  Screen + Camera                                       │
+│       • 🎙️📷 Screen + Mic + Camera                               │
 │                    ↓                                             │
-│   3️⃣  Choose what to record:                                     │
+│   3️⃣  (Optional) Drag camera bubble to desired position          │
+│                    ↓                                             │
+│   4️⃣  Click "Start Recording" & choose capture source:           │
 │       • 🖥️  Entire Screen                                        │
 │       • 🪟  Application Window                                    │
 │       • 🌐  Browser Tab                                           │
 │                    ↓                                             │
-│   4️⃣  Record your content                                        │
+│   5️⃣  Record your content                                        │
 │                    ↓                                             │
-│   5️⃣  Click "Stop Recording" when done                           │
+│   6️⃣  Click "Stop Recording" when done                           │
 │                    ↓                                             │
-│   6️⃣  Edit in built-in editor (optional)                         │
+│   7️⃣  Edit in built-in editor (optional)                         │
 │       • ✂️  Trim start/end                                        │
 │       • 🎯  Crop to focus area                                    │
 │       • ⚡  Adjust playback speed                                 │
 │                    ↓                                             │
-│   7️⃣  Download your video! 🎉                                    │
+│   8️⃣  Download your video! 🎉                                    │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -235,13 +256,14 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 
 </div>
 
-| Tip                       | Description                                       |
-| ------------------------- | ------------------------------------------------- |
-| 📌 **Pin the extension**  | Right-click extension icon → Pin for quick access |
-| 🎯 **Use tab recording**  | For best quality when recording browser content   |
-| ✂️ **Trim first**         | Remove mistakes before cropping                   |
-| ⚡ **Speed up tutorials** | Use 1.5x or 2x for faster walkthroughs            |
-| 📦 **Choose MP4**         | For better compatibility across devices           |
+| Tip                       | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| 📌 **Pin the extension**  | Right-click extension icon → Pin for quick access     |
+| 📷 **Position cam first** | Drag the camera bubble before hitting Start Recording |
+| 🎯 **Use tab recording**  | For best quality when recording browser content       |
+| ✂️ **Trim first**         | Remove mistakes before cropping                       |
+| ⚡ **Speed up tutorials** | Use 1.5x or 2x for faster walkthroughs                |
+| 📦 **Choose MP4**         | For better compatibility across devices               |
 
 ---
 
@@ -249,13 +271,14 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 
 <div align="center">
 
-| Technology                                                                                                              | Purpose            |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| ![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Core functionality |
-| ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?style=flat-square&logo=css3&logoColor=white)                   | Modern UI design   |
-| ![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?style=flat-square&logo=google-chrome&logoColor=white)  | Extension platform |
-| ![MediaRecorder](https://img.shields.io/badge/API-MediaRecorder-FF6B6B?style=flat-square)                               | Screen capture     |
-| ![Canvas](https://img.shields.io/badge/API-Canvas-9B59B6?style=flat-square)                                             | Video processing   |
+| Technology                                                                                                              | Purpose                    |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| ![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Core functionality         |
+| ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?style=flat-square&logo=css3&logoColor=white)                   | Modern UI design           |
+| ![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?style=flat-square&logo=google-chrome&logoColor=white)  | Extension platform         |
+| ![MediaRecorder](https://img.shields.io/badge/API-MediaRecorder-FF6B6B?style=flat-square)                               | Screen & audio capture     |
+| ![Canvas](https://img.shields.io/badge/API-Canvas-9B59B6?style=flat-square)                                             | Camera overlay compositing |
+| ![getUserMedia](https://img.shields.io/badge/API-getUserMedia-27AE60?style=flat-square)                                 | Webcam & microphone access |
 
 </div>
 
@@ -279,6 +302,7 @@ loomless/
 │   │   └── storage.js
 │   ├── background.js      # Service worker
 │   └── manifest.json      # Extension manifest
+├── 📂 website/            # Landing page (loomless.fun)
 ├── 📄 README.md
 └── 📄 LICENSE
 ```
@@ -295,7 +319,8 @@ loomless/
 | ✅     | Built-in video editor             |
 | ✅     | Trim, crop, and speed adjustment  |
 | ✅     | WebM and MP4 export               |
-| 🔜     | Webcam overlay support            |
+| ✅     | Webcam overlay support            |
+| ✅     | Microphone recording              |
 | 🔜     | Drawing/annotation tools          |
 | 🔜     | GIF export option                 |
 | 🔜     | Keyboard shortcuts                |
@@ -339,7 +364,7 @@ If LoomLess has helped you, consider supporting its development!
 
 🐛 **Report bugs** - Help make LoomLess better
 
-📢 **Spread the word** - Share with friends and colleagues
+📢 **Spread the word** - Share [loomless.fun](https://loomless.fun) with friends and colleagues
 
 💬 **Feedback** - Your suggestions shape the future of LoomLess
 
@@ -382,5 +407,7 @@ See [LICENSE](LICENSE) for details.
 ### 🎬 **LoomLess** - Screen Recording, Simplified.
 
 **Made with ❤️ for the privacy-conscious community**
+
+🌐 [loomless.fun](https://loomless.fun)
 
 </div>

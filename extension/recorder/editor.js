@@ -449,12 +449,19 @@ async function handleVideoLoaded() {
   // Hide loading indicator
   videoLoading.style.display = "none";
 
+  // Some browsers temporarily seek to a far timestamp during duration probing.
+  // Normalize playback state so first user click reliably starts playback.
+  videoPlayer.pause();
+  videoPlayer.currentTime = 0;
+
   // Compute a reliable finite duration
   const duration = await getFiniteDuration(videoPlayer);
 
   // Initialize trim times
   trimStartTime = 0;
   trimEndTime = duration;
+  videoPlayer.currentTime = trimStartTime;
+  updatePlayPauseIcon();
 
   // Initialize crop overlay size to match video
   initializeCropOverlay();
