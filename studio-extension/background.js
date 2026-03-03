@@ -1,7 +1,7 @@
-// Background service worker for LoomLess extension
+// Background service worker for LoomLess Studio extension
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("LoomLess extension installed");
+  console.log("LoomLess Studio extension installed");
 });
 
 // Handle messages from popup and other parts of the extension
@@ -51,10 +51,10 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Clean up when extension is disabled/removed
 chrome.runtime.onSuspend.addListener(() => {
-  console.log("LoomLess extension suspending");
+  console.log("LoomLess Studio extension suspending");
 });
 
 // Handle when extension context is invalidated
 chrome.runtime.onStartup.addListener(() => {
-  console.log("LoomLess extension starting up");
+  console.log("LoomLess Studio extension starting up");
 });

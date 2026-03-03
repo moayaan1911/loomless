@@ -25,7 +25,7 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 ### **The Privacy-First Screen Recorder**
 
-**✨ Minimalist • 🔒 Private • 💸 Forever Free ✨**
+**✨ Minimalist Recording Studio ✨**
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install_Now-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj)
 [![Website](https://img.shields.io/badge/Website-loomless.fun-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://loomless.fun)

@@ -5,3 +5,6 @@ AGENTS.md
 *.zip
 /my-video
 CLAUDE.md
+node_modules
+dist
+.env

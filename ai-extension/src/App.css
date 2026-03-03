@@ -1,0 +1,96 @@
+.app-shell {
+  min-width: 320px;
+  min-height: 300px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: center;
+  background: linear-gradient(145deg, #090e1d, #111b34);
+  color: #ecf1ff;
+}
+
+.logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: #aeb9d6;
+  font-size: 0.9rem;
+}
+
+.toggle-row {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  color: #eaf1ff;
+  font-weight: 600;
+}
+
+.toggle-btn {
+  width: 52px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.toggle-btn.on {
+  background: linear-gradient(130deg, #11b7ff, #2c71ff);
+}
+
+.toggle-btn.off {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.toggle-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.32);
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+}
+
+.toggle-btn.on .toggle-thumb {
+  transform: translateX(22px);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #9eaed4;
+}

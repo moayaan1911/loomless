@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "LoomLess AI",
+  "version": "0.2.0",
+  "description": "AI assistant from LoomLess with in-page floating controls.",
+  "action": {
+    "default_title": "LoomLess AI",
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "permissions": ["storage", "activeTab"],
+  "web_accessible_resources": [
+    {
+      "resources": ["icon.png"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
