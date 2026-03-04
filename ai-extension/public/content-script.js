@@ -18,7 +18,13 @@
   const WRITE_FORMAT_ID = "loomless-ai-write-format";
   const WRITE_PROMPT_ID = "loomless-ai-write-prompt";
   const WRITE_GENERATE_ID = "loomless-ai-write-generate";
+  const CHAT_PANEL_ID = "loomless-ai-chat-panel";
+  const CHAT_STATUS_ID = "loomless-ai-chat-status";
+  const CHAT_MESSAGES_ID = "loomless-ai-chat-messages";
+  const CHAT_INPUT_ID = "loomless-ai-chat-input";
+  const CHAT_SEND_ID = "loomless-ai-chat-send";
   let floatingEnabled = false;
+  let chatLoading = false;
 
   function createFloatingButton() {
     let button = document.getElementById(BUTTON_ID);
@@ -224,7 +230,7 @@
         offsetX: -60,
         offsetY: 34,
         onClick: () => {
-          showToast("Chat coming next.");
+          openChatPanel();
           removeRadialMenu();
         },
       },
@@ -263,6 +269,7 @@
   }
 
   async function runSummarizeFlow() {
+    closePanelsExcept(SUMMARY_PANEL_ID);
     const pageText = extractPageText();
     if (!pageText || pageText.length < 200) {
       showToast("Not enough readable text found on this page.");
@@ -334,9 +341,400 @@
   }
 
   function openWritePanel() {
-    document.getElementById(SUMMARY_PANEL_ID)?.remove();
+    closePanelsExcept(WRITE_PANEL_ID);
     const panel = ensureWritePanel();
     panel.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }
+
+  function openChatPage() {
+    try {
+      const chatUrl = chrome.runtime.getURL("chat.html");
+      window.open(chatUrl, "_blank", "noopener,noreferrer");
+    } catch (_error) {
+      showToast("Could not open chat page.");
+    }
+  }
+
+  function openChatPanel() {
+    closePanelsExcept(CHAT_PANEL_ID);
+    const panel = ensureChatPanel();
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }
+
+  function closePanelsExcept(exceptId) {
+    [SUMMARY_PANEL_ID, WRITE_PANEL_ID, CHAT_PANEL_ID].forEach((id) => {
+      if (id === exceptId) return;
+      document.getElementById(id)?.remove();
+    });
+  }
+
+  async function runChatFlow() {
+    if (chatLoading) return;
+
+    const input = document.getElementById(CHAT_INPUT_ID);
+    const prompt = (input?.value || "").trim();
+    if (!prompt) {
+      setChatState({
+        status: "Type your message first.",
+        loading: false,
+        error: true,
+      });
+      return;
+    }
+
+    appendChatMessage({
+      role: "user",
+      text: prompt,
+    });
+
+    if (input) input.value = "";
+
+    setChatState({
+      status: "Thinking...",
+      loading: true,
+      error: false,
+    });
+
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 340));
+      const reply = createChatPreviewReply(prompt);
+      appendChatMessage({
+        role: "assistant",
+        text: reply,
+      });
+
+      setChatState({
+        status: "Ready",
+        loading: false,
+        error: false,
+      });
+    } catch (error) {
+      setChatState({
+        status: "Chat failed",
+        loading: false,
+        error: true,
+      });
+
+      appendChatMessage({
+        role: "assistant",
+        text: error instanceof Error ? error.message : "Could not generate a response.",
+      });
+    }
+  }
+
+  function createChatPreviewReply(prompt) {
+    const cleanPrompt = prompt.trim();
+    const lowerPrompt = cleanPrompt.toLowerCase();
+    const pageTitle = document.title || "this page";
+    const contextSample = extractPageTextForModel()
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 40);
+
+    if (lowerPrompt.includes("summarize") || lowerPrompt.includes("summary")) {
+      return [
+        "### Quick Summary",
+        `- ✅ Main focus appears to be **${pageTitle}**.`,
+        "- ✅ You can ask me for short bullets, deep dive, or action items.",
+        contextSample
+          ? `- ✅ Context hint: ${trimToWords(contextSample, 14)}`
+          : "- ✅ I can summarize using either this page content or YouTube transcript when available.",
+        "",
+        "Ask: `Give me 4 bullet highlights with emojis.`",
+      ].join("\n");
+    }
+
+    if (
+      lowerPrompt.includes("email") ||
+      lowerPrompt.includes("message") ||
+      lowerPrompt.includes("reply") ||
+      lowerPrompt.includes("post")
+    ) {
+      return [
+        "### Writing Direction",
+        "- 🎯 Tell me your tone: professional, friendly, casual, confident, or persuasive.",
+        "- 🧩 Tell me output format: email, X post, LinkedIn post, or short message.",
+        "- ✍️ Add any must-include points and your desired length.",
+        "",
+        "Tip: You can also use the dedicated `Write` action for direct draft generation.",
+      ].join("\n");
+    }
+
+    return [
+      `Got it. We are on **${pageTitle}**.`,
+      "",
+      "I can help with:",
+      "- 🔹 Page summary",
+      "- 🔹 Rewriting text in a chosen tone",
+      "- 🔹 Quick drafting for email/posts/messages",
+      "",
+      "Try asking: `Summarize this page in 4 short bullets.`",
+    ].join("\n");
+  }
+
+  function ensureChatPanel() {
+    let panel = document.getElementById(CHAT_PANEL_ID);
+    if (panel) return panel;
+
+    panel = document.createElement("section");
+    panel.id = CHAT_PANEL_ID;
+
+    Object.assign(panel.style, {
+      position: "fixed",
+      right: "74px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      width: "390px",
+      maxWidth: "min(390px, calc(100vw - 110px))",
+      maxHeight: "80vh",
+      background: "rgba(7, 14, 30, 0.97)",
+      border: "1px solid rgba(118, 166, 255, 0.45)",
+      borderRadius: "16px",
+      boxShadow: "0 20px 40px rgba(3, 8, 18, 0.55)",
+      color: "#eaf1ff",
+      zIndex: "2147483646",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      backdropFilter: "blur(10px)",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+
+    const header = document.createElement("div");
+    Object.assign(header.style, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
+      padding: "12px 12px 10px",
+      borderBottom: "1px solid rgba(118, 166, 255, 0.28)",
+    });
+
+    const title = document.createElement("h3");
+    title.textContent = "Chat";
+    Object.assign(title.style, {
+      margin: "0",
+      fontSize: "13px",
+      letterSpacing: "0.03em",
+      textTransform: "uppercase",
+      color: "#c7d8ff",
+      fontWeight: "700",
+    });
+
+    const controls = document.createElement("div");
+    Object.assign(controls.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+    });
+
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.textContent = "Clear";
+    stylePanelButton(clearBtn);
+    clearBtn.addEventListener("click", () => {
+      const messagesNode = document.getElementById(CHAT_MESSAGES_ID);
+      if (messagesNode) {
+        messagesNode.innerHTML = "";
+      }
+      appendChatMessage({
+        role: "assistant",
+        text: [
+          "Hi, I am LoomLess AI.",
+          "",
+          "Ask me about this page. I can summarize, brainstorm, or help draft content.",
+        ].join("\n"),
+      });
+      setChatState({
+        status: "Ready",
+        loading: false,
+        error: false,
+      });
+    });
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    stylePanelButton(closeBtn);
+    closeBtn.addEventListener("click", () => {
+      panel.remove();
+    });
+
+    controls.append(clearBtn, closeBtn);
+    header.append(title, controls);
+
+    const status = document.createElement("p");
+    status.id = CHAT_STATUS_ID;
+    status.textContent = "Ready";
+    Object.assign(status.style, {
+      margin: "0",
+      padding: "10px 12px 0",
+      fontSize: "12px",
+      color: "#9fb5e8",
+      fontWeight: "600",
+    });
+
+    const messages = document.createElement("div");
+    messages.id = CHAT_MESSAGES_ID;
+    Object.assign(messages.style, {
+      margin: "0",
+      padding: "10px 12px 12px",
+      overflowY: "auto",
+      minHeight: "220px",
+      maxHeight: "42vh",
+      display: "grid",
+      gap: "8px",
+      alignContent: "start",
+    });
+
+    const quickActions = document.createElement("div");
+    Object.assign(quickActions.style, {
+      display: "flex",
+      gap: "6px",
+      flexWrap: "wrap",
+      padding: "0 12px 10px",
+    });
+
+    [
+      "Summarize this page in 4 bullets",
+      "Give me action items from this page",
+      "Draft a reply in friendly tone",
+    ].forEach((text) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.textContent = text;
+      Object.assign(chip.style, {
+        border: "1px solid rgba(118, 166, 255, 0.35)",
+        borderRadius: "999px",
+        padding: "4px 8px",
+        background: "rgba(118, 166, 255, 0.1)",
+        color: "#dce9ff",
+        fontSize: "11px",
+        cursor: "pointer",
+      });
+      chip.addEventListener("click", () => {
+        const input = document.getElementById(CHAT_INPUT_ID);
+        if (!input) return;
+        input.value = text;
+        input.focus();
+      });
+      quickActions.appendChild(chip);
+    });
+
+    const composer = document.createElement("div");
+    Object.assign(composer.style, {
+      borderTop: "1px solid rgba(118, 166, 255, 0.18)",
+      display: "grid",
+      gap: "8px",
+      padding: "10px 12px 12px",
+    });
+
+    const input = document.createElement("textarea");
+    input.id = CHAT_INPUT_ID;
+    input.placeholder = "Ask anything about this page...";
+    Object.assign(input.style, {
+      width: "100%",
+      minHeight: "62px",
+      resize: "vertical",
+      borderRadius: "10px",
+      border: "1px solid rgba(118, 166, 255, 0.35)",
+      background: "rgba(255, 255, 255, 0.05)",
+      color: "#ecf2ff",
+      fontSize: "13px",
+      padding: "10px",
+      lineHeight: "1.4",
+      outline: "none",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+    input.addEventListener("keydown", (event) => {
+      const isEnter = event.key === "Enter";
+      const withModifier = event.metaKey || event.ctrlKey;
+      if (!isEnter || !withModifier) return;
+      event.preventDefault();
+      runChatFlow();
+    });
+
+    const sendBtn = document.createElement("button");
+    sendBtn.id = CHAT_SEND_ID;
+    sendBtn.type = "button";
+    sendBtn.textContent = "Send";
+    stylePanelButton(sendBtn);
+    sendBtn.style.justifySelf = "end";
+    sendBtn.addEventListener("click", () => {
+      runChatFlow();
+    });
+
+    composer.append(input, sendBtn);
+    panel.append(header, status, messages, quickActions, composer);
+    document.documentElement.appendChild(panel);
+
+    appendChatMessage({
+      role: "assistant",
+      text: [
+        "Hi, I am LoomLess AI.",
+        "",
+        "Ask me about this page. I can summarize, brainstorm, or help draft content.",
+      ].join("\n"),
+    });
+
+    return panel;
+  }
+
+  function appendChatMessage({ role, text }) {
+    const messagesNode = document.getElementById(CHAT_MESSAGES_ID);
+    if (!messagesNode) return;
+
+    const row = document.createElement("div");
+    Object.assign(row.style, {
+      display: "flex",
+      justifyContent: role === "user" ? "flex-end" : "flex-start",
+    });
+
+    const bubble = document.createElement("div");
+    Object.assign(bubble.style, {
+      maxWidth: "88%",
+      borderRadius: "12px",
+      padding: "8px 10px",
+      border:
+        role === "user"
+          ? "1px solid rgba(125, 184, 255, 0.52)"
+          : "1px solid rgba(110, 146, 220, 0.34)",
+      background:
+        role === "user"
+          ? "linear-gradient(130deg, rgba(16, 49, 97, 0.95), rgba(18, 70, 131, 0.92))"
+          : "rgba(255, 255, 255, 0.04)",
+      fontSize: "12.5px",
+      color: "#edf3ff",
+      lineHeight: "1.5",
+    });
+
+    if (role === "assistant") {
+      bubble.innerHTML = markdownToHtml(text);
+    } else {
+      bubble.textContent = text;
+    }
+
+    row.appendChild(bubble);
+    messagesNode.appendChild(row);
+    messagesNode.scrollTop = messagesNode.scrollHeight;
+  }
+
+  function setChatState({ status, loading, error }) {
+    chatLoading = loading;
+    const statusNode = document.getElementById(CHAT_STATUS_ID);
+    const sendBtn = document.getElementById(CHAT_SEND_ID);
+
+    if (statusNode) {
+      statusNode.textContent = status;
+      statusNode.style.color = error ? "#ffb7b7" : "#9fb5e8";
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = loading;
+      sendBtn.style.opacity = loading ? "0.72" : "1";
+      sendBtn.style.cursor = loading ? "not-allowed" : "pointer";
+      sendBtn.textContent = loading ? "Sending..." : "Send";
+    }
   }
 
   async function runWriteFlow() {
@@ -399,7 +797,14 @@
   }
 
   function extractPageTextForModel() {
-    const overlayIds = [BUTTON_ID, MENU_ID, TOAST_ID, SUMMARY_PANEL_ID, WRITE_PANEL_ID];
+    const overlayIds = [
+      BUTTON_ID,
+      MENU_ID,
+      TOAST_ID,
+      SUMMARY_PANEL_ID,
+      WRITE_PANEL_ID,
+      CHAT_PANEL_ID,
+    ];
     const hiddenNodes = [];
 
     overlayIds.forEach((id) => {
@@ -701,6 +1106,13 @@
     return deduped.join("\n").slice(0, 22000);
   }
 
+  function trimToWords(text, maxWords) {
+    if (!text || typeof text !== "string") return "";
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length <= maxWords) return text.trim();
+    return `${words.slice(0, maxWords).join(" ")}...`;
+  }
+
   function extractYouTubeTranscript() {
     if (!window.location.hostname.includes("youtube.com")) return "";
 
@@ -772,7 +1184,7 @@
       transform: "translateY(-50%)",
       width: "360px",
       maxWidth: "min(360px, calc(100vw - 110px))",
-      maxHeight: "72vh",
+      maxHeight: "86vh",
       background: "rgba(7, 14, 30, 0.96)",
       border: "1px solid rgba(118, 166, 255, 0.45)",
       borderRadius: "16px",
@@ -864,7 +1276,7 @@
       lineHeight: "1.5",
       color: "#edf3ff",
       minHeight: "120px",
-      maxHeight: "50vh",
+      maxHeight: "66vh",
       fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
     });
 
@@ -1013,6 +1425,7 @@
     removeRadialMenu();
     document.getElementById(SUMMARY_PANEL_ID)?.remove();
     document.getElementById(WRITE_PANEL_ID)?.remove();
+    document.getElementById(CHAT_PANEL_ID)?.remove();
     document.removeEventListener("mousedown", closeMenuOnOutsideClick, true);
   }
 

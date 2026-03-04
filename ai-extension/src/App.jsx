@@ -66,6 +66,11 @@ export default function App() {
     });
   }
 
+  function openChatPage() {
+    const chatUrl = hasChromeApi ? chrome.runtime.getURL("chat.html") : "/chat.html";
+    window.open(chatUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <main className="app-shell">
       <img src="/icon.png" alt="LoomLess AI" className="logo" />
@@ -90,6 +95,10 @@ export default function App() {
       <p className="hint">
         {enabled ? "Enabled on supported pages." : "Disabled. Turn on to show the right-side icon."}
       </p>
+
+      <button type="button" className="chat-page-btn" onClick={openChatPage}>
+        Chat with LoomLess AI
+      </button>
     </main>
   );
 }

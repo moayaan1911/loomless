@@ -94,3 +94,20 @@ h1 {
   font-size: 0.82rem;
   color: #9eaed4;
 }
+
+.chat-page-btn {
+  width: 100%;
+  margin-top: 2px;
+  border: 1px solid rgba(119, 171, 255, 0.44);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: linear-gradient(130deg, #0f7dc8, #2255d3);
+  color: #f3f8ff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-page-btn:hover {
+  filter: brightness(1.06);
+}

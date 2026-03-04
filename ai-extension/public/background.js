@@ -106,14 +106,16 @@ function buildSummaryPrompt({ title, url, text }) {
     "2) Do not include analysis, thinking, preamble, or explanations.",
     "3) Use exactly this output format and nothing else:",
     "### TL;DR",
-    "🔹 <one short sentence>",
+    "<one short sentence>",
     "",
     "### Key Points",
-    "- ✅ <short point 1>",
-    "- ✅ <short point 2>",
-    "- ✅ <short point 3>",
-    "- ✅ <short point 4>",
-    "4) Every bullet must be one line and start with an emoji.",
+    "- <short point 1>",
+    "- <short point 2>",
+    "- <short point 3>",
+    "- <short point 4>",
+    "4) Every bullet must be one line.",
+    "5) Put exactly one relevant emoji at the start of TL;DR line and each bullet.",
+    "6) Do not repeat the same emoji across lines.",
     "",
     `Page title: ${cleanTitle}`,
     cleanUrl ? `Page URL: ${cleanUrl}` : "",
@@ -315,10 +317,10 @@ function formatStrictShortSummary(text) {
 
   const formatted = [
     "### TL;DR",
-    `${ensureEmojiPrefix(trimToWords(tldr, 18), "🔹")}`,
+    `${normalizeModelEmojiLine(tldr)}`,
     "",
     "### Key Points",
-    ...finalBullets.map((point) => `- ${ensureEmojiPrefix(trimToWords(point, 12), "✅")}`),
+    ...finalBullets.map((point) => `- ${normalizeModelEmojiLine(point)}`),
   ].join("\n");
 
   return formatted;
@@ -342,16 +344,18 @@ function hasEmoji(value) {
   return /\p{Extended_Pictographic}/u.test(value);
 }
 
-function ensureEmojiPrefix(text, fallbackEmoji) {
-  const clean = text.trim();
-  if (!clean) return fallbackEmoji;
-  return hasEmoji(clean) ? clean : `${fallbackEmoji} ${clean}`;
+function stripLeadingDecoration(text) {
+  if (!text || typeof text !== "string") return "";
+
+  let clean = text.trim();
+  clean = clean.replace(/^[-*•\d.)\s]+/, "").trim();
+  return clean;
 }
 
-function trimToWords(text, maxWords) {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return text.trim();
-  return `${words.slice(0, maxWords).join(" ")}...`;
+function normalizeModelEmojiLine(text) {
+  const clean = stripLeadingDecoration(text);
+  if (!clean) return "";
+  return clean;
 }
 
 function sanitizeInput(value, fallback) {
