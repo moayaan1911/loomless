@@ -25,6 +25,7 @@
   const CHAT_SEND_ID = "loomless-ai-chat-send";
   let floatingEnabled = false;
   let chatLoading = false;
+  let chatHistory = [];
 
   function createFloatingButton() {
     let button = document.getElementById(BUTTON_ID);
@@ -91,7 +92,7 @@
     });
 
     button.addEventListener("click", () => {
-      toggleRadialMenu();
+      handleMainButtonClick();
     });
 
     button.appendChild(icon);
@@ -101,6 +102,34 @@
 
   function removeRadialMenu() {
     document.getElementById(MENU_ID)?.remove();
+  }
+
+  function closeAllOverlays() {
+    removeRadialMenu();
+    document.getElementById(SUMMARY_PANEL_ID)?.remove();
+    document.getElementById(WRITE_PANEL_ID)?.remove();
+    document.getElementById(CHAT_PANEL_ID)?.remove();
+    document.getElementById(TOAST_ID)?.remove();
+    document.removeEventListener("mousedown", closeMenuOnOutsideClick, true);
+    chatHistory = [];
+  }
+
+  function hasOpenOverlay() {
+    return Boolean(
+      document.getElementById(MENU_ID) ||
+        document.getElementById(SUMMARY_PANEL_ID) ||
+        document.getElementById(WRITE_PANEL_ID) ||
+        document.getElementById(CHAT_PANEL_ID) ||
+        document.getElementById(TOAST_ID)
+    );
+  }
+
+  function handleMainButtonClick() {
+    if (hasOpenOverlay()) {
+      closeAllOverlays();
+      return;
+    }
+    toggleRadialMenu();
   }
 
   function showToast(message) {
@@ -340,6 +369,18 @@
     });
   }
 
+  function requestChat(payload) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "LOOMLESS_AI_CHAT", ...payload }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
   function openWritePanel() {
     closePanelsExcept(WRITE_PANEL_ID);
     const panel = ensureWritePanel();
@@ -364,7 +405,12 @@
   function closePanelsExcept(exceptId) {
     [SUMMARY_PANEL_ID, WRITE_PANEL_ID, CHAT_PANEL_ID].forEach((id) => {
       if (id === exceptId) return;
-      document.getElementById(id)?.remove();
+      const panel = document.getElementById(id);
+      if (!panel) return;
+      if (id === CHAT_PANEL_ID) {
+        chatHistory = [];
+      }
+      panel.remove();
     });
   }
 
@@ -382,6 +428,7 @@
       return;
     }
 
+    const historyForRequest = chatHistory.slice(-8);
     appendChatMessage({
       role: "user",
       text: prompt,
@@ -396,8 +443,19 @@
     });
 
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 340));
-      const reply = createChatPreviewReply(prompt);
+      const response = await requestChat({
+        prompt,
+        history: historyForRequest,
+        context: extractPageTextForModel().slice(0, 7000),
+        title: document.title,
+        url: window.location.href,
+      });
+
+      if (!response?.ok || !response?.reply) {
+        throw new Error(response?.error || "Could not generate a response.");
+      }
+
+      const reply = response.reply;
       appendChatMessage({
         role: "assistant",
         text: reply,
@@ -418,58 +476,9 @@
       appendChatMessage({
         role: "assistant",
         text: error instanceof Error ? error.message : "Could not generate a response.",
+        includeInHistory: false,
       });
     }
-  }
-
-  function createChatPreviewReply(prompt) {
-    const cleanPrompt = prompt.trim();
-    const lowerPrompt = cleanPrompt.toLowerCase();
-    const pageTitle = document.title || "this page";
-    const contextSample = extractPageTextForModel()
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => line.length > 40);
-
-    if (lowerPrompt.includes("summarize") || lowerPrompt.includes("summary")) {
-      return [
-        "### Quick Summary",
-        `- ✅ Main focus appears to be **${pageTitle}**.`,
-        "- ✅ You can ask me for short bullets, deep dive, or action items.",
-        contextSample
-          ? `- ✅ Context hint: ${trimToWords(contextSample, 14)}`
-          : "- ✅ I can summarize using either this page content or YouTube transcript when available.",
-        "",
-        "Ask: `Give me 4 bullet highlights with emojis.`",
-      ].join("\n");
-    }
-
-    if (
-      lowerPrompt.includes("email") ||
-      lowerPrompt.includes("message") ||
-      lowerPrompt.includes("reply") ||
-      lowerPrompt.includes("post")
-    ) {
-      return [
-        "### Writing Direction",
-        "- 🎯 Tell me your tone: professional, friendly, casual, confident, or persuasive.",
-        "- 🧩 Tell me output format: email, X post, LinkedIn post, or short message.",
-        "- ✍️ Add any must-include points and your desired length.",
-        "",
-        "Tip: You can also use the dedicated `Write` action for direct draft generation.",
-      ].join("\n");
-    }
-
-    return [
-      `Got it. We are on **${pageTitle}**.`,
-      "",
-      "I can help with:",
-      "- 🔹 Page summary",
-      "- 🔹 Rewriting text in a chosen tone",
-      "- 🔹 Quick drafting for email/posts/messages",
-      "",
-      "Try asking: `Summarize this page in 4 short bullets.`",
-    ].join("\n");
   }
 
   function ensureChatPanel() {
@@ -533,17 +542,15 @@
     clearBtn.textContent = "Clear";
     stylePanelButton(clearBtn);
     clearBtn.addEventListener("click", () => {
+      chatHistory = [];
       const messagesNode = document.getElementById(CHAT_MESSAGES_ID);
       if (messagesNode) {
         messagesNode.innerHTML = "";
       }
       appendChatMessage({
         role: "assistant",
-        text: [
-          "Hi, I am LoomLess AI.",
-          "",
-          "Ask me about this page. I can summarize, brainstorm, or help draft content.",
-        ].join("\n"),
+        text: "Hey 👋 I am LoomLess AI. Ask anything about this page.",
+        includeInHistory: false,
       });
       setChatState({
         status: "Ready",
@@ -557,6 +564,7 @@
     closeBtn.textContent = "Close";
     stylePanelButton(closeBtn);
     closeBtn.addEventListener("click", () => {
+      chatHistory = [];
       panel.remove();
     });
 
@@ -587,40 +595,6 @@
       alignContent: "start",
     });
 
-    const quickActions = document.createElement("div");
-    Object.assign(quickActions.style, {
-      display: "flex",
-      gap: "6px",
-      flexWrap: "wrap",
-      padding: "0 12px 10px",
-    });
-
-    [
-      "Summarize this page in 4 bullets",
-      "Give me action items from this page",
-      "Draft a reply in friendly tone",
-    ].forEach((text) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.textContent = text;
-      Object.assign(chip.style, {
-        border: "1px solid rgba(118, 166, 255, 0.35)",
-        borderRadius: "999px",
-        padding: "4px 8px",
-        background: "rgba(118, 166, 255, 0.1)",
-        color: "#dce9ff",
-        fontSize: "11px",
-        cursor: "pointer",
-      });
-      chip.addEventListener("click", () => {
-        const input = document.getElementById(CHAT_INPUT_ID);
-        if (!input) return;
-        input.value = text;
-        input.focus();
-      });
-      quickActions.appendChild(chip);
-    });
-
     const composer = document.createElement("div");
     Object.assign(composer.style, {
       borderTop: "1px solid rgba(118, 166, 255, 0.18)",
@@ -647,9 +621,7 @@
       fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
     });
     input.addEventListener("keydown", (event) => {
-      const isEnter = event.key === "Enter";
-      const withModifier = event.metaKey || event.ctrlKey;
-      if (!isEnter || !withModifier) return;
+      if (event.key !== "Enter" || event.shiftKey) return;
       event.preventDefault();
       runChatFlow();
     });
@@ -665,22 +637,19 @@
     });
 
     composer.append(input, sendBtn);
-    panel.append(header, status, messages, quickActions, composer);
+    panel.append(header, status, messages, composer);
     document.documentElement.appendChild(panel);
 
     appendChatMessage({
       role: "assistant",
-      text: [
-        "Hi, I am LoomLess AI.",
-        "",
-        "Ask me about this page. I can summarize, brainstorm, or help draft content.",
-      ].join("\n"),
+      text: "Hey 👋 I am LoomLess AI. Ask anything about this page.",
+      includeInHistory: false,
     });
 
     return panel;
   }
 
-  function appendChatMessage({ role, text }) {
+  function appendChatMessage({ role, text, includeInHistory = true }) {
     const messagesNode = document.getElementById(CHAT_MESSAGES_ID);
     if (!messagesNode) return;
 
@@ -717,6 +686,13 @@
     row.appendChild(bubble);
     messagesNode.appendChild(row);
     messagesNode.scrollTop = messagesNode.scrollHeight;
+
+    if (includeInHistory) {
+      chatHistory.push({ role, content: text });
+      if (chatHistory.length > 16) {
+        chatHistory = chatHistory.slice(-16);
+      }
+    }
   }
 
   function setChatState({ status, loading, error }) {
@@ -1106,13 +1082,6 @@
     return deduped.join("\n").slice(0, 22000);
   }
 
-  function trimToWords(text, maxWords) {
-    if (!text || typeof text !== "string") return "";
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length <= maxWords) return text.trim();
-    return `${words.slice(0, maxWords).join(" ")}...`;
-  }
-
   function extractYouTubeTranscript() {
     if (!window.location.hostname.includes("youtube.com")) return "";
 
@@ -1422,11 +1391,7 @@
 
   function removeFloatingButton() {
     document.getElementById(BUTTON_ID)?.remove();
-    removeRadialMenu();
-    document.getElementById(SUMMARY_PANEL_ID)?.remove();
-    document.getElementById(WRITE_PANEL_ID)?.remove();
-    document.getElementById(CHAT_PANEL_ID)?.remove();
-    document.removeEventListener("mousedown", closeMenuOnOutsideClick, true);
+    closeAllOverlays();
   }
 
   function setFloatingState(enabled) {

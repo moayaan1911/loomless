@@ -2,6 +2,7 @@ const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
 const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
+const CHAT_MODEL = PRIMARY_NIM_MODEL;
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -11,6 +12,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "LOOMLESS_AI_WRITE") {
     generateWriteDraft(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "LOOMLESS_AI_CHAT") {
+    generateChatReply(message, sendResponse);
     return true;
   }
   return false;
@@ -91,6 +96,89 @@ async function generateWriteDraft(message, sendResponse) {
       error: error instanceof Error ? error.message : "Failed to generate writing output.",
     });
   }
+}
+
+async function generateChatReply(message, sendResponse) {
+  try {
+    const { prompt, history, context, title, url } = message || {};
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      sendResponse({ ok: false, error: "Please enter a message." });
+      return;
+    }
+
+    const nimApiKey = await getStorageValue(STORAGE_NIM_API_KEY);
+    if (!nimApiKey) {
+      sendResponse({
+        ok: false,
+        error: "AI is not configured yet. Please add your API key and try again.",
+      });
+      return;
+    }
+
+    const promptText = prompt.trim();
+    const historyItems = Array.isArray(history) ? history : [];
+    const pageTitle = typeof title === "string" ? title : "";
+    const pageUrl = typeof url === "string" ? url : "";
+    const pageContext = typeof context === "string" ? context : "";
+
+    const rawOutput = await callChatModelWithRetry(nimApiKey, {
+      prompt: promptText,
+      history: historyItems,
+      context: pageContext,
+      title: pageTitle,
+      url: pageUrl,
+    });
+
+    const cleaned = sanitizeChatResponse(rawOutput);
+    if (!cleaned) {
+      sendResponse({ ok: false, error: "Could not generate a response. Please try again." });
+      return;
+    }
+
+    sendResponse({ ok: true, reply: cleaned });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to generate chat response.",
+    });
+  }
+}
+
+async function callChatModelWithRetry(apiKey, payload) {
+  const contextAttempts = [4200, 2200, 900];
+  let lastError = null;
+
+  for (const contextLimit of contextAttempts) {
+    try {
+      const chatPrompt = buildChatPrompt({
+        prompt: payload.prompt,
+        history: payload.history,
+        context: (payload.context || "").slice(0, contextLimit),
+        title: payload.title,
+        url: payload.url,
+      });
+
+      return await callModelWithConfig(apiKey, chatPrompt, CHAT_MODEL, {
+        temperature: 0.35,
+        maxTokens: 340,
+        systemPrompt:
+          "You are LoomLess AI. Reply directly and clearly. Keep responses concise by default. Do not include hidden reasoning, preambles, or model/provider mentions.",
+        responseMode: "raw",
+      });
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      const shouldRetry = message.includes("status 400") || message.includes("too long");
+      if (!shouldRetry) {
+        throw error;
+      }
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error("Failed to generate chat response.");
 }
 
 function buildSummaryPrompt({ title, url, text }) {
@@ -205,7 +293,11 @@ async function callModelWithConfig(apiKey, prompt, model, config) {
       config.responseMode === "summary" ? "summary" : "write"
     );
     if (!sanitized) {
-      throw new Error("The model returned no usable summary.");
+      throw new Error(
+        config.responseMode === "summary"
+          ? "The model returned no usable summary."
+          : "The model returned no usable response."
+      );
     }
 
     if (config.responseMode === "summary") {
@@ -465,6 +557,74 @@ function sanitizeWriteResponse(content) {
   }
 
   return lines.join("\n").trim();
+}
+
+function sanitizeChatResponse(content) {
+  const sanitized = sanitizeModelResponse(content, "write")
+    .replace(/```[a-zA-Z0-9_-]*\n?/g, "")
+    .replace(/```/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!sanitized) return "";
+
+  const lines = sanitized.split("\n");
+  while (lines.length) {
+    const first = lines[0].trim().toLowerCase();
+    if (!first) {
+      lines.shift();
+      continue;
+    }
+
+    const isMetaLead =
+      first.startsWith("here's ") ||
+      first.startsWith("here is ") ||
+      first.startsWith("sure,") ||
+      first.startsWith("absolutely,") ||
+      first.startsWith("of course,") ||
+      first.startsWith("assistant:");
+
+    if (!isMetaLead) break;
+    lines.shift();
+  }
+
+  return lines.join("\n").trim();
+}
+
+function buildChatPrompt({ prompt, history, context, title, url }) {
+  const cleanHistory = history
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
+      const role = item.role === "assistant" ? "Assistant" : "User";
+      const text =
+        typeof item.content === "string"
+          ? item.content.trim()
+          : typeof item.text === "string"
+            ? item.text.trim()
+            : "";
+      if (!text) return "";
+      return `${role}: ${text.slice(0, 1200)}`;
+    })
+    .filter(Boolean)
+    .slice(-8);
+
+  return [
+    "You are answering in an on-page assistant chat panel.",
+    "Rules:",
+    "- Reply in clean markdown when useful.",
+    "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+    "- If the answer depends on page context, use the provided context first.",
+    "- Never include chain-of-thought or internal analysis.",
+    "",
+    title ? `Page title: ${title}` : "",
+    url ? `Page URL: ${url}` : "",
+    context ? `Page context:\n${context}` : "",
+    cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
+    "",
+    `User message:\n${prompt}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function getStorageValue(key) {
