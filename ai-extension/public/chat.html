@@ -35,7 +35,13 @@
         <footer class="composer">
           <div class="composer-box">
             <textarea id="chat-input" rows="1" placeholder="Ask anything..."></textarea>
-            <button id="send-btn" class="primary-btn">Send</button>
+            <div class="composer-right">
+              <button id="web-search-toggle" type="button" class="web-toggle" aria-pressed="false">
+                <span class="web-toggle-dot"></span>
+                <span>Web</span>
+              </button>
+              <button id="send-btn" class="primary-btn">Send</button>
+            </div>
           </div>
           <div class="composer-actions">
             <span class="hint">Press Enter to send · Shift + Enter for new line</span>
@@ -49,6 +55,20 @@
         </div>
         <div id="missing-icons" class="missing-icons" hidden></div>
         <div id="model-list" class="model-list"></div>
+      </section>
+
+      <section id="sources-modal" class="sources-modal" hidden>
+        <div id="sources-backdrop" class="sources-backdrop"></div>
+        <div class="sources-dialog" role="dialog" aria-modal="true" aria-labelledby="sources-title">
+          <header class="sources-header">
+            <div>
+              <h3 id="sources-title">Web Sources</h3>
+              <p id="sources-query" class="sources-query"></p>
+            </div>
+            <button id="sources-close-btn" type="button" class="ghost-btn">Close</button>
+          </header>
+          <div id="sources-list" class="sources-list"></div>
+        </div>
       </section>
     </main>
 

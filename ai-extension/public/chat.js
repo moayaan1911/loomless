@@ -1,4 +1,5 @@
 const STORAGE_SELECTED_MODEL = "loomless_ai_chat_page_model";
+const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 
 const MODEL_OPTIONS = [
   {
@@ -6,8 +7,6 @@ const MODEL_OPTIONS = [
     name: "minimax-m2.5",
     apiModel: "minimaxai/minimax-m2.5",
     desc: "MiniMax M2.5 is a 230B-parameter text-to-text model for coding, reasoning, and office tasks.",
-    tags: ["coding", "+3"],
-    age: "5d",
     icon: "minimax.png",
   },
   {
@@ -15,8 +14,6 @@ const MODEL_OPTIONS = [
     name: "qwen3.5-397b-a17b",
     apiModel: "qwen/qwen3.5-397b-a17b",
     desc: "Qwen 3.5 VLM MoE model with advanced vision, chat, RAG, and agentic capabilities.",
-    tags: ["moe", "+4"],
-    age: "2w",
     icon: "qwen.png",
   },
   {
@@ -24,8 +21,6 @@ const MODEL_OPTIONS = [
     name: "glm5",
     apiModel: "zai/glm5",
     desc: "GLM-5 MoE model focused on efficient reasoning for complex, long-horizon tasks.",
-    tags: ["moe", "+3"],
-    age: "2w",
     icon: "zai.png",
   },
   {
@@ -33,8 +28,6 @@ const MODEL_OPTIONS = [
     name: "minimax-m2.1",
     apiModel: "minimaxai/minimax-m2.1",
     desc: "MiniMax M2.1 for multilingual coding, web/app workflows, office AI, and agent integrations.",
-    tags: ["agentic", "+3"],
-    age: "4w",
     icon: "minimax.png",
   },
   {
@@ -42,8 +35,6 @@ const MODEL_OPTIONS = [
     name: "kimi-k2.5",
     apiModel: "moonshotai/kimi-k2.5",
     desc: "High-capacity multimodal MoE for video and image understanding with efficient inference.",
-    tags: ["multimodal", "+4"],
-    age: "1mo",
     icon: "kimi.png",
   },
   {
@@ -51,8 +42,6 @@ const MODEL_OPTIONS = [
     name: "step-3.5-flash",
     apiModel: "stepfun-ai/step-3.5-flash",
     desc: "Open-source sparse MoE reasoning engine tuned for frontier agentic use-cases.",
-    tags: ["agentic", "+3"],
-    age: "1mo",
     icon: "stepfun.png",
   },
   {
@@ -60,8 +49,6 @@ const MODEL_OPTIONS = [
     name: "glm4.7",
     apiModel: "zai/glm4.7",
     desc: "Multilingual agentic coding partner with stronger reasoning, tool use, and UI skills.",
-    tags: ["tool calling", "+4"],
-    age: "1mo",
     icon: "zai.png",
   },
   {
@@ -69,8 +56,6 @@ const MODEL_OPTIONS = [
     name: "deepseek-v3.2",
     apiModel: "deepseek/deepseek-v3.2",
     desc: "State-of-the-art sparse-attention reasoning model with long context and integrated tools.",
-    tags: ["long context", "+3"],
-    age: "2mo",
     icon: "deepseek.png",
   },
   {
@@ -78,8 +63,6 @@ const MODEL_OPTIONS = [
     name: "nemotron-3-nano-30b-a3b",
     apiModel: "nvidia/nemotron-3-nano-30b-a3b",
     desc: "Efficient MoE model with 1M context, strong instruction-following, and tool calling.",
-    tags: ["moe", "+4"],
-    age: "2mo",
     icon: "nvidia.png",
   },
   {
@@ -87,8 +70,6 @@ const MODEL_OPTIONS = [
     name: "devstral-2-123b-instruct-2512",
     apiModel: "mistralai/devstral-2-123b-instruct-2512",
     desc: "Code-heavy instruct model with deep reasoning, long context, and strong efficiency.",
-    tags: ["coding", "+4"],
-    age: "2mo",
     icon: "mistral.png",
   },
   {
@@ -96,8 +77,6 @@ const MODEL_OPTIONS = [
     name: "mistral-large-3-675b-instruct-2512",
     apiModel: "mistralai/mistral-large-3-675b-instruct-2512",
     desc: "General-purpose MoE model tuned for chat, agentic, and instruction-driven generation.",
-    tags: ["language generation", "+4"],
-    age: "3mo",
     icon: "mistral.png",
   },
   {
@@ -105,8 +84,6 @@ const MODEL_OPTIONS = [
     name: "llama-3.1-70b-instruct",
     apiModel: "meta/llama-3.1-70b-instruct",
     desc: "High-quality model for complex conversations with strong reasoning and context handling.",
-    tags: ["chat", "+3"],
-    age: "8mo",
     icon: "meta.png",
   },
   {
@@ -114,8 +91,6 @@ const MODEL_OPTIONS = [
     name: "llama-3.1-8b-instruct",
     apiModel: "meta/llama-3.1-8b-instruct",
     desc: "Fast and lightweight chat model with balanced quality for everyday conversations.",
-    tags: ["chat", "+4"],
-    age: "7mo",
     icon: "meta.png",
   },
   {
@@ -123,8 +98,6 @@ const MODEL_OPTIONS = [
     name: "llama3-70b-instruct",
     apiModel: "meta/llama3-70b-instruct",
     desc: "Large general chat model for richer answers and broader contextual understanding.",
-    tags: ["chat", "+4"],
-    age: "9mo",
     icon: "meta.png",
   },
   {
@@ -132,8 +105,6 @@ const MODEL_OPTIONS = [
     name: "llama3-8b-instruct",
     apiModel: "meta/llama3-8b-instruct",
     desc: "Compact Llama3 model for faster responses and lower-latency interactions.",
-    tags: ["chat", "+4"],
-    age: "9mo",
     icon: "meta.png",
   },
   {
@@ -141,8 +112,6 @@ const MODEL_OPTIONS = [
     name: "phi-4-mini-instruct",
     apiModel: "microsoft/phi-4-mini-instruct",
     desc: "Lightweight multilingual LLM for low-latency AI apps in memory and compute constrained environments.",
-    tags: ["chat", "+3"],
-    age: "9mo",
     icon: "microsoft.png",
   },
   {
@@ -150,8 +119,6 @@ const MODEL_OPTIONS = [
     name: "gpt-oss-20b",
     apiModel: "openai/gpt-oss-20b",
     desc: "Smaller MoE text model optimized for efficient reasoning and math workflows.",
-    tags: ["text-to-text", "+3"],
-    age: "7mo",
     icon: "openai.png",
   },
   {
@@ -159,8 +126,6 @@ const MODEL_OPTIONS = [
     name: "gpt-oss-120b",
     apiModel: "openai/gpt-oss-120b",
     desc: "Larger MoE reasoning model designed for stronger depth and broader capability.",
-    tags: ["text-to-text", "+3"],
-    age: "7mo",
     icon: "openai.png",
   },
 ];
@@ -197,11 +162,19 @@ const messagesNode = document.getElementById("chat-messages");
 const inputNode = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
 const statusNode = document.getElementById("chat-status");
+const webSearchToggleNode = document.getElementById("web-search-toggle");
+const sourcesModalNode = document.getElementById("sources-modal");
+const sourcesBackdropNode = document.getElementById("sources-backdrop");
+const sourcesCloseBtnNode = document.getElementById("sources-close-btn");
+const sourcesQueryNode = document.getElementById("sources-query");
+const sourcesListNode = document.getElementById("sources-list");
+
 const INPUT_MIN_HEIGHT = 42;
 const INPUT_MAX_HEIGHT = 140;
 
 let sending = false;
 let chatHistory = [];
+let webSearchEnabled = loadWebSearchEnabled();
 const missingIcons = new Set();
 let selectedModel = loadSelectedModel();
 
@@ -209,6 +182,7 @@ modelPickerBtn.setAttribute("aria-expanded", "false");
 
 renderModelCards();
 syncActiveModelUI();
+syncWebSearchUI();
 appendMessage({
   role: "assistant",
   text: "Hey 👋 I am LoomLess GPT. Ask anything.",
@@ -217,6 +191,12 @@ appendMessage({
 
 sendBtn.addEventListener("click", () => {
   runSend();
+});
+
+webSearchToggleNode.addEventListener("click", () => {
+  webSearchEnabled = !webSearchEnabled;
+  saveWebSearchEnabled(webSearchEnabled);
+  syncWebSearchUI();
 });
 
 inputNode.addEventListener("input", () => {
@@ -228,6 +208,9 @@ modelPickerBtn.addEventListener("click", (event) => {
   toggleModelPicker();
 });
 
+sourcesCloseBtnNode.addEventListener("click", closeSourcesModal);
+sourcesBackdropNode.addEventListener("click", closeSourcesModal);
+
 document.addEventListener("click", (event) => {
   if (modelPickerPopover.hidden) return;
   const target = event.target;
@@ -237,8 +220,14 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !modelPickerPopover.hidden) {
-    closeModelPicker();
+  if (event.key === "Escape") {
+    if (!sourcesModalNode.hidden) {
+      closeSourcesModal();
+      return;
+    }
+    if (!modelPickerPopover.hidden) {
+      closeModelPicker();
+    }
   }
 });
 
@@ -247,6 +236,7 @@ inputNode.addEventListener("keydown", (event) => {
   event.preventDefault();
   runSend();
 });
+
 autoResizeInput();
 
 async function runSend() {
@@ -260,11 +250,12 @@ async function runSend() {
 
   const historyForRequest = chatHistory.slice(-8);
   appendMessage({ role: "user", text });
-  const loadingRow = appendLoadingMessage();
+  const loadingLabel = webSearchEnabled ? `Searching web: ${truncate(text, 64)}` : "Thinking";
+  const loadingRow = appendLoadingMessage(loadingLabel);
+
   inputNode.value = "";
   autoResizeInput();
   setSending(true);
-  setStatus(`Thinking with ${selectedModel.name}...`);
 
   try {
     const response = await requestChat({
@@ -275,6 +266,7 @@ async function runSend() {
       url: "",
       scope: "general",
       model: selectedModel.apiModel,
+      webSearch: webSearchEnabled,
     });
 
     if (!response?.ok || !response?.reply) {
@@ -282,7 +274,12 @@ async function runSend() {
     }
 
     removeMessageRow(loadingRow);
-    appendMessage({ role: "assistant", text: response.reply });
+    appendMessage({
+      role: "assistant",
+      text: response.reply,
+      sources: Array.isArray(response.sources) ? response.sources : [],
+      searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
+    });
     setStatus("Ready.");
   } catch (error) {
     removeMessageRow(loadingRow);
@@ -315,6 +312,7 @@ function setSending(next) {
   sendBtn.disabled = next;
   sendBtn.textContent = next ? "Sending..." : "Send";
   modelPickerBtn.disabled = next;
+  webSearchToggleNode.disabled = next;
 }
 
 function setStatus(value) {
@@ -322,13 +320,17 @@ function setStatus(value) {
   statusNode.textContent = value;
 }
 
-function appendMessage({ role, text, includeInHistory = true }) {
+function appendMessage({ role, text, includeInHistory = true, sources = [], searchQuery = "" }) {
   const row = document.createElement("div");
   row.className = `msg-row ${role}`;
 
   const bubble = document.createElement("article");
   bubble.className = "msg-bubble";
   bubble.innerHTML = markdownToHtml(text);
+
+  if (role === "assistant" && Array.isArray(sources) && sources.length) {
+    bubble.appendChild(createSourcesChip(sources, searchQuery));
+  }
 
   row.appendChild(bubble);
   messagesNode.appendChild(row);
@@ -342,14 +344,86 @@ function appendMessage({ role, text, includeInHistory = true }) {
   }
 }
 
-function appendLoadingMessage() {
+function createSourcesChip(sources, query) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "sources-chip";
+
+  const stack = document.createElement("span");
+  stack.className = "source-stack";
+  for (let i = 0; i < 3; i += 1) {
+    const dot = document.createElement("span");
+    dot.className = `source-dot dot-${i + 1}`;
+    stack.appendChild(dot);
+  }
+
+  const label = document.createElement("span");
+  const count = sources.length;
+  label.textContent = `${count} web page${count > 1 ? "s" : ""}`;
+
+  chip.append(stack, label);
+  chip.addEventListener("click", () => {
+    openSourcesModal(sources, query);
+  });
+
+  return chip;
+}
+
+function openSourcesModal(sources, query) {
+  if (!Array.isArray(sources) || !sources.length) return;
+  sourcesModalNode.hidden = false;
+  sourcesQueryNode.textContent = query ? `Query: ${query}` : "Web search results";
+  sourcesListNode.innerHTML = "";
+
+  sources.forEach((source, index) => {
+    const item = document.createElement("article");
+    item.className = "source-item";
+
+    const head = document.createElement("div");
+    head.className = "source-item-head";
+
+    const id = document.createElement("span");
+    id.className = "source-id";
+    id.textContent = `[${source.id || index + 1}]`;
+
+    const domain = document.createElement("span");
+    domain.className = "source-domain";
+    domain.textContent = getDomain(source.url);
+
+    head.append(id, domain);
+
+    const link = document.createElement("a");
+    link.className = "source-link";
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noreferrer noopener";
+    link.textContent = source.title || source.url;
+
+    const snippet = document.createElement("p");
+    snippet.className = "source-snippet";
+    snippet.textContent = source.snippet || "";
+
+    item.append(head, link);
+    if (snippet.textContent) {
+      item.appendChild(snippet);
+    }
+
+    sourcesListNode.appendChild(item);
+  });
+}
+
+function closeSourcesModal() {
+  sourcesModalNode.hidden = true;
+}
+
+function appendLoadingMessage(label = "Thinking") {
   const row = document.createElement("div");
   row.className = "msg-row assistant";
 
   const bubble = document.createElement("article");
   bubble.className = "msg-bubble loading";
   bubble.innerHTML = `
-    <span class="loading-text">Thinking</span>
+    <span class="loading-text">${escapeHtml(label)}</span>
     <span class="loading-dots" aria-hidden="true">
       <span class="loading-dot"></span>
       <span class="loading-dot"></span>
@@ -456,6 +530,13 @@ function syncActiveModelUI() {
   modelPickerBtn.title = `${selectedModel.provider} · ${selectedModel.name}`;
 }
 
+function syncWebSearchUI() {
+  webSearchToggleNode.setAttribute("aria-pressed", webSearchEnabled ? "true" : "false");
+  webSearchToggleNode.title = webSearchEnabled
+    ? "Web search ON: latest web sources will be used"
+    : "Web search OFF";
+}
+
 function loadSelectedModel() {
   const stored = localStorage.getItem(STORAGE_SELECTED_MODEL);
   const found = MODEL_OPTIONS.find((model) => model.apiModel === stored);
@@ -464,6 +545,14 @@ function loadSelectedModel() {
 
 function saveSelectedModel(model) {
   localStorage.setItem(STORAGE_SELECTED_MODEL, model);
+}
+
+function loadWebSearchEnabled() {
+  return localStorage.getItem(STORAGE_WEB_SEARCH) === "1";
+}
+
+function saveWebSearchEnabled(enabled) {
+  localStorage.setItem(STORAGE_WEB_SEARCH, enabled ? "1" : "0");
 }
 
 function setSelectedModel(model) {
@@ -511,8 +600,7 @@ function markdownToHtml(markdownText) {
   let index = 0;
 
   while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
+    const trimmed = lines[index].trim();
 
     if (!trimmed) {
       index += 1;
@@ -572,8 +660,7 @@ function markdownToHtml(markdownText) {
     const paragraph = [];
     while (index < lines.length) {
       const current = lines[index].trim();
-      if (!current) break;
-      if (isBlockStarter(current)) break;
+      if (!current || isBlockStarter(current)) break;
       paragraph.push(current);
       index += 1;
     }
@@ -594,22 +681,18 @@ function isBlockStarter(text) {
 }
 
 function formatInlineMarkdown(text) {
-  const withLinks = String(text || "").replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_match, label, url) => {
-      const safeUrl = sanitizeUrl(url);
-      if (!safeUrl) return escapeHtml(label);
-      return `<a href="${safeUrl}" target="_blank" rel="noreferrer noopener">${escapeHtml(label)}</a>`;
-    }
-  );
+  const escaped = escapeHtml(String(text || ""));
 
-  let html = escapeHtml(withLinks);
-  html = html
-    .replace(/&lt;a href="([^"]+)" target="_blank" rel="noreferrer noopener"&gt;([^<]+)&lt;\/a&gt;/g, '<a href="$1" target="_blank" rel="noreferrer noopener">$2</a>')
+  const linksApplied = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label, rawUrl) => {
+    const safeUrl = sanitizeUrl(rawUrl);
+    if (!safeUrl) return label;
+    return `<a href="${safeUrl}" target="_blank" rel="noreferrer noopener">${label}</a>`;
+  });
+
+  return linksApplied
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  return html;
 }
 
 function sanitizeUrl(url) {
@@ -624,9 +707,25 @@ function sanitizeUrl(url) {
   }
 }
 
+function getDomain(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (_error) {
+    return "unknown";
+  }
+}
+
+function truncate(value, max) {
+  const text = String(value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 3)}...`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

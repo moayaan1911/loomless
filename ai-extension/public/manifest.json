@@ -21,7 +21,7 @@
     "128": "icon.png"
   },
   "permissions": ["storage", "activeTab"],
-  "host_permissions": ["https://integrate.api.nvidia.com/*"],
+  "host_permissions": ["https://integrate.api.nvidia.com/*", "https://api.tavily.com/*"],
   "web_accessible_resources": [
     {
       "resources": ["icon.png"],

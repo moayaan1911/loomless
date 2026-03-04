@@ -3,9 +3,17 @@ import "./App.css";
 
 const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
 const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
+const STORAGE_TAVILY_API_KEY = "loomless_ai_tavily_api_key";
 const hasChromeApi = typeof chrome !== "undefined" && Boolean(chrome?.storage?.local);
 const envApiKey = String(
   import.meta.env.NVIDIA_API || import.meta.env.VITE_NVIDIA_API || ""
+).trim();
+const envTavilyApiKey = String(
+  import.meta.env.TRAVILY_API ||
+    import.meta.env.TAVILY_API ||
+    import.meta.env.VITE_TRAVILY_API ||
+    import.meta.env.VITE_TAVILY_API ||
+    ""
 ).trim();
 
 export default function App() {
@@ -18,11 +26,16 @@ export default function App() {
       return;
     }
 
-    chrome.storage.local.get([STORAGE_FLOATING_KEY, STORAGE_NIM_API_KEY], (result) => {
+    chrome.storage.local.get([STORAGE_FLOATING_KEY, STORAGE_NIM_API_KEY, STORAGE_TAVILY_API_KEY], (result) => {
       const existingKey = typeof result[STORAGE_NIM_API_KEY] === "string" ? result[STORAGE_NIM_API_KEY].trim() : "";
+      const existingTavilyKey =
+        typeof result[STORAGE_TAVILY_API_KEY] === "string" ? result[STORAGE_TAVILY_API_KEY].trim() : "";
 
       if (!existingKey && envApiKey) {
         chrome.storage.local.set({ [STORAGE_NIM_API_KEY]: envApiKey });
+      }
+      if (!existingTavilyKey && envTavilyApiKey) {
+        chrome.storage.local.set({ [STORAGE_TAVILY_API_KEY]: envTavilyApiKey });
       }
 
       setEnabled(Boolean(result[STORAGE_FLOATING_KEY]));

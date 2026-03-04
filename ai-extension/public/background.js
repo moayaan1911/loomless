@@ -1,4 +1,5 @@
 const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
+const STORAGE_TAVILY_API_KEY = "loomless_ai_tavily_api_key";
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
 const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
@@ -24,6 +25,7 @@ const CHAT_ALLOWED_MODELS = new Set([
   "openai/gpt-oss-120b",
 ]);
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
+const TAVILY_SEARCH_ENDPOINT = "https://api.tavily.com/search";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "LOOMLESS_AI_SUMMARIZE") {
@@ -120,7 +122,7 @@ async function generateWriteDraft(message, sendResponse) {
 
 async function generateChatReply(message, sendResponse) {
   try {
-    const { prompt, history, context, title, url, model, scope } = message || {};
+    const { prompt, history, context, title, url, model, scope, webSearch } = message || {};
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       sendResponse({ ok: false, error: "Please enter a message." });
       return;
@@ -142,16 +144,51 @@ async function generateChatReply(message, sendResponse) {
     const pageContext = typeof context === "string" ? context : "";
     const selectedModel = resolveChatModel(model);
     const chatScope = scope === "general" ? "general" : "page";
+    const wantsWebSearch = Boolean(webSearch);
 
-    const rawOutput = await callChatModelWithRetry(nimApiKey, {
-      prompt: promptText,
-      history: historyItems,
-      context: pageContext,
-      title: pageTitle,
-      url: pageUrl,
-      model: selectedModel,
-      scope: chatScope,
-    });
+    let rawOutput = "";
+    let sources = [];
+    let webQuery = "";
+
+    if (wantsWebSearch) {
+      const tavilyApiKey = await getStorageValue(STORAGE_TAVILY_API_KEY);
+      if (!tavilyApiKey) {
+        sendResponse({
+          ok: false,
+          error: "Web Search is ON but Tavily API key is missing. Add TRAVILY_API/TAVILY_API and rebuild.",
+        });
+        return;
+      }
+
+      const webPayload = await runTavilySearch(tavilyApiKey, promptText);
+      const webPrompt = buildWebSearchPrompt({
+        prompt: promptText,
+        history: historyItems,
+        model: selectedModel,
+        scope: chatScope,
+        sources: webPayload.sources,
+      });
+
+      rawOutput = await callModelWithConfig(nimApiKey, webPrompt, selectedModel, {
+        temperature: 0.25,
+        maxTokens: 480,
+        systemPrompt:
+          "You are LoomLess GPT, an AI assistant developed by LoomLess AI. Use provided web sources only. For factual claims, add citation numbers like [1], [2]. Do not invent sources.",
+        responseMode: "raw",
+      });
+      sources = webPayload.sources;
+      webQuery = webPayload.query;
+    } else {
+      rawOutput = await callChatModelWithRetry(nimApiKey, {
+        prompt: promptText,
+        history: historyItems,
+        context: pageContext,
+        title: pageTitle,
+        url: pageUrl,
+        model: selectedModel,
+        scope: chatScope,
+      });
+    }
 
     const cleaned = sanitizeChatResponse(rawOutput);
     if (!cleaned) {
@@ -159,7 +196,7 @@ async function generateChatReply(message, sendResponse) {
       return;
     }
 
-    sendResponse({ ok: true, reply: cleaned });
+    sendResponse({ ok: true, reply: cleaned, sources, webQuery });
   } catch (error) {
     sendResponse({
       ok: false,
@@ -207,6 +244,125 @@ async function callChatModelWithRetry(apiKey, payload) {
     throw lastError;
   }
   throw new Error("Failed to generate chat response.");
+}
+
+async function runTavilySearch(apiKey, query) {
+  const cleanQuery = String(query || "").trim();
+  if (!cleanQuery) {
+    throw new Error("Web search query is empty.");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35000);
+
+  try {
+    const response = await fetch(TAVILY_SEARCH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: cleanQuery,
+        search_depth: "advanced",
+        max_results: 6,
+        include_answer: false,
+        include_images: false,
+        include_raw_content: false,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error || data?.detail || `Web search failed with status ${response.status}`;
+      throw new Error(String(message));
+    }
+
+    const rawResults = Array.isArray(data?.results) ? data.results : [];
+    const sources = rawResults
+      .filter((item) => item && typeof item.url === "string")
+      .slice(0, 6)
+      .map((item, index) => ({
+        id: index + 1,
+        title: sanitizeSourceText(item.title) || `Source ${index + 1}`,
+        url: item.url,
+        snippet: sanitizeSourceText(item.content || item.snippet || ""),
+      }));
+
+    if (!sources.length) {
+      throw new Error("No web results found for this query.");
+    }
+
+    return {
+      query: typeof data?.query === "string" && data.query.trim() ? data.query.trim() : cleanQuery,
+      sources,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sanitizeSourceText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 280);
+}
+
+function buildWebSearchPrompt({ prompt, history, sources, model, scope }) {
+  const cleanHistory = history
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
+      const role = item.role === "assistant" ? "Assistant" : "User";
+      const text =
+        typeof item.content === "string"
+          ? item.content.trim()
+          : typeof item.text === "string"
+            ? item.text.trim()
+            : "";
+      if (!text) return "";
+      return `${role}: ${text.slice(0, 900)}`;
+    })
+    .filter(Boolean)
+    .slice(-6);
+
+  const sourceBlocks = sources
+    .map((source) => {
+      return [
+        `[${source.id}] ${source.title}`,
+        `URL: ${source.url}`,
+        source.snippet ? `Snippet: ${source.snippet}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  const modeLine =
+    scope === "general"
+      ? "Mode: General chat with web search."
+      : "Mode: Page assistant chat with web search.";
+
+  return [
+    "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
+    modeLine,
+    model ? `Current serving model ID: ${model}` : "",
+    "Rules:",
+    "- Use ONLY the provided web sources for factual statements.",
+    "- Add citation numbers like [1], [2] for factual lines.",
+    "- If sources are insufficient, say so clearly.",
+    "- Keep answer concise and useful.",
+    "- Never mention hidden reasoning.",
+    "",
+    cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
+    "Web sources:",
+    sourceBlocks,
+    "",
+    `User message:\n${prompt}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildSummaryPrompt({ title, url, text }) {
