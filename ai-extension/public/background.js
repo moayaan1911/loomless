@@ -3,6 +3,26 @@ const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
 const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
 const CHAT_MODEL = PRIMARY_NIM_MODEL;
+const CHAT_ALLOWED_MODELS = new Set([
+  "minimaxai/minimax-m2.5",
+  "qwen/qwen3.5-397b-a17b",
+  "zai/glm5",
+  "minimaxai/minimax-m2.1",
+  "moonshotai/kimi-k2.5",
+  "stepfun-ai/step-3.5-flash",
+  "zai/glm4.7",
+  "deepseek/deepseek-v3.2",
+  "nvidia/nemotron-3-nano-30b-a3b",
+  "mistralai/devstral-2-123b-instruct-2512",
+  "mistralai/mistral-large-3-675b-instruct-2512",
+  "meta/llama-3.1-70b-instruct",
+  "meta/llama-3.1-8b-instruct",
+  "meta/llama3-70b-instruct",
+  "meta/llama3-8b-instruct",
+  "microsoft/phi-4-mini-instruct",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+]);
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -100,7 +120,7 @@ async function generateWriteDraft(message, sendResponse) {
 
 async function generateChatReply(message, sendResponse) {
   try {
-    const { prompt, history, context, title, url } = message || {};
+    const { prompt, history, context, title, url, model, scope } = message || {};
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       sendResponse({ ok: false, error: "Please enter a message." });
       return;
@@ -120,6 +140,8 @@ async function generateChatReply(message, sendResponse) {
     const pageTitle = typeof title === "string" ? title : "";
     const pageUrl = typeof url === "string" ? url : "";
     const pageContext = typeof context === "string" ? context : "";
+    const selectedModel = resolveChatModel(model);
+    const chatScope = scope === "general" ? "general" : "page";
 
     const rawOutput = await callChatModelWithRetry(nimApiKey, {
       prompt: promptText,
@@ -127,6 +149,8 @@ async function generateChatReply(message, sendResponse) {
       context: pageContext,
       title: pageTitle,
       url: pageUrl,
+      model: selectedModel,
+      scope: chatScope,
     });
 
     const cleaned = sanitizeChatResponse(rawOutput);
@@ -150,19 +174,23 @@ async function callChatModelWithRetry(apiKey, payload) {
 
   for (const contextLimit of contextAttempts) {
     try {
+      const isGeneral = payload.scope === "general";
       const chatPrompt = buildChatPrompt({
         prompt: payload.prompt,
         history: payload.history,
-        context: (payload.context || "").slice(0, contextLimit),
-        title: payload.title,
-        url: payload.url,
+        context: isGeneral ? "" : (payload.context || "").slice(0, contextLimit),
+        title: isGeneral ? "" : payload.title,
+        url: isGeneral ? "" : payload.url,
+        model: payload.model,
+        scope: payload.scope,
       });
 
-      return await callModelWithConfig(apiKey, chatPrompt, CHAT_MODEL, {
+      return await callModelWithConfig(apiKey, chatPrompt, payload.model || CHAT_MODEL, {
         temperature: 0.35,
         maxTokens: 340,
-        systemPrompt:
-          "You are LoomLess AI. Reply directly and clearly. Keep responses concise by default. Do not include hidden reasoning, preambles, or model/provider mentions.",
+        systemPrompt: isGeneral
+          ? "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. If asked identity, answer: I am LoomLess GPT, an AI assistant developed by LoomLess AI."
+          : "You are LoomLess AI in page-assistant mode. Reply directly and clearly. Keep responses concise by default. Use page context only when provided. Never claim to be a different model than the current one.",
         responseMode: "raw",
       });
     } catch (error) {
@@ -591,7 +619,7 @@ function sanitizeChatResponse(content) {
   return lines.join("\n").trim();
 }
 
-function buildChatPrompt({ prompt, history, context, title, url }) {
+function buildChatPrompt({ prompt, history, context, title, url, model, scope }) {
   const cleanHistory = history
     .filter((item) => item && typeof item === "object")
     .map((item) => {
@@ -608,14 +636,36 @@ function buildChatPrompt({ prompt, history, context, title, url }) {
     .filter(Boolean)
     .slice(-8);
 
+  const isGeneral = scope === "general";
+  const base = isGeneral
+    ? [
+        "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
+        model ? `Current serving model ID: ${model}` : "",
+        "Rules:",
+        "- This is general chat mode, not page mode.",
+        "- Reply in clean markdown when useful.",
+        "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+        "- If user asks who you are, answer exactly: I am LoomLess GPT, an AI assistant developed by LoomLess AI.",
+        "- If user asks which model you are, answer with the exact current serving model ID only.",
+        "- Never claim you are GPT-4 or any different model.",
+        "- Never include chain-of-thought or internal analysis.",
+        "",
+      ]
+    : [
+        "You are answering in an on-page assistant chat panel.",
+        model ? `Current serving model ID: ${model}` : "",
+        "Rules:",
+        "- Reply in clean markdown when useful.",
+        "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+        "- If the answer depends on page context, use the provided context first.",
+        "- If user asks which model you are, answer with the exact current serving model ID only.",
+        "- Never claim you are GPT-4 or any different model.",
+        "- Never include chain-of-thought or internal analysis.",
+        "",
+      ];
+
   return [
-    "You are answering in an on-page assistant chat panel.",
-    "Rules:",
-    "- Reply in clean markdown when useful.",
-    "- Be concise by default (around 3-8 lines) unless user asks for detail.",
-    "- If the answer depends on page context, use the provided context first.",
-    "- Never include chain-of-thought or internal analysis.",
-    "",
+    ...base,
     title ? `Page title: ${title}` : "",
     url ? `Page URL: ${url}` : "",
     context ? `Page context:\n${context}` : "",
@@ -625,6 +675,13 @@ function buildChatPrompt({ prompt, history, context, title, url }) {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function resolveChatModel(model) {
+  if (typeof model !== "string") return CHAT_MODEL;
+  const clean = model.trim();
+  if (!clean) return CHAT_MODEL;
+  return CHAT_ALLOWED_MODELS.has(clean) ? clean : CHAT_MODEL;
 }
 
 function getStorageValue(key) {
