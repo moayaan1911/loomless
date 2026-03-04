@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "LoomLess AI",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI assistant from LoomLess with in-page floating controls.",
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "LoomLess AI",
     "default_popup": "index.html",
@@ -18,6 +21,7 @@
     "128": "icon.png"
   },
   "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://integrate.api.nvidia.com/*"],
   "web_accessible_resources": [
     {
       "resources": ["icon.png"],

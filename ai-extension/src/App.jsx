@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "loomless_ai_floating_enabled";
+const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
+const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
 const hasChromeApi = typeof chrome !== "undefined" && Boolean(chrome?.storage?.local);
+const envApiKey = String(
+  import.meta.env.NVIDIA_API || import.meta.env.VITE_NVIDIA_API || ""
+).trim();
 
 export default function App() {
   const [enabled, setEnabled] = useState(false);
@@ -13,14 +17,23 @@ export default function App() {
       setReady(true);
       return;
     }
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      setEnabled(Boolean(result[STORAGE_KEY]));
+
+    chrome.storage.local.get([STORAGE_FLOATING_KEY, STORAGE_NIM_API_KEY], (result) => {
+      const existingKey = typeof result[STORAGE_NIM_API_KEY] === "string" ? result[STORAGE_NIM_API_KEY].trim() : "";
+
+      if (!existingKey && envApiKey) {
+        chrome.storage.local.set({ [STORAGE_NIM_API_KEY]: envApiKey });
+      }
+
+      setEnabled(Boolean(result[STORAGE_FLOATING_KEY]));
       setReady(true);
     });
 
     const storageListener = (changes, areaName) => {
-      if (areaName !== "local" || !(STORAGE_KEY in changes)) return;
-      setEnabled(Boolean(changes[STORAGE_KEY].newValue));
+      if (areaName !== "local") return;
+      if (STORAGE_FLOATING_KEY in changes) {
+        setEnabled(Boolean(changes[STORAGE_FLOATING_KEY].newValue));
+      }
     };
     chrome.storage.onChanged.addListener(storageListener);
 
@@ -34,7 +47,7 @@ export default function App() {
 
     if (!hasChromeApi) return;
 
-    chrome.storage.local.set({ [STORAGE_KEY]: nextState }, () => {
+    chrome.storage.local.set({ [STORAGE_FLOATING_KEY]: nextState }, () => {
       if (chrome.runtime.lastError) {
         console.error(chrome.runtime.lastError.message);
       }

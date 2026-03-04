@@ -2,10 +2,22 @@
   if (window.__loomlessAiFloatingInitialized) return;
   window.__loomlessAiFloatingInitialized = true;
 
-  const STORAGE_KEY = "loomless_ai_floating_enabled";
+  const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
   const BUTTON_ID = "loomless-ai-floating-icon";
   const MENU_ID = "loomless-ai-radial-menu";
   const TOAST_ID = "loomless-ai-toast";
+  const SUMMARY_PANEL_ID = "loomless-ai-summary-panel";
+  const SUMMARY_TEXT_ID = "loomless-ai-summary-text";
+  const SUMMARY_STATUS_ID = "loomless-ai-summary-status";
+  const SUMMARY_COPY_ID = "loomless-ai-summary-copy";
+  const WRITE_PANEL_ID = "loomless-ai-write-panel";
+  const WRITE_STATUS_ID = "loomless-ai-write-status";
+  const WRITE_OUTPUT_ID = "loomless-ai-write-output";
+  const WRITE_COPY_ID = "loomless-ai-write-copy";
+  const WRITE_TONE_ID = "loomless-ai-write-tone";
+  const WRITE_FORMAT_ID = "loomless-ai-write-format";
+  const WRITE_PROMPT_ID = "loomless-ai-write-prompt";
+  const WRITE_GENERATE_ID = "loomless-ai-write-generate";
   let floatingEnabled = false;
 
   function createFloatingButton() {
@@ -107,7 +119,7 @@
       pointerEvents: "none",
     });
     document.documentElement.appendChild(toast);
-    window.setTimeout(() => toast.remove(), 1800);
+    window.setTimeout(() => toast.remove(), 2200);
   }
 
   function closeMenuOnOutsideClick(event) {
@@ -167,7 +179,7 @@
 
   function toggleFloatingFromMenu() {
     const nextState = !floatingEnabled;
-    chrome.storage.local.set({ [STORAGE_KEY]: nextState });
+    chrome.storage.local.set({ [STORAGE_FLOATING_KEY]: nextState });
     setFloatingState(nextState);
   }
 
@@ -201,9 +213,9 @@
         emoji: "📝",
         offsetX: 0,
         offsetY: 68,
-        onClick: () => {
-          showToast("Summarize is next. Wiring NIM in next step.");
+        onClick: async () => {
           removeRadialMenu();
+          await runSummarizeFlow();
         },
       },
       {
@@ -231,9 +243,9 @@
         emoji: "✍️",
         offsetX: -60,
         offsetY: -34,
-        onClick: () => {
-          showToast("Write action coming next.");
+        onClick: async () => {
           removeRadialMenu();
+          openWritePanel();
         },
       },
     ];
@@ -250,9 +262,757 @@
     }, 0);
   }
 
+  async function runSummarizeFlow() {
+    const pageText = extractPageText();
+    if (!pageText || pageText.length < 200) {
+      showToast("Not enough readable text found on this page.");
+      return;
+    }
+
+    const panel = ensureSummaryPanel();
+    setSummaryState({
+      status: "Summarizing...",
+      text: "",
+      loading: true,
+      error: false,
+      copyEnabled: false,
+    });
+
+    try {
+      const response = await requestSummary({
+        text: pageText,
+        title: document.title,
+        url: window.location.href,
+      });
+
+      if (!response?.ok) {
+        throw new Error(response?.error || "Failed to summarize this page.");
+      }
+
+      setSummaryState({
+        status: "Summary ready",
+        text: response.summary,
+        loading: false,
+        error: false,
+        copyEnabled: true,
+      });
+
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    } catch (error) {
+      setSummaryState({
+        status: "Summarization failed",
+        text: error instanceof Error ? error.message : "Unknown error",
+        loading: false,
+        error: true,
+        copyEnabled: false,
+      });
+    }
+  }
+
+  function requestSummary(payload) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "LOOMLESS_AI_SUMMARIZE", ...payload }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  function requestWrite(payload) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "LOOMLESS_AI_WRITE", ...payload }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  function openWritePanel() {
+    document.getElementById(SUMMARY_PANEL_ID)?.remove();
+    const panel = ensureWritePanel();
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }
+
+  async function runWriteFlow() {
+    const promptInput = document.getElementById(WRITE_PROMPT_ID);
+    const toneSelect = document.getElementById(WRITE_TONE_ID);
+    const formatSelect = document.getElementById(WRITE_FORMAT_ID);
+
+    const prompt = (promptInput?.value || "").trim();
+    if (!prompt) {
+      setWriteState({
+        status: "Please enter what you want to write.",
+        output: "",
+        loading: false,
+        error: true,
+        copyEnabled: false,
+      });
+      return;
+    }
+
+    const pageContext = extractPageTextForModel().slice(0, 7000);
+
+    setWriteState({
+      status: "Generating draft...",
+      output: "",
+      loading: true,
+      error: false,
+      copyEnabled: false,
+    });
+
+    try {
+      const response = await requestWrite({
+        tone: toneSelect?.value || "professional",
+        format: formatSelect?.value || "general",
+        prompt,
+        context: pageContext,
+        title: document.title,
+        url: window.location.href,
+      });
+
+      if (!response?.ok || !response?.content) {
+        throw new Error(response?.error || "Could not generate draft.");
+      }
+
+      setWriteState({
+        status: "Draft ready",
+        output: response.content,
+        loading: false,
+        error: false,
+        copyEnabled: true,
+      });
+    } catch (error) {
+      setWriteState({
+        status: "Write failed",
+        output: error instanceof Error ? error.message : "Unknown error",
+        loading: false,
+        error: true,
+        copyEnabled: false,
+      });
+    }
+  }
+
+  function extractPageTextForModel() {
+    const overlayIds = [BUTTON_ID, MENU_ID, TOAST_ID, SUMMARY_PANEL_ID, WRITE_PANEL_ID];
+    const hiddenNodes = [];
+
+    overlayIds.forEach((id) => {
+      const node = document.getElementById(id);
+      if (!node) return;
+      hiddenNodes.push([node, node.style.display]);
+      node.style.display = "none";
+    });
+
+    const text = extractPageText();
+
+    hiddenNodes.forEach(([node, previousDisplay]) => {
+      node.style.display = previousDisplay;
+    });
+
+    return text;
+  }
+
+  function ensureWritePanel() {
+    let panel = document.getElementById(WRITE_PANEL_ID);
+    if (panel) return panel;
+
+    panel = document.createElement("section");
+    panel.id = WRITE_PANEL_ID;
+
+    Object.assign(panel.style, {
+      position: "fixed",
+      right: "74px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      width: "370px",
+      maxWidth: "min(370px, calc(100vw - 110px))",
+      maxHeight: "78vh",
+      background: "rgba(7, 14, 30, 0.96)",
+      border: "1px solid rgba(118, 166, 255, 0.45)",
+      borderRadius: "16px",
+      boxShadow: "0 20px 40px rgba(3, 8, 18, 0.55)",
+      color: "#eaf1ff",
+      zIndex: "2147483646",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      backdropFilter: "blur(10px)",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+
+    const header = document.createElement("div");
+    Object.assign(header.style, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
+      padding: "12px 12px 10px",
+      borderBottom: "1px solid rgba(118, 166, 255, 0.28)",
+    });
+
+    const title = document.createElement("h3");
+    title.textContent = "Write";
+    Object.assign(title.style, {
+      margin: "0",
+      fontSize: "13px",
+      letterSpacing: "0.03em",
+      textTransform: "uppercase",
+      color: "#c7d8ff",
+      fontWeight: "700",
+    });
+
+    const controls = document.createElement("div");
+    Object.assign(controls.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+    });
+
+    const copyBtn = document.createElement("button");
+    copyBtn.id = WRITE_COPY_ID;
+    copyBtn.type = "button";
+    copyBtn.textContent = "Copy";
+    copyBtn.disabled = true;
+    stylePanelButton(copyBtn);
+    copyBtn.addEventListener("click", async () => {
+      const outputNode = document.getElementById(WRITE_OUTPUT_ID);
+      const content = outputNode?.dataset?.rawWrite || outputNode?.textContent || "";
+      if (!content.trim()) return;
+      try {
+        await navigator.clipboard.writeText(content);
+        showToast("Draft copied");
+      } catch (_error) {
+        showToast("Could not copy draft");
+      }
+    });
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    stylePanelButton(closeBtn);
+    closeBtn.addEventListener("click", () => {
+      panel.remove();
+    });
+
+    controls.append(copyBtn, closeBtn);
+    header.append(title, controls);
+
+    const status = document.createElement("p");
+    status.id = WRITE_STATUS_ID;
+    status.textContent = "Set tone, choose format, and generate.";
+    Object.assign(status.style, {
+      margin: "0",
+      padding: "10px 12px 0",
+      fontSize: "12px",
+      color: "#9fb5e8",
+      fontWeight: "600",
+    });
+
+    const formWrap = document.createElement("div");
+    Object.assign(formWrap.style, {
+      display: "grid",
+      gap: "10px",
+      padding: "10px 12px 8px",
+      borderBottom: "1px solid rgba(118, 166, 255, 0.18)",
+    });
+
+    const selectors = document.createElement("div");
+    Object.assign(selectors.style, {
+      display: "grid",
+      gap: "8px",
+      gridTemplateColumns: "1fr 1fr",
+    });
+
+    const toneSelect = document.createElement("select");
+    toneSelect.id = WRITE_TONE_ID;
+    styleInputControl(toneSelect);
+    [
+      ["professional", "Professional"],
+      ["friendly", "Friendly"],
+      ["casual", "Casual"],
+      ["confident", "Confident"],
+      ["persuasive", "Persuasive"],
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      toneSelect.appendChild(option);
+    });
+
+    const formatSelect = document.createElement("select");
+    formatSelect.id = WRITE_FORMAT_ID;
+    styleInputControl(formatSelect);
+    [
+      ["email", "Email"],
+      ["x-post", "X Post"],
+      ["linkedin-post", "LinkedIn Post"],
+      ["message", "Message"],
+      ["general", "Something Else"],
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      formatSelect.appendChild(option);
+    });
+
+    selectors.append(toneSelect, formatSelect);
+
+    const promptInput = document.createElement("textarea");
+    promptInput.id = WRITE_PROMPT_ID;
+    promptInput.placeholder =
+      "Example: Write an email to recruiter about interview reschedule. Keep it polite and concise.";
+    Object.assign(promptInput.style, {
+      width: "100%",
+      minHeight: "86px",
+      resize: "vertical",
+      borderRadius: "10px",
+      border: "1px solid rgba(118, 166, 255, 0.35)",
+      background: "rgba(255, 255, 255, 0.05)",
+      color: "#ecf2ff",
+      fontSize: "13px",
+      padding: "10px",
+      lineHeight: "1.4",
+      outline: "none",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+    promptInput.addEventListener("keydown", (event) => {
+      const isEnter = event.key === "Enter";
+      const withModifier = event.metaKey || event.ctrlKey;
+      if (!isEnter || !withModifier) return;
+      event.preventDefault();
+      runWriteFlow();
+    });
+
+    const actionRow = document.createElement("div");
+    Object.assign(actionRow.style, {
+      display: "flex",
+      gap: "8px",
+      justifyContent: "flex-end",
+    });
+
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.textContent = "Clear";
+    stylePanelButton(clearBtn);
+    clearBtn.addEventListener("click", () => {
+      promptInput.value = "";
+      setWriteState({
+        status: "Set tone, choose format, and generate.",
+        output: "",
+        loading: false,
+        error: false,
+        copyEnabled: false,
+      });
+    });
+
+    const generateBtn = document.createElement("button");
+    generateBtn.id = WRITE_GENERATE_ID;
+    generateBtn.type = "button";
+    generateBtn.textContent = "Generate";
+    stylePanelButton(generateBtn);
+    generateBtn.addEventListener("click", () => {
+      runWriteFlow();
+    });
+
+    actionRow.append(clearBtn, generateBtn);
+    formWrap.append(selectors, promptInput, actionRow);
+
+    const output = document.createElement("div");
+    output.id = WRITE_OUTPUT_ID;
+    Object.assign(output.style, {
+      margin: "0",
+      padding: "10px 12px 14px",
+      overflowY: "auto",
+      fontSize: "13px",
+      lineHeight: "1.5",
+      color: "#edf3ff",
+      minHeight: "130px",
+      maxHeight: "40vh",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+    output.textContent = "Your generated draft will appear here.";
+
+    panel.append(header, status, formWrap, output);
+    document.documentElement.appendChild(panel);
+    return panel;
+  }
+
+  function setWriteState({ status, output, loading, error, copyEnabled }) {
+    ensureWritePanel();
+    const statusNode = document.getElementById(WRITE_STATUS_ID);
+    const outputNode = document.getElementById(WRITE_OUTPUT_ID);
+    const copyBtn = document.getElementById(WRITE_COPY_ID);
+    const generateBtn = document.getElementById(WRITE_GENERATE_ID);
+
+    if (statusNode) {
+      statusNode.textContent = status;
+      statusNode.style.color = error ? "#ffb7b7" : "#9fb5e8";
+    }
+
+    if (outputNode) {
+      if (loading) {
+        outputNode.textContent = "Generating draft...";
+      } else if (error) {
+        outputNode.textContent = output;
+      } else if (output) {
+        outputNode.innerHTML = markdownToHtml(output);
+      } else {
+        outputNode.textContent = "Your generated draft will appear here.";
+      }
+      outputNode.dataset.rawWrite = loading ? "" : output;
+      outputNode.style.opacity = loading ? "0.85" : "1";
+    }
+
+    if (copyBtn) {
+      copyBtn.disabled = !copyEnabled;
+      copyBtn.style.opacity = copyEnabled ? "1" : "0.55";
+      copyBtn.style.cursor = copyEnabled ? "pointer" : "not-allowed";
+    }
+
+    if (generateBtn) {
+      generateBtn.disabled = loading;
+      generateBtn.style.opacity = loading ? "0.72" : "1";
+      generateBtn.style.cursor = loading ? "not-allowed" : "pointer";
+      generateBtn.textContent = loading ? "Generating..." : "Generate";
+    }
+  }
+
+  function normalizeText(text) {
+    if (!text) return "";
+    const lines = text
+      .replace(/\t+/g, " ")
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    const deduped = [];
+    for (const line of lines) {
+      if (line.length < 2) continue;
+      if (deduped[deduped.length - 1] === line) continue;
+      deduped.push(line);
+    }
+
+    return deduped.join("\n").slice(0, 22000);
+  }
+
+  function extractYouTubeTranscript() {
+    if (!window.location.hostname.includes("youtube.com")) return "";
+
+    const transcriptNodes = document.querySelectorAll(
+      "ytd-transcript-segment-renderer .segment-text, ytd-engagement-panel-section-list-renderer .segment-text"
+    );
+
+    if (!transcriptNodes.length) return "";
+
+    const transcript = Array.from(transcriptNodes)
+      .map((node) => node.textContent || "")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n");
+
+    return normalizeText(transcript);
+  }
+
+  function extractMainDocumentText() {
+    const selectors = [
+      "article",
+      "main",
+      "[role='main']",
+      ".article-content",
+      ".post-content",
+      "#content",
+      ".content",
+      ".markdown-body",
+    ];
+
+    let bestText = "";
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        const text = normalizeText(element.innerText || "");
+        if (text.length > bestText.length) {
+          bestText = text;
+        }
+      });
+    });
+
+    if (bestText.length > 500) {
+      return bestText;
+    }
+
+    return normalizeText(document.body?.innerText || "");
+  }
+
+  function extractPageText() {
+    const youtubeTranscript = extractYouTubeTranscript();
+    if (youtubeTranscript.length > 300) {
+      return `YouTube transcript\n\n${youtubeTranscript}`.slice(0, 22000);
+    }
+
+    const pageText = extractMainDocumentText();
+    return pageText.slice(0, 22000);
+  }
+
+  function ensureSummaryPanel() {
+    let panel = document.getElementById(SUMMARY_PANEL_ID);
+    if (panel) return panel;
+
+    panel = document.createElement("section");
+    panel.id = SUMMARY_PANEL_ID;
+
+    Object.assign(panel.style, {
+      position: "fixed",
+      right: "74px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      width: "360px",
+      maxWidth: "min(360px, calc(100vw - 110px))",
+      maxHeight: "72vh",
+      background: "rgba(7, 14, 30, 0.96)",
+      border: "1px solid rgba(118, 166, 255, 0.45)",
+      borderRadius: "16px",
+      boxShadow: "0 20px 40px rgba(3, 8, 18, 0.55)",
+      color: "#eaf1ff",
+      zIndex: "2147483646",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      backdropFilter: "blur(10px)",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+
+    const header = document.createElement("div");
+    Object.assign(header.style, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
+      padding: "12px 12px 10px",
+      borderBottom: "1px solid rgba(118, 166, 255, 0.28)",
+    });
+
+    const title = document.createElement("h3");
+    title.textContent = "Page Summary";
+    Object.assign(title.style, {
+      margin: "0",
+      fontSize: "13px",
+      letterSpacing: "0.03em",
+      textTransform: "uppercase",
+      color: "#c7d8ff",
+      fontWeight: "700",
+    });
+
+    const controls = document.createElement("div");
+    Object.assign(controls.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+    });
+
+    const copyBtn = document.createElement("button");
+    copyBtn.id = SUMMARY_COPY_ID;
+    copyBtn.type = "button";
+    copyBtn.textContent = "Copy";
+    copyBtn.disabled = true;
+    stylePanelButton(copyBtn);
+    copyBtn.addEventListener("click", async () => {
+      const textNode = document.getElementById(SUMMARY_TEXT_ID);
+      const content = textNode?.dataset?.rawSummary || textNode?.textContent || "";
+      if (!content.trim()) return;
+      try {
+        await navigator.clipboard.writeText(content);
+        showToast("Summary copied");
+      } catch (_error) {
+        showToast("Could not copy summary");
+      }
+    });
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    stylePanelButton(closeBtn);
+    closeBtn.addEventListener("click", () => {
+      panel.remove();
+    });
+
+    controls.append(copyBtn, closeBtn);
+    header.append(title, controls);
+
+    const status = document.createElement("p");
+    status.id = SUMMARY_STATUS_ID;
+    status.textContent = "Preparing summary...";
+    Object.assign(status.style, {
+      margin: "0",
+      padding: "10px 12px 0",
+      fontSize: "12px",
+      color: "#9fb5e8",
+      fontWeight: "600",
+    });
+
+    const content = document.createElement("div");
+    content.id = SUMMARY_TEXT_ID;
+    Object.assign(content.style, {
+      margin: "0",
+      padding: "10px 12px 14px",
+      overflowY: "auto",
+      fontSize: "13px",
+      lineHeight: "1.5",
+      color: "#edf3ff",
+      minHeight: "120px",
+      maxHeight: "50vh",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+
+    panel.append(header, status, content);
+    document.documentElement.appendChild(panel);
+    return panel;
+  }
+
+  function stylePanelButton(button) {
+    Object.assign(button.style, {
+      border: "1px solid rgba(118, 166, 255, 0.44)",
+      borderRadius: "999px",
+      padding: "4px 8px",
+      background: "rgba(118, 166, 255, 0.14)",
+      color: "#deebff",
+      fontSize: "11px",
+      fontWeight: "700",
+      cursor: "pointer",
+    });
+  }
+
+  function styleInputControl(element) {
+    Object.assign(element.style, {
+      width: "100%",
+      borderRadius: "10px",
+      border: "1px solid rgba(118, 166, 255, 0.35)",
+      background: "rgba(255, 255, 255, 0.05)",
+      color: "#ecf2ff",
+      fontSize: "13px",
+      padding: "8px 10px",
+      lineHeight: "1.3",
+      outline: "none",
+      fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+  }
+
+  function setSummaryState({ status, text, loading, error, copyEnabled }) {
+    ensureSummaryPanel();
+    const statusNode = document.getElementById(SUMMARY_STATUS_ID);
+    const textNode = document.getElementById(SUMMARY_TEXT_ID);
+    const copyBtn = document.getElementById(SUMMARY_COPY_ID);
+
+    if (statusNode) {
+      statusNode.textContent = status;
+      statusNode.style.color = error ? "#ffb7b7" : "#9fb5e8";
+    }
+
+    if (textNode) {
+      if (loading) {
+        textNode.textContent = "Generating summary...";
+      } else if (error) {
+        textNode.textContent = text;
+      } else {
+        textNode.innerHTML = markdownToHtml(text);
+      }
+      textNode.dataset.rawSummary = loading ? "" : text;
+      textNode.style.opacity = loading ? "0.85" : "1";
+    }
+
+    if (copyBtn) {
+      copyBtn.disabled = !copyEnabled;
+      copyBtn.style.opacity = copyEnabled ? "1" : "0.55";
+      copyBtn.style.cursor = copyEnabled ? "pointer" : "not-allowed";
+    }
+  }
+
+  function markdownToHtml(markdownText) {
+    if (!markdownText) return "";
+
+    const lines = markdownText.replace(/\r/g, "").split("\n");
+    const html = [];
+    let listType = null;
+
+    const closeList = () => {
+      if (!listType) return;
+      html.push(listType === "ol" ? "</ol>" : "</ul>");
+      listType = null;
+    };
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        closeList();
+        return;
+      }
+
+      if (trimmed.startsWith("### ")) {
+        closeList();
+        html.push(`<h3 style="margin: 8px 0 6px; font-size: 14px; color: #d8e6ff;">${formatInlineMarkdown(trimmed.slice(4))}</h3>`);
+        return;
+      }
+
+      if (trimmed.startsWith("## ")) {
+        closeList();
+        html.push(`<h2 style="margin: 10px 0 6px; font-size: 15px; color: #e2eeff;">${formatInlineMarkdown(trimmed.slice(3))}</h2>`);
+        return;
+      }
+
+      const unorderedMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+      if (unorderedMatch) {
+        if (listType !== "ul") {
+          closeList();
+          html.push('<ul style="margin: 6px 0 8px 18px; padding: 0; display: grid; gap: 4px;">');
+          listType = "ul";
+        }
+        html.push(`<li>${formatInlineMarkdown(unorderedMatch[1])}</li>`);
+        return;
+      }
+
+      const orderedMatch = /^\d+\.\s+(.+)$/.exec(trimmed);
+      if (orderedMatch) {
+        if (listType !== "ol") {
+          closeList();
+          html.push('<ol style="margin: 6px 0 8px 18px; padding: 0; display: grid; gap: 4px;">');
+          listType = "ol";
+        }
+        html.push(`<li>${formatInlineMarkdown(orderedMatch[1])}</li>`);
+        return;
+      }
+
+      closeList();
+      html.push(`<p style="margin: 0 0 8px;">${formatInlineMarkdown(trimmed)}</p>`);
+    });
+
+    closeList();
+    return html.join("");
+  }
+
+  function formatInlineMarkdown(value) {
+    const escaped = escapeHtml(value);
+    return escaped
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`(.+?)`/g, "<code style=\"padding: 1px 4px; border-radius: 5px; background: rgba(255,255,255,0.08);\">$1</code>");
+  }
+
+  function escapeHtml(value) {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   function removeFloatingButton() {
     document.getElementById(BUTTON_ID)?.remove();
     removeRadialMenu();
+    document.getElementById(SUMMARY_PANEL_ID)?.remove();
+    document.getElementById(WRITE_PANEL_ID)?.remove();
     document.removeEventListener("mousedown", closeMenuOnOutsideClick, true);
   }
 
@@ -265,13 +1025,13 @@
     removeFloatingButton();
   }
 
-  chrome.storage.local.get([STORAGE_KEY], (result) => {
-    setFloatingState(Boolean(result[STORAGE_KEY]));
+  chrome.storage.local.get([STORAGE_FLOATING_KEY], (result) => {
+    setFloatingState(Boolean(result[STORAGE_FLOATING_KEY]));
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !(STORAGE_KEY in changes)) return;
-    setFloatingState(Boolean(changes[STORAGE_KEY].newValue));
+    if (areaName !== "local" || !(STORAGE_FLOATING_KEY in changes)) return;
+    setFloatingState(Boolean(changes[STORAGE_FLOATING_KEY].newValue));
   });
 
   chrome.runtime.onMessage.addListener((message) => {
