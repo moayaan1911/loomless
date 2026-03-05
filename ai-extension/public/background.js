@@ -27,7 +27,9 @@ const IMAGE_GEN_ENDPOINTS = {
     "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large",
 };
 const CODE_CHAT_ALLOWED_MODELS = new Set([
+  "minimaxai/minimax-m2.5",
   "zai/glm5",
+  "zai/glm4.7",
   "nvidia/nemotron-3-nano-30b-a3b",
   "qwen/qwen3.5-397b-a17b",
   "moonshotai/kimi-k2.5",

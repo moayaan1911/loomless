@@ -517,6 +517,10 @@ body {
   cursor: pointer;
 }
 
+.upload-btn[hidden] {
+  display: none !important;
+}
+
 .upload-menu {
   position: absolute;
   right: 0;

@@ -1,7 +1,8 @@
-const STORAGE_SELECTED_MODEL = "loomless_ai_chat_page_model";
+const STORAGE_SELECTED_MODEL_PREFIX = "loomless_ai_chat_page_model";
 const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
+const DEFAULT_CODE_MODEL_API = "minimaxai/minimax-m2.5";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
 const CHAT_MODES = {
   CHAT: "chat",
@@ -9,7 +10,9 @@ const CHAT_MODES = {
   IMAGE: "image",
 };
 const CODE_MODE_MODELS = new Set([
+  "minimaxai/minimax-m2.5",
   "zai/glm5",
+  "zai/glm4.7",
   "nvidia/nemotron-3-nano-30b-a3b",
   "qwen/qwen3.5-397b-a17b",
   "moonshotai/kimi-k2.5",
@@ -225,6 +228,7 @@ const sendBtn = document.getElementById("send-btn");
 const statusNode = document.getElementById("chat-status");
 const webSearchToggleNode = document.getElementById("web-search-toggle");
 const uploadBtnNode = document.getElementById("upload-btn");
+const uploadWrapNode = uploadBtnNode?.closest(".upload-wrap") || null;
 const uploadMenuNode = document.getElementById("upload-menu");
 const uploadImageOptionNode = document.getElementById("upload-image-option");
 const imageUploadInputNode = document.getElementById("image-upload-input");
@@ -950,12 +954,18 @@ function syncModeUI() {
   sendBtn.disabled = sending;
   uploadBtnNode.disabled = sending;
   uploadBtnNode.hidden = !isChatMode;
+  if (uploadWrapNode) {
+    uploadWrapNode.hidden = !isChatMode;
+  }
   modelPickerBtn.disabled = sending;
   webSearchToggleNode.hidden = !isChatMode;
 
   if (!isChatMode && webSearchEnabled) {
     webSearchEnabled = false;
     saveWebSearchEnabled(false);
+  }
+  if (!isChatMode) {
+    closeUploadMenu();
   }
 
   if (!isChatMode && hasPendingAttachments()) {
@@ -981,6 +991,7 @@ function setActiveMode(mode) {
   if (normalized === activeMode) return;
   activeMode = normalized;
   saveChatMode(activeMode);
+  selectedModel = loadSelectedModel(activeMode);
   closeModelPicker();
   closeUploadMenu();
   ensureSelectedModelForMode();
@@ -1021,15 +1032,15 @@ function syncWebSearchUI() {
 }
 
 function loadSelectedModel(mode = activeMode) {
-  const stored = localStorage.getItem(STORAGE_SELECTED_MODEL);
+  const stored = localStorage.getItem(getModelStorageKey(mode));
   const visible = getVisibleModelsForMode(mode);
   const found = visible.find((model) => model.apiModel === stored);
   if (found) return found;
   return getDefaultModelOptionForMode(mode);
 }
 
-function saveSelectedModel(model) {
-  localStorage.setItem(STORAGE_SELECTED_MODEL, model);
+function saveSelectedModel(model, mode = activeMode) {
+  localStorage.setItem(getModelStorageKey(mode), model);
 }
 
 function loadChatMode() {
@@ -1052,7 +1063,7 @@ function saveWebSearchEnabled(enabled) {
 function setSelectedModel(model) {
   const switched = selectedModel.apiModel !== model.apiModel;
   selectedModel = model;
-  saveSelectedModel(model.apiModel);
+  saveSelectedModel(model.apiModel, activeMode);
   syncActiveModelUI();
   renderModelCards();
   if (switched) {
@@ -1450,6 +1461,9 @@ function getDefaultModelOptionForMode(mode = activeMode) {
   if (!visible.length) {
     return MODEL_OPTIONS.find((model) => model.apiModel === DEFAULT_MODEL_API) || MODEL_OPTIONS[0];
   }
+  if (resolveMode(mode) === CHAT_MODES.CODE) {
+    return visible.find((model) => model.apiModel === DEFAULT_CODE_MODEL_API) || visible[0];
+  }
   if (resolveMode(mode) === CHAT_MODES.IMAGE) {
     return visible.find((model) => model.apiModel === DEFAULT_IMAGE_MODEL_API) || visible[0];
   }
@@ -1464,7 +1478,7 @@ function getVisibleModelsForMode(mode = activeMode) {
   if (resolvedMode === CHAT_MODES.CODE) {
     return MODEL_OPTIONS.filter((model) => CODE_MODE_MODELS.has(model.apiModel));
   }
-  return MODEL_OPTIONS;
+  return MODEL_OPTIONS.filter((model) => !IMAGE_MODE_MODELS.has(model.apiModel));
 }
 
 function ensureSelectedModelForMode() {
@@ -1472,8 +1486,13 @@ function ensureSelectedModelForMode() {
   if (!visible.length) return;
   if (!selectedModel || !visible.some((item) => item.apiModel === selectedModel.apiModel)) {
     selectedModel = getDefaultModelOptionForMode(activeMode);
-    saveSelectedModel(selectedModel.apiModel);
+    saveSelectedModel(selectedModel.apiModel, activeMode);
   }
+}
+
+function getModelStorageKey(mode = activeMode) {
+  const resolved = resolveMode(mode);
+  return `${STORAGE_SELECTED_MODEL_PREFIX}_${resolved}`;
 }
 
 function resolveMode(mode) {
