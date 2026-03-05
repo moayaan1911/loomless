@@ -7,9 +7,24 @@ const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
 const CHAT_MODEL = PRIMARY_NIM_MODEL;
 const CODE_CHAT_MAX_TOKENS = 100000;
 const CODE_CHAT_FALLBACK_TOKENS = 12000;
+const IMAGE_GEN_MODEL = "black-forest-labs/flux.1-dev";
 const CHAT_MODES = {
   CHAT: "chat",
   CODE: "code",
+};
+const IMAGE_GEN_ALLOWED_MODELS = new Set([
+  "black-forest-labs/flux.1-dev",
+  "black-forest-labs/flux.1-schnell",
+  "black-forest-labs/flux.1-kontext-dev",
+  "stabilityai/stable-diffusion-3.5-large",
+]);
+const IMAGE_GEN_ENDPOINTS = {
+  "black-forest-labs/flux.1-dev": "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev",
+  "black-forest-labs/flux.1-schnell": "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell",
+  "black-forest-labs/flux.1-kontext-dev":
+    "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-kontext-dev",
+  "stabilityai/stable-diffusion-3.5-large":
+    "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large",
 };
 const CODE_CHAT_ALLOWED_MODELS = new Set([
   "zai/glm5",
@@ -38,9 +53,11 @@ const CHAT_ALLOWED_MODELS = new Set([
   "openai/gpt-oss-120b",
 ]);
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
+const NIM_OPENAI_IMAGE_ENDPOINT = "https://integrate.api.nvidia.com/v1/images/generations";
 const TAVILY_SEARCH_ENDPOINT = "https://api.tavily.com/search";
 const NIM_CHAT_TIMEOUT_MS = 180000;
 const NIM_VISION_TIMEOUT_MS = 150000;
+const NIM_IMAGE_TIMEOUT_MS = 240000;
 const TAVILY_TIMEOUT_MS = 45000;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -58,6 +75,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "LOOMLESS_AI_DESCRIBE_IMAGE") {
     describeUploadedImage(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "LOOMLESS_AI_IMAGE_GENERATE") {
+    generateImage(message, sendResponse);
     return true;
   }
   return false;
@@ -263,6 +284,43 @@ async function describeUploadedImage(message, sendResponse) {
     sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : "Failed to analyze image.",
+    });
+  }
+}
+
+async function generateImage(message, sendResponse) {
+  try {
+    const { prompt, model } = message || {};
+    const cleanPrompt = typeof prompt === "string" ? prompt.trim() : "";
+    if (!cleanPrompt) {
+      sendResponse({ ok: false, error: "Please enter an image prompt." });
+      return;
+    }
+
+    const nimApiKey = await getStorageValue(STORAGE_NIM_API_KEY);
+    if (!nimApiKey) {
+      sendResponse({
+        ok: false,
+        error: "AI is not configured yet. Please add your API key and try again.",
+      });
+      return;
+    }
+
+    const selectedModel = resolveImageModel(model);
+    const imageDataUrl = await callImageGenerationWithFallback(nimApiKey, {
+      prompt: cleanPrompt,
+      model: selectedModel,
+    });
+
+    sendResponse({
+      ok: true,
+      imageDataUrl,
+      model: selectedModel,
+    });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to generate image.",
     });
   }
 }
@@ -510,6 +568,199 @@ async function callVisionModel(apiKey, payload) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function callImageGenerationWithFallback(apiKey, payload) {
+  try {
+    return await callModelSpecificImageEndpoint(apiKey, payload);
+  } catch (error) {
+    if (!shouldRetryImageWithFallback(error)) {
+      throw error;
+    }
+    return callOpenAiImageEndpoint(apiKey, payload);
+  }
+}
+
+async function callModelSpecificImageEndpoint(apiKey, payload) {
+  const endpoint = IMAGE_GEN_ENDPOINTS[payload.model];
+  if (!endpoint) {
+    throw new Error("Selected image model is not supported.");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NIM_IMAGE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, image/*",
+      },
+      body: JSON.stringify({
+        prompt: payload.prompt,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(parseImageApiError(errorText, response.status));
+    }
+
+    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    if (contentType.startsWith("image/")) {
+      const blob = await response.blob();
+      return blobToDataUrl(blob);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    const imageDataUrl = extractImageDataUrlFromResponseData(data);
+    if (!imageDataUrl) {
+      throw new Error("Image model returned no image payload.");
+    }
+    return imageDataUrl;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Image generation timed out. Please retry with a shorter prompt.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callOpenAiImageEndpoint(apiKey, payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NIM_IMAGE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(NIM_OPENAI_IMAGE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: payload.model,
+        prompt: payload.prompt,
+        response_format: "b64_json",
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error?.message || `Image request failed with status ${response.status}`;
+      throw new Error(String(message));
+    }
+
+    const imageDataUrl = extractImageDataUrlFromResponseData(data);
+    if (!imageDataUrl) {
+      throw new Error("Image model returned no image payload.");
+    }
+    return imageDataUrl;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Image generation timed out. Please retry with a shorter prompt.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractImageDataUrlFromResponseData(data) {
+  if (!data || typeof data !== "object") return "";
+
+  if (typeof data.image === "string") {
+    return coerceBase64ToDataUrl(data.image);
+  }
+
+  if (Array.isArray(data.data) && data.data.length) {
+    for (const item of data.data) {
+      if (!item || typeof item !== "object") continue;
+      if (typeof item.b64_json === "string") {
+        return coerceBase64ToDataUrl(item.b64_json);
+      }
+      if (typeof item.image === "string") {
+        return coerceBase64ToDataUrl(item.image);
+      }
+      if (typeof item.url === "string" && item.url.trim()) {
+        return item.url.trim();
+      }
+    }
+  }
+
+  if (Array.isArray(data.artifacts) && data.artifacts.length) {
+    for (const artifact of data.artifacts) {
+      if (!artifact || typeof artifact !== "object") continue;
+      if (typeof artifact.base64 === "string") {
+        return coerceBase64ToDataUrl(artifact.base64);
+      }
+      if (typeof artifact.b64_json === "string") {
+        return coerceBase64ToDataUrl(artifact.b64_json);
+      }
+    }
+  }
+
+  if (Array.isArray(data.images) && data.images.length) {
+    for (const item of data.images) {
+      if (typeof item === "string") {
+        return coerceBase64ToDataUrl(item);
+      }
+      if (item && typeof item === "object") {
+        if (typeof item.base64 === "string") {
+          return coerceBase64ToDataUrl(item.base64);
+        }
+        if (typeof item.url === "string" && item.url.trim()) {
+          return item.url.trim();
+        }
+      }
+    }
+  }
+
+  return "";
+}
+
+function coerceBase64ToDataUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("data:image/")) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `data:image/png;base64,${raw}`;
+}
+
+function parseImageApiError(errorText, status) {
+  if (!errorText) return `Image request failed with status ${status}`;
+  try {
+    const parsed = JSON.parse(errorText);
+    const message = parsed?.error?.message || parsed?.error || parsed?.message || parsed?.detail;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+  } catch (_error) {
+    // Fall through to raw text.
+  }
+  return errorText.slice(0, 240) || `Image request failed with status ${status}`;
+}
+
+function blobToDataUrl(blob) {
+  return blob
+    .arrayBuffer()
+    .then((buffer) => {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const mimeType = blob.type || "image/png";
+      return `data:${mimeType};base64,${btoa(binary)}`;
+    })
+    .catch(() => {
+      throw new Error("Could not read generated image.");
+    });
 }
 
 function sanitizeSourceText(value) {
@@ -1108,6 +1359,26 @@ function isAbortError(error) {
   if (error instanceof DOMException && error.name === "AbortError") return true;
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("abort");
+}
+
+function shouldRetryImageWithFallback(error) {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("status 404") ||
+    message.includes("status 405") ||
+    message.includes("status 415") ||
+    message.includes("not found") ||
+    message.includes("unsupported") ||
+    message.includes("no image payload")
+  );
+}
+
+function resolveImageModel(model) {
+  if (typeof model !== "string") return IMAGE_GEN_MODEL;
+  const clean = model.trim();
+  if (!clean) return IMAGE_GEN_MODEL;
+  return IMAGE_GEN_ALLOWED_MODELS.has(clean) ? clean : IMAGE_GEN_MODEL;
 }
 
 function resolveChatModel(model, mode = CHAT_MODES.CHAT) {

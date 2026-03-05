@@ -2,6 +2,7 @@ const STORAGE_SELECTED_MODEL = "loomless_ai_chat_page_model";
 const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
+const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
 const CHAT_MODES = {
   CHAT: "chat",
   CODE: "code",
@@ -13,6 +14,12 @@ const CODE_MODE_MODELS = new Set([
   "qwen/qwen3.5-397b-a17b",
   "moonshotai/kimi-k2.5",
 ]);
+const IMAGE_MODE_MODELS = new Set([
+  "black-forest-labs/flux.1-dev",
+  "black-forest-labs/flux.1-schnell",
+  "black-forest-labs/flux.1-kontext-dev",
+  "stabilityai/stable-diffusion-3.5-large",
+]);
 
 const MODEL_OPTIONS = [
   {
@@ -22,6 +29,38 @@ const MODEL_OPTIONS = [
     desc: "Efficient MoE model with 1M context, strong instruction-following, and tool calling.",
     icon: "nvidia.png",
     badges: ["Recommended", "Default", "Fast"],
+  },
+  {
+    provider: "Black-forest-labs",
+    name: "FLUX.1-dev",
+    apiModel: "black-forest-labs/flux.1-dev",
+    desc: "High-quality text-to-image model with strong detail and composition.",
+    icon: "flux.png",
+    badges: ["Image", "Default"],
+  },
+  {
+    provider: "Black-forest-labs",
+    name: "FLUX.1-schnell",
+    apiModel: "black-forest-labs/flux.1-schnell",
+    desc: "Fast distilled FLUX model optimized for low-latency image generation.",
+    icon: "flux.png",
+    badges: ["Image", "Fast"],
+  },
+  {
+    provider: "Black-forest-labs",
+    name: "FLUX.1-Kontext-dev",
+    apiModel: "black-forest-labs/flux.1-kontext-dev",
+    desc: "In-context multimodal image model for richer generation workflows.",
+    icon: "flux.png",
+    badges: ["Image"],
+  },
+  {
+    provider: "Stability AI",
+    name: "stable-diffusion-3.5-large",
+    apiModel: "stabilityai/stable-diffusion-3.5-large",
+    desc: "Popular text-to-image model with strong prompt adherence and quality.",
+    icon: "stability.png",
+    badges: ["Image"],
   },
   {
     provider: "Minimaxai",
@@ -158,6 +197,10 @@ const SHORT_MODEL_DESCRIPTIONS = {
   "zai/glm4.7": "Reliable coding and tool-use model for practical workflows.",
   "deepseek/deepseek-v3.2": "High-context reasoning model for deep technical queries.",
   "nvidia/nemotron-3-nano-30b-a3b": "Balanced speed and quality with strong instruction following.",
+  "black-forest-labs/flux.1-dev": "High-quality image generation with strong visual fidelity.",
+  "black-forest-labs/flux.1-schnell": "Faster FLUX variant for quick image generation.",
+  "black-forest-labs/flux.1-kontext-dev": "Context-aware FLUX model for richer image creation.",
+  "stabilityai/stable-diffusion-3.5-large": "Stable Diffusion 3.5 large model for text-to-image outputs.",
   "mistralai/devstral-2-123b-instruct-2512": "Code-first instruct model for developer-heavy tasks.",
   "mistralai/mistral-large-3-675b-instruct-2512": "Premium large model for high-quality long-form output.",
   "meta/llama-3.1-70b-instruct": "Powerful Llama model for detailed and accurate chat.",
@@ -348,12 +391,48 @@ autoResizeInput();
 async function runSend() {
   if (sending) return;
   if (activeMode === CHAT_MODES.IMAGE) {
-    setStatus("Image mode is coming soon.");
-    appendMessage({
-      role: "assistant",
-      text: "Image mode is coming soon. Use Chat or Code mode for now.",
-      includeInHistory: false,
-    });
+    const prompt = (inputNode.value || "").trim();
+    if (!prompt) {
+      setStatus("Type an image prompt first.");
+      return;
+    }
+
+    appendMessage({ role: "user", text: prompt });
+    const loadingRow = appendLoadingMessage(`Generating image: ${truncate(prompt, 64)}`);
+
+    inputNode.value = "";
+    autoResizeInput();
+    setSending(true);
+
+    try {
+      const response = await requestImageGenerate({
+        prompt,
+        model: selectedModel.apiModel,
+      });
+
+      if (!response?.ok || !response?.imageDataUrl) {
+        throw new Error(response?.error || "Could not generate image.");
+      }
+
+      removeMessageRow(loadingRow);
+      appendGeneratedImageMessage({
+        prompt,
+        imageDataUrl: response.imageDataUrl,
+        model: response.model || selectedModel.apiModel,
+      });
+      setStatus("Image ready.");
+    } catch (error) {
+      removeMessageRow(loadingRow);
+      const message = error instanceof Error ? error.message : "Image generation failed.";
+      appendMessage({
+        role: "assistant",
+        text: `Image generation failed.\n\n${message}`,
+        includeInHistory: false,
+      });
+      setStatus("Image generation failed.");
+    } finally {
+      setSending(false);
+    }
     return;
   }
 
@@ -477,6 +556,18 @@ function requestChat(payload) {
   });
 }
 
+function requestImageGenerate(payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_IMAGE_GENERATE", ...payload }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
 function setSending(next) {
   sending = next;
   sendBtn.textContent = next ? "Sending..." : "Send";
@@ -519,6 +610,18 @@ function appendMessage({ role, text, includeInHistory = true, sources = [], sear
     actionRow.appendChild(copyBtn);
 
     if (activeMode === CHAT_MODES.CODE) {
+      const downloadPayload = buildDownloadPayload(text);
+      if (downloadPayload) {
+        const downloadBtn = document.createElement("button");
+        downloadBtn.type = "button";
+        downloadBtn.className = "msg-download-btn";
+        downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+        downloadBtn.addEventListener("click", () => {
+          downloadGeneratedFile(downloadPayload);
+        });
+        actionRow.appendChild(downloadBtn);
+      }
+
       const previewHtml = extractHtmlPreviewPayload(text);
       if (previewHtml) {
         const previewBtn = document.createElement("button");
@@ -548,6 +651,58 @@ function appendMessage({ role, text, includeInHistory = true, sources = [], sear
     if (chatHistory.length > 16) {
       chatHistory = chatHistory.slice(-16);
     }
+  }
+}
+
+function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
+  const row = document.createElement("div");
+  row.className = "msg-row assistant";
+
+  const bubble = document.createElement("article");
+  bubble.className = "msg-bubble generated-image-bubble";
+
+  const title = document.createElement("p");
+  title.className = "generated-image-title";
+  title.textContent = "Image generated";
+
+  const image = document.createElement("img");
+  image.className = "generated-image";
+  image.src = imageDataUrl;
+  image.alt = `Generated image for: ${prompt}`;
+  image.loading = "lazy";
+
+  const meta = document.createElement("p");
+  meta.className = "generated-image-meta";
+  meta.textContent = `Model: ${model}`;
+
+  const actionRow = document.createElement("div");
+  actionRow.className = "msg-action-row";
+
+  const downloadBtn = document.createElement("button");
+  downloadBtn.type = "button";
+  downloadBtn.className = "msg-download-btn";
+  downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+  downloadBtn.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.href = imageDataUrl;
+    link.download = `loomless-image-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+
+  actionRow.append(downloadBtn);
+  bubble.append(title, image, meta, actionRow);
+  row.appendChild(bubble);
+  messagesNode.appendChild(row);
+  messagesNode.scrollTop = messagesNode.scrollHeight;
+
+  chatHistory.push({
+    role: "assistant",
+    content: `Generated image for prompt: ${prompt}`,
+  });
+  if (chatHistory.length > 16) {
+    chatHistory = chatHistory.slice(-16);
   }
 }
 
@@ -754,17 +909,6 @@ function getShortModelDescription(model) {
 }
 
 function syncActiveModelUI() {
-  if (activeMode === CHAT_MODES.IMAGE) {
-    if (activeModelNode) {
-      activeModelNode.textContent = "Image mode";
-    }
-    modelPickerLabelNode.textContent = "Mode: Image (Soon)";
-    activeModelIconNode.src = "./icon.png";
-    activeModelIconNode.alt = "Image mode";
-    modelPickerBtn.title = "Image mode has no model selection yet.";
-    return;
-  }
-
   ensureSelectedModelForMode();
   if (activeModelNode) {
     activeModelNode.textContent = `${selectedModel.provider} · ${selectedModel.name}`;
@@ -795,17 +939,18 @@ function syncModeUI() {
     activeMode === CHAT_MODES.CODE
       ? "Ask for code, scripts, components, or full templates..."
       : isImageMode
-        ? "Image mode coming soon..."
+        ? "Describe the image you want to generate..."
         : "Ask anything...";
 
   inputNode.placeholder = modePlaceholder;
   modeTabNodes.forEach((node) => {
     node.disabled = sending;
   });
-  inputNode.disabled = sending || isImageMode;
-  sendBtn.disabled = sending || isImageMode;
-  uploadBtnNode.disabled = sending || isImageMode;
-  modelPickerBtn.disabled = sending || isImageMode;
+  inputNode.disabled = sending;
+  sendBtn.disabled = sending;
+  uploadBtnNode.disabled = sending;
+  uploadBtnNode.hidden = !isChatMode;
+  modelPickerBtn.disabled = sending;
   webSearchToggleNode.hidden = !isChatMode;
 
   if (!isChatMode && webSearchEnabled) {
@@ -813,9 +958,14 @@ function syncModeUI() {
     saveWebSearchEnabled(false);
   }
 
+  if (!isChatMode && hasPendingAttachments()) {
+    clearPendingImageUploads();
+    latestUploadContext = "";
+  }
+
   if (isImageMode) {
     modeNoteNode.hidden = false;
-    modeNoteNode.textContent = "Image mode is reserved for upcoming media workflows.";
+    modeNoteNode.textContent = "Image mode generates images from prompt text using NVIDIA image models.";
   } else if (activeMode === CHAT_MODES.CODE) {
     modeNoteNode.hidden = false;
     modeNoteNode.textContent =
@@ -874,9 +1024,7 @@ function loadSelectedModel(mode = activeMode) {
   const stored = localStorage.getItem(STORAGE_SELECTED_MODEL);
   const visible = getVisibleModelsForMode(mode);
   const found = visible.find((model) => model.apiModel === stored);
-  if (found && stored !== "minimaxai/minimax-m2.5") {
-    return found;
-  }
+  if (found) return found;
   return getDefaultModelOptionForMode(mode);
 }
 
@@ -902,7 +1050,6 @@ function saveWebSearchEnabled(enabled) {
 }
 
 function setSelectedModel(model) {
-  if (activeMode === CHAT_MODES.IMAGE) return;
   const switched = selectedModel.apiModel !== model.apiModel;
   selectedModel = model;
   saveSelectedModel(model.apiModel);
@@ -940,7 +1087,6 @@ function toggleModelPicker() {
 }
 
 function openModelPicker() {
-  if (activeMode === CHAT_MODES.IMAGE) return;
   closeUploadMenu();
   modelPickerPopover.hidden = false;
   modelPickerBtn.setAttribute("aria-expanded", "true");
@@ -1296,7 +1442,7 @@ function hasPendingAttachments() {
 }
 
 function isWebSearchLocked() {
-  return sending || hasPendingAttachments() || activeMode === CHAT_MODES.IMAGE;
+  return sending || hasPendingAttachments() || activeMode !== CHAT_MODES.CHAT;
 }
 
 function getDefaultModelOptionForMode(mode = activeMode) {
@@ -1304,13 +1450,16 @@ function getDefaultModelOptionForMode(mode = activeMode) {
   if (!visible.length) {
     return MODEL_OPTIONS.find((model) => model.apiModel === DEFAULT_MODEL_API) || MODEL_OPTIONS[0];
   }
+  if (resolveMode(mode) === CHAT_MODES.IMAGE) {
+    return visible.find((model) => model.apiModel === DEFAULT_IMAGE_MODEL_API) || visible[0];
+  }
   return visible.find((model) => model.apiModel === DEFAULT_MODEL_API) || visible[0];
 }
 
 function getVisibleModelsForMode(mode = activeMode) {
   const resolvedMode = resolveMode(mode);
   if (resolvedMode === CHAT_MODES.IMAGE) {
-    return [];
+    return MODEL_OPTIONS.filter((model) => IMAGE_MODE_MODELS.has(model.apiModel));
   }
   if (resolvedMode === CHAT_MODES.CODE) {
     return MODEL_OPTIONS.filter((model) => CODE_MODE_MODELS.has(model.apiModel));
@@ -1348,14 +1497,7 @@ function hasFencedCodeBlocks(text) {
 
 function extractCopyPayloadFromMessage(text) {
   const source = String(text || "");
-  const blocks = [];
-  const regex = /```[a-zA-Z0-9_-]*\n?([\s\S]*?)```/g;
-  let match = regex.exec(source);
-  while (match) {
-    const body = String(match[1] || "").trim();
-    if (body) blocks.push(body);
-    match = regex.exec(source);
-  }
+  const blocks = extractCodeBlocksFromMessage(source).map((block) => block.body);
   if (blocks.length) {
     return blocks.join("\n\n");
   }
@@ -1390,25 +1532,101 @@ function extractHtmlPreviewPayload(text) {
   const source = String(text || "");
   if (!source.trim()) return "";
 
-  const regex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
-  let match = regex.exec(source);
-  while (match) {
-    const lang = String(match[1] || "").trim().toLowerCase();
-    const body = String(match[2] || "").trim();
-    if (!body) {
-      match = regex.exec(source);
-      continue;
-    }
+  const blocks = extractCodeBlocksFromMessage(source);
+  for (const block of blocks) {
+    const lang = block.lang;
+    const body = block.body;
     if (lang === "html" || lang === "htm" || /<!doctype html>|<html[\s>]|<body[\s>]/i.test(body)) {
       return body;
     }
-    match = regex.exec(source);
   }
 
   if (/<!doctype html>|<html[\s>]|<body[\s>]/i.test(source)) {
     return source.trim();
   }
   return "";
+}
+
+function extractCodeBlocksFromMessage(text) {
+  const source = String(text || "");
+  const blocks = [];
+  const regex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+  let match = regex.exec(source);
+  while (match) {
+    const lang = String(match[1] || "").trim().toLowerCase();
+    const body = String(match[2] || "").trim();
+    if (body) {
+      blocks.push({ lang, body });
+    }
+    match = regex.exec(source);
+  }
+  return blocks;
+}
+
+function buildDownloadPayload(text) {
+  const blocks = extractCodeBlocksFromMessage(text);
+  if (!blocks.length) {
+    const plain = String(text || "").trim();
+    if (!plain) return null;
+    return {
+      content: plain,
+      fileName: `loomless-output-${Date.now()}.txt`,
+      mimeType: "text/plain;charset=utf-8",
+    };
+  }
+
+  if (blocks.length === 1) {
+    const type = resolveFileType(blocks[0].lang, blocks[0].body);
+    return {
+      content: blocks[0].body,
+      fileName: `loomless-code-${Date.now()}.${type.ext}`,
+      mimeType: type.mime,
+    };
+  }
+
+  const merged = blocks
+    .map((block, index) => `// ----- Block ${index + 1} (${block.lang || "text"}) -----\n${block.body}`)
+    .join("\n\n");
+  return {
+    content: merged,
+    fileName: `loomless-code-${Date.now()}.txt`,
+    mimeType: "text/plain;charset=utf-8",
+  };
+}
+
+function resolveFileType(lang, body) {
+  const cleanLang = String(lang || "").trim().toLowerCase();
+  if (cleanLang === "html" || cleanLang === "htm" || /<!doctype html>|<html[\s>]/i.test(body)) {
+    return { ext: "html", mime: "text/html;charset=utf-8" };
+  }
+  if (cleanLang === "css") return { ext: "css", mime: "text/css;charset=utf-8" };
+  if (cleanLang === "javascript" || cleanLang === "js") {
+    return { ext: "js", mime: "text/javascript;charset=utf-8" };
+  }
+  if (cleanLang === "typescript" || cleanLang === "ts") {
+    return { ext: "ts", mime: "text/typescript;charset=utf-8" };
+  }
+  if (cleanLang === "python" || cleanLang === "py") return { ext: "py", mime: "text/x-python;charset=utf-8" };
+  if (cleanLang === "json") return { ext: "json", mime: "application/json;charset=utf-8" };
+  if (cleanLang === "sql") return { ext: "sql", mime: "text/sql;charset=utf-8" };
+  if (cleanLang === "markdown" || cleanLang === "md") return { ext: "md", mime: "text/markdown;charset=utf-8" };
+  return { ext: "txt", mime: "text/plain;charset=utf-8" };
+}
+
+function downloadGeneratedFile(payload) {
+  if (!payload || !payload.content || !payload.fileName) return;
+  const blob = new Blob([payload.content], {
+    type: payload.mimeType || "text/plain;charset=utf-8",
+  });
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = payload.fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 }
 
 function openPreviewInNewTab(html) {
