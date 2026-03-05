@@ -33,11 +33,37 @@
         <div id="chat-messages" class="chat-messages"></div>
 
         <footer class="composer">
+          <div class="mode-tabs" role="tablist" aria-label="Assistant mode">
+            <button id="mode-chat-btn" type="button" class="mode-tab active" data-chat-mode="chat" aria-selected="true">
+              <span class="mode-tab-icon" aria-hidden="true">◉</span>
+              <span>Chat</span>
+            </button>
+            <button id="mode-code-btn" type="button" class="mode-tab" data-chat-mode="code" aria-selected="false">
+              <span class="mode-tab-icon code" aria-hidden="true">&lt;/&gt;</span>
+              <span>Code</span>
+            </button>
+            <button id="mode-image-btn" type="button" class="mode-tab" data-chat-mode="image" aria-selected="false">
+              <span class="mode-tab-icon" aria-hidden="true">▣</span>
+              <span>Image</span>
+            </button>
+          </div>
+          <p id="mode-note" class="mode-note" hidden></p>
+          <div id="upload-preview-list" class="upload-preview-list" hidden></div>
           <div class="composer-box">
             <textarea id="chat-input" rows="1" placeholder="Ask anything..."></textarea>
             <div class="composer-right">
+              <div class="upload-wrap">
+                <button id="upload-btn" type="button" class="upload-btn" title="Upload file">📎</button>
+                <div id="upload-menu" class="upload-menu" hidden>
+                  <button id="upload-image-option" type="button" class="upload-option">🖼 Upload Image</button>
+                  <button type="button" class="upload-option disabled" disabled>🎥 Upload Video (Soon)</button>
+                  <button type="button" class="upload-option disabled" disabled>📄 Upload PDF (Soon)</button>
+                  <button type="button" class="upload-option disabled" disabled>📝 Upload DOC (Soon)</button>
+                  <button type="button" class="upload-option disabled" disabled>📊 Upload PPT (Soon)</button>
+                </div>
+              </div>
               <button id="web-search-toggle" type="button" class="web-toggle" aria-pressed="false">
-                <span class="web-toggle-dot"></span>
+                <span class="web-toggle-emoji" aria-hidden="true">🌐</span>
                 <span>Web</span>
               </button>
               <button id="send-btn" class="primary-btn">Send</button>
@@ -46,6 +72,11 @@
           <div class="composer-actions">
             <span class="hint">Press Enter to send · Shift + Enter for new line</span>
           </div>
+          <p class="model-speed-disclaimer">
+            <span class="model-speed-icon" aria-hidden="true">⚠️</span>
+            <span><strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait.</em></strong></span>
+          </p>
+          <input id="image-upload-input" type="file" accept="image/png,image/jpeg,image/jpg" multiple hidden />
         </footer>
       </section>
 
@@ -68,6 +99,21 @@
             <button id="sources-close-btn" type="button" class="ghost-btn">Close</button>
           </header>
           <div id="sources-list" class="sources-list"></div>
+        </div>
+      </section>
+
+      <section id="image-preview-modal" class="sources-modal" hidden>
+        <div id="image-preview-backdrop" class="sources-backdrop"></div>
+        <div class="sources-dialog image-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="image-preview-title">
+          <header class="sources-header">
+            <div>
+              <h3 id="image-preview-title">Attached Image</h3>
+            </div>
+            <button id="image-preview-close-btn" type="button" class="ghost-btn">Close</button>
+          </header>
+          <div class="image-preview-body">
+            <img id="image-preview-modal-img" class="image-preview-modal-img" alt="Attached image full preview" />
+          </div>
         </div>
       </section>
     </main>

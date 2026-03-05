@@ -1,13 +1,35 @@
 const STORAGE_SELECTED_MODEL = "loomless_ai_chat_page_model";
 const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
+const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
+const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
+const CHAT_MODES = {
+  CHAT: "chat",
+  CODE: "code",
+  IMAGE: "image",
+};
+const CODE_MODE_MODELS = new Set([
+  "zai/glm5",
+  "nvidia/nemotron-3-nano-30b-a3b",
+  "qwen/qwen3.5-397b-a17b",
+  "moonshotai/kimi-k2.5",
+]);
 
 const MODEL_OPTIONS = [
+  {
+    provider: "NVIDIA",
+    name: "nemotron-3-nano-30b-a3b",
+    apiModel: "nvidia/nemotron-3-nano-30b-a3b",
+    desc: "Efficient MoE model with 1M context, strong instruction-following, and tool calling.",
+    icon: "nvidia.png",
+    badges: ["Recommended", "Default", "Fast"],
+  },
   {
     provider: "Minimaxai",
     name: "minimax-m2.5",
     apiModel: "minimaxai/minimax-m2.5",
     desc: "MiniMax M2.5 is a 230B-parameter text-to-text model for coding, reasoning, and office tasks.",
     icon: "minimax.png",
+    badges: ["Hot"],
   },
   {
     provider: "Qwen",
@@ -15,6 +37,7 @@ const MODEL_OPTIONS = [
     apiModel: "qwen/qwen3.5-397b-a17b",
     desc: "Qwen 3.5 VLM MoE model with advanced vision, chat, RAG, and agentic capabilities.",
     icon: "qwen.png",
+    badges: ["Hot"],
   },
   {
     provider: "Z.ai",
@@ -22,13 +45,7 @@ const MODEL_OPTIONS = [
     apiModel: "zai/glm5",
     desc: "GLM-5 MoE model focused on efficient reasoning for complex, long-horizon tasks.",
     icon: "zai.png",
-  },
-  {
-    provider: "Minimaxai",
-    name: "minimax-m2.1",
-    apiModel: "minimaxai/minimax-m2.1",
-    desc: "MiniMax M2.1 for multilingual coding, web/app workflows, office AI, and agent integrations.",
-    icon: "minimax.png",
+    badges: ["Hot"],
   },
   {
     provider: "Moonshotai",
@@ -36,6 +53,14 @@ const MODEL_OPTIONS = [
     apiModel: "moonshotai/kimi-k2.5",
     desc: "High-capacity multimodal MoE for video and image understanding with efficient inference.",
     icon: "kimi.png",
+    badges: ["Hot"],
+  },
+  {
+    provider: "Minimaxai",
+    name: "minimax-m2.1",
+    apiModel: "minimaxai/minimax-m2.1",
+    desc: "MiniMax M2.1 for multilingual coding, web/app workflows, office AI, and agent integrations.",
+    icon: "minimax.png",
   },
   {
     provider: "Stepfun-ai",
@@ -57,13 +82,6 @@ const MODEL_OPTIONS = [
     apiModel: "deepseek/deepseek-v3.2",
     desc: "State-of-the-art sparse-attention reasoning model with long context and integrated tools.",
     icon: "deepseek.png",
-  },
-  {
-    provider: "NVIDIA",
-    name: "nemotron-3-nano-30b-a3b",
-    apiModel: "nvidia/nemotron-3-nano-30b-a3b",
-    desc: "Efficient MoE model with 1M context, strong instruction-following, and tool calling.",
-    icon: "nvidia.png",
   },
   {
     provider: "Mistral AI",
@@ -163,11 +181,22 @@ const inputNode = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
 const statusNode = document.getElementById("chat-status");
 const webSearchToggleNode = document.getElementById("web-search-toggle");
+const uploadBtnNode = document.getElementById("upload-btn");
+const uploadMenuNode = document.getElementById("upload-menu");
+const uploadImageOptionNode = document.getElementById("upload-image-option");
+const imageUploadInputNode = document.getElementById("image-upload-input");
+const uploadPreviewListNode = document.getElementById("upload-preview-list");
 const sourcesModalNode = document.getElementById("sources-modal");
 const sourcesBackdropNode = document.getElementById("sources-backdrop");
 const sourcesCloseBtnNode = document.getElementById("sources-close-btn");
 const sourcesQueryNode = document.getElementById("sources-query");
 const sourcesListNode = document.getElementById("sources-list");
+const imagePreviewModalNode = document.getElementById("image-preview-modal");
+const imagePreviewBackdropNode = document.getElementById("image-preview-backdrop");
+const imagePreviewCloseBtnNode = document.getElementById("image-preview-close-btn");
+const imagePreviewModalImgNode = document.getElementById("image-preview-modal-img");
+const modeTabNodes = Array.from(document.querySelectorAll("[data-chat-mode]"));
+const modeNoteNode = document.getElementById("mode-note");
 
 const INPUT_MIN_HEIGHT = 42;
 const INPUT_MAX_HEIGHT = 140;
@@ -175,14 +204,21 @@ const INPUT_MAX_HEIGHT = 140;
 let sending = false;
 let chatHistory = [];
 let webSearchEnabled = loadWebSearchEnabled();
+let latestUploadContext = "";
+let pendingImageUploads = [];
 const missingIcons = new Set();
-let selectedModel = loadSelectedModel();
+let activeMode = loadChatMode();
+let selectedModel = loadSelectedModel(activeMode);
 
 modelPickerBtn.setAttribute("aria-expanded", "false");
 
+ensureSelectedModelForMode();
 renderModelCards();
 syncActiveModelUI();
+syncModeTabs();
+syncModeUI();
 syncWebSearchUI();
+renderPendingImagePreview();
 appendMessage({
   role: "assistant",
   text: "Hey 👋 I am LoomLess GPT. Ask anything.",
@@ -193,10 +229,59 @@ sendBtn.addEventListener("click", () => {
   runSend();
 });
 
+modeTabNodes.forEach((node) => {
+  node.addEventListener("click", () => {
+    const nextMode = node.getAttribute("data-chat-mode");
+    if (!nextMode) return;
+    setActiveMode(nextMode);
+  });
+});
+
 webSearchToggleNode.addEventListener("click", () => {
+  if (isWebSearchLocked()) return;
   webSearchEnabled = !webSearchEnabled;
   saveWebSearchEnabled(webSearchEnabled);
   syncWebSearchUI();
+});
+
+uploadBtnNode.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleUploadMenu();
+});
+
+uploadImageOptionNode.addEventListener("click", () => {
+  closeUploadMenu();
+  imageUploadInputNode.click();
+});
+
+imageUploadInputNode.addEventListener("change", async () => {
+  const files = Array.from(imageUploadInputNode.files || []);
+  imageUploadInputNode.value = "";
+  if (!files.length) return;
+  await stageImageUploads(files);
+});
+
+uploadPreviewListNode.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const previewCard = target.closest("[data-upload-id]");
+  if (!previewCard) return;
+  const uploadId = previewCard.getAttribute("data-upload-id");
+  if (!uploadId) return;
+
+  if (target.closest("[data-upload-action='remove']")) {
+    removePendingImageUpload(uploadId);
+    setStatus("Attached image removed.");
+    return;
+  }
+
+  if (target.closest("[data-upload-action='open']")) {
+    const found = pendingImageUploads.find((item) => item.id === uploadId);
+    if (found) {
+      openImagePreviewModal(found.dataUrl);
+    }
+  }
 });
 
 inputNode.addEventListener("input", () => {
@@ -204,29 +289,50 @@ inputNode.addEventListener("input", () => {
 });
 
 modelPickerBtn.addEventListener("click", (event) => {
+  if (modelPickerBtn.disabled) return;
   event.stopPropagation();
   toggleModelPicker();
 });
 
 sourcesCloseBtnNode.addEventListener("click", closeSourcesModal);
 sourcesBackdropNode.addEventListener("click", closeSourcesModal);
+imagePreviewCloseBtnNode.addEventListener("click", closeImagePreviewModal);
+imagePreviewBackdropNode.addEventListener("click", closeImagePreviewModal);
 
 document.addEventListener("click", (event) => {
-  if (modelPickerPopover.hidden) return;
   const target = event.target;
   if (!(target instanceof Node)) return;
-  if (modelPickerPopover.contains(target) || modelPickerBtn.contains(target)) return;
-  closeModelPicker();
+
+  if (!modelPickerPopover.hidden) {
+    const clickedModelPicker = modelPickerPopover.contains(target) || modelPickerBtn.contains(target);
+    if (!clickedModelPicker) {
+      closeModelPicker();
+    }
+  }
+
+  if (!uploadMenuNode.hidden) {
+    const clickedUploadMenu = uploadMenuNode.contains(target) || uploadBtnNode.contains(target);
+    if (!clickedUploadMenu) {
+      closeUploadMenu();
+    }
+  }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (!imagePreviewModalNode.hidden) {
+      closeImagePreviewModal();
+      return;
+    }
     if (!sourcesModalNode.hidden) {
       closeSourcesModal();
       return;
     }
     if (!modelPickerPopover.hidden) {
       closeModelPicker();
+    }
+    if (!uploadMenuNode.hidden) {
+      closeUploadMenu();
     }
   }
 });
@@ -241,32 +347,96 @@ autoResizeInput();
 
 async function runSend() {
   if (sending) return;
+  if (activeMode === CHAT_MODES.IMAGE) {
+    setStatus("Image mode is coming soon.");
+    appendMessage({
+      role: "assistant",
+      text: "Image mode is coming soon. Use Chat or Code mode for now.",
+      includeInHistory: false,
+    });
+    return;
+  }
 
   const text = (inputNode.value || "").trim();
-  if (!text) {
+  const uploadsForSend = pendingImageUploads.map((item) => ({ ...item }));
+  const hasAttachments = uploadsForSend.length > 0;
+  const effectiveWebSearch = webSearchEnabled && !hasAttachments;
+  const finalPrompt = text || (uploadsForSend.length ? "Explain the attached image(s)." : "");
+
+  if (!finalPrompt) {
     setStatus("Type a message first.");
     return;
   }
 
   const historyForRequest = chatHistory.slice(-8);
-  appendMessage({ role: "user", text });
-  const loadingLabel = webSearchEnabled ? `Searching web: ${truncate(text, 64)}` : "Thinking";
+  const attachmentLine =
+    uploadsForSend.length === 0
+      ? ""
+      : uploadsForSend.length === 1
+        ? `📎 ${uploadsForSend[0].fileName}`
+        : `📎 ${uploadsForSend.length} images attached`;
+  const userText = attachmentLine ? `${attachmentLine}\n\n${finalPrompt}` : finalPrompt;
+  appendMessage({ role: "user", text: userText });
+  const loadingLabel = uploadsForSend.length
+    ? `Analyzing ${uploadsForSend.length} image${uploadsForSend.length > 1 ? "s" : ""}`
+    : activeMode === CHAT_MODES.CODE
+      ? "Generating code"
+    : effectiveWebSearch
+      ? `Searching web: ${truncate(finalPrompt, 64)}`
+      : "Thinking";
   const loadingRow = appendLoadingMessage(loadingLabel);
 
   inputNode.value = "";
   autoResizeInput();
+  if (uploadsForSend.length) {
+    clearPendingImageUploads();
+  }
   setSending(true);
 
   try {
+    if (uploadsForSend.length) {
+      const analyses = [];
+      for (let index = 0; index < uploadsForSend.length; index += 1) {
+        const upload = uploadsForSend[index];
+        updateLoadingMessage(
+          loadingRow,
+          `Analyzing ${index + 1}/${uploadsForSend.length}: ${truncate(upload.fileName, 42)}`
+        );
+        const visionResponse = await requestImageDescribe({
+          imageDataUrl: upload.dataUrl,
+          prompt:
+            `Extract only visible facts relevant to answering this user query.\nUser query: ${finalPrompt}`,
+        });
+        if (!visionResponse?.ok || !visionResponse?.reply) {
+          throw new Error(visionResponse?.error || `Could not analyze ${upload.fileName}.`);
+        }
+        analyses.push({
+          fileName: upload.fileName,
+          analysis: visionResponse.reply,
+          model: visionResponse.model || "nvidia/nemotron-nano-12b-v2-vl",
+        });
+      }
+
+      latestUploadContext = buildUploadContextSnapshot(analyses);
+
+      if (effectiveWebSearch) {
+        updateLoadingMessage(loadingRow, `Searching web: ${truncate(finalPrompt, 64)}`);
+      } else {
+        updateLoadingMessage(loadingRow, "Thinking");
+      }
+    }
+
+    const attachedContext = buildAttachedContext();
     const response = await requestChat({
-      prompt: text,
+      prompt: finalPrompt,
       history: historyForRequest,
-      context: "",
+      context: attachedContext,
       title: "",
       url: "",
       scope: "general",
+      mode: activeMode,
       model: selectedModel.apiModel,
-      webSearch: webSearchEnabled,
+      webSearch: effectiveWebSearch,
     });
 
     if (!response?.ok || !response?.reply) {
@@ -309,10 +479,9 @@ function requestChat(payload) {
 
 function setSending(next) {
   sending = next;
-  sendBtn.disabled = next;
   sendBtn.textContent = next ? "Sending..." : "Send";
-  modelPickerBtn.disabled = next;
-  webSearchToggleNode.disabled = next;
+  syncModeUI();
+  syncWebSearchUI();
 }
 
 function setStatus(value) {
@@ -327,6 +496,44 @@ function appendMessage({ role, text, includeInHistory = true, sources = [], sear
   const bubble = document.createElement("article");
   bubble.className = "msg-bubble";
   bubble.innerHTML = markdownToHtml(text);
+
+  if (role === "assistant" && hasFencedCodeBlocks(text)) {
+    const actionRow = document.createElement("div");
+    actionRow.className = "msg-action-row";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "msg-copy-btn";
+    copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy Code</span>';
+    copyBtn.addEventListener("click", async () => {
+      const payload = extractCopyPayloadFromMessage(text);
+      if (!payload) return;
+      const copied = await copyTextToClipboard(payload);
+      copyBtn.innerHTML = copied
+        ? '<span class="msg-action-icon" aria-hidden="true">✓</span><span>Copied</span>'
+        : '<span class="msg-action-icon" aria-hidden="true">!</span><span>Copy Failed</span>';
+      setTimeout(() => {
+        copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy Code</span>';
+      }, 1400);
+    });
+    actionRow.appendChild(copyBtn);
+
+    if (activeMode === CHAT_MODES.CODE) {
+      const previewHtml = extractHtmlPreviewPayload(text);
+      if (previewHtml) {
+        const previewBtn = document.createElement("button");
+        previewBtn.type = "button";
+        previewBtn.className = "msg-preview-btn";
+        previewBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">↗</span><span>Preview</span>';
+        previewBtn.addEventListener("click", () => {
+          openPreviewInNewTab(previewHtml);
+        });
+        actionRow.appendChild(previewBtn);
+      }
+    }
+
+    bubble.appendChild(actionRow);
+  }
 
   if (role === "assistant" && Array.isArray(sources) && sources.length) {
     bubble.appendChild(createSourcesChip(sources, searchQuery));
@@ -437,6 +644,14 @@ function appendLoadingMessage(label = "Thinking") {
   return row;
 }
 
+function updateLoadingMessage(row, label) {
+  if (!row) return;
+  const textNode = row.querySelector(".loading-text");
+  if (textNode) {
+    textNode.textContent = label;
+  }
+}
+
 function removeMessageRow(row) {
   if (row && row.parentNode === messagesNode) {
     messagesNode.removeChild(row);
@@ -446,8 +661,18 @@ function removeMessageRow(row) {
 function renderModelCards() {
   modelListNode.innerHTML = "";
   missingIcons.clear();
+  const visibleModels = getVisibleModelsForMode(activeMode);
 
-  MODEL_OPTIONS.forEach((model) => {
+  if (!visibleModels.length) {
+    const empty = document.createElement("p");
+    empty.className = "model-empty";
+    empty.textContent = "No model selection in Image mode yet.";
+    modelListNode.appendChild(empty);
+    renderMissingIconsNote();
+    return;
+  }
+
+  visibleModels.forEach((model) => {
     const card = document.createElement("button");
     card.type = "button";
     card.className = `model-card ${model.apiModel === selectedModel.apiModel ? "active" : ""}`;
@@ -478,6 +703,18 @@ function renderModelCards() {
 
     providerWrap.append(icon, provider);
     top.append(providerWrap);
+
+    if (Array.isArray(model.badges) && model.badges.length) {
+      const badges = document.createElement("div");
+      badges.className = "model-badges";
+      model.badges.forEach((badgeText) => {
+        const badge = document.createElement("span");
+        badge.className = `model-badge ${String(badgeText || "").toLowerCase()}`;
+        badge.textContent = badgeText;
+        badges.appendChild(badge);
+      });
+      top.append(badges);
+    }
 
     const modelName = document.createElement("h3");
     modelName.className = "model-name";
@@ -517,6 +754,18 @@ function getShortModelDescription(model) {
 }
 
 function syncActiveModelUI() {
+  if (activeMode === CHAT_MODES.IMAGE) {
+    if (activeModelNode) {
+      activeModelNode.textContent = "Image mode";
+    }
+    modelPickerLabelNode.textContent = "Mode: Image (Soon)";
+    activeModelIconNode.src = "./icon.png";
+    activeModelIconNode.alt = "Image mode";
+    modelPickerBtn.title = "Image mode has no model selection yet.";
+    return;
+  }
+
+  ensureSelectedModelForMode();
   if (activeModelNode) {
     activeModelNode.textContent = `${selectedModel.provider} · ${selectedModel.name}`;
   }
@@ -530,21 +779,118 @@ function syncActiveModelUI() {
   modelPickerBtn.title = `${selectedModel.provider} · ${selectedModel.name}`;
 }
 
-function syncWebSearchUI() {
-  webSearchToggleNode.setAttribute("aria-pressed", webSearchEnabled ? "true" : "false");
-  webSearchToggleNode.title = webSearchEnabled
-    ? "Web search ON: latest web sources will be used"
-    : "Web search OFF";
+function syncModeTabs() {
+  modeTabNodes.forEach((node) => {
+    const mode = node.getAttribute("data-chat-mode");
+    const active = mode === activeMode;
+    node.classList.toggle("active", active);
+    node.setAttribute("aria-selected", active ? "true" : "false");
+  });
 }
 
-function loadSelectedModel() {
+function syncModeUI() {
+  const isImageMode = activeMode === CHAT_MODES.IMAGE;
+  const isChatMode = activeMode === CHAT_MODES.CHAT;
+  const modePlaceholder =
+    activeMode === CHAT_MODES.CODE
+      ? "Ask for code, scripts, components, or full templates..."
+      : isImageMode
+        ? "Image mode coming soon..."
+        : "Ask anything...";
+
+  inputNode.placeholder = modePlaceholder;
+  modeTabNodes.forEach((node) => {
+    node.disabled = sending;
+  });
+  inputNode.disabled = sending || isImageMode;
+  sendBtn.disabled = sending || isImageMode;
+  uploadBtnNode.disabled = sending || isImageMode;
+  modelPickerBtn.disabled = sending || isImageMode;
+  webSearchToggleNode.hidden = !isChatMode;
+
+  if (!isChatMode && webSearchEnabled) {
+    webSearchEnabled = false;
+    saveWebSearchEnabled(false);
+  }
+
+  if (isImageMode) {
+    modeNoteNode.hidden = false;
+    modeNoteNode.textContent = "Image mode is reserved for upcoming media workflows.";
+  } else if (activeMode === CHAT_MODES.CODE) {
+    modeNoteNode.hidden = false;
+    modeNoteNode.textContent =
+      "Code mode uses high-output generation and code-focused model selection.";
+  } else {
+    modeNoteNode.hidden = true;
+    modeNoteNode.textContent = "";
+  }
+}
+
+function setActiveMode(mode) {
+  const normalized = resolveMode(mode);
+  if (normalized === activeMode) return;
+  activeMode = normalized;
+  saveChatMode(activeMode);
+  closeModelPicker();
+  closeUploadMenu();
+  ensureSelectedModelForMode();
+  syncModeTabs();
+  syncModeUI();
+  renderModelCards();
+  syncActiveModelUI();
+  syncWebSearchUI();
+}
+
+function syncWebSearchUI() {
+  const lockedByMode = activeMode === CHAT_MODES.IMAGE;
+  if (hasPendingAttachments() && webSearchEnabled) {
+    webSearchEnabled = false;
+    saveWebSearchEnabled(false);
+  }
+
+  const lockedByAttachments = hasPendingAttachments();
+  const lockedBySend = sending;
+  const isLocked = lockedByAttachments || lockedBySend || lockedByMode;
+
+  webSearchToggleNode.disabled = isLocked;
+  webSearchToggleNode.setAttribute("aria-pressed", webSearchEnabled ? "true" : "false");
+
+  if (lockedByMode) {
+    webSearchToggleNode.title = "Web search is unavailable in Image mode.";
+    return;
+  }
+  if (lockedByAttachments) {
+    webSearchToggleNode.title = "Web search is disabled while files are attached.";
+    return;
+  }
+  if (lockedBySend) {
+    webSearchToggleNode.title = "Web search is locked while response is generating.";
+    return;
+  }
+  webSearchToggleNode.title = webSearchEnabled ? "Disable Web Search" : "Enable Web Search";
+}
+
+function loadSelectedModel(mode = activeMode) {
   const stored = localStorage.getItem(STORAGE_SELECTED_MODEL);
-  const found = MODEL_OPTIONS.find((model) => model.apiModel === stored);
-  return found || MODEL_OPTIONS[0];
+  const visible = getVisibleModelsForMode(mode);
+  const found = visible.find((model) => model.apiModel === stored);
+  if (found && stored !== "minimaxai/minimax-m2.5") {
+    return found;
+  }
+  return getDefaultModelOptionForMode(mode);
 }
 
 function saveSelectedModel(model) {
   localStorage.setItem(STORAGE_SELECTED_MODEL, model);
+}
+
+function loadChatMode() {
+  const stored = localStorage.getItem(STORAGE_CHAT_MODE);
+  return resolveMode(stored);
+}
+
+function saveChatMode(mode) {
+  localStorage.setItem(STORAGE_CHAT_MODE, resolveMode(mode));
 }
 
 function loadWebSearchEnabled() {
@@ -556,6 +902,7 @@ function saveWebSearchEnabled(enabled) {
 }
 
 function setSelectedModel(model) {
+  if (activeMode === CHAT_MODES.IMAGE) return;
   const switched = selectedModel.apiModel !== model.apiModel;
   selectedModel = model;
   saveSelectedModel(model.apiModel);
@@ -564,6 +911,24 @@ function setSelectedModel(model) {
   if (switched) {
     chatHistory = [];
   }
+}
+
+function toggleUploadMenu() {
+  if (uploadMenuNode.hidden) {
+    openUploadMenu();
+    return;
+  }
+  closeUploadMenu();
+}
+
+function openUploadMenu() {
+  if (activeMode === CHAT_MODES.IMAGE) return;
+  closeModelPicker();
+  uploadMenuNode.hidden = false;
+}
+
+function closeUploadMenu() {
+  uploadMenuNode.hidden = true;
 }
 
 function toggleModelPicker() {
@@ -575,6 +940,8 @@ function toggleModelPicker() {
 }
 
 function openModelPicker() {
+  if (activeMode === CHAT_MODES.IMAGE) return;
+  closeUploadMenu();
   modelPickerPopover.hidden = false;
   modelPickerBtn.setAttribute("aria-expanded", "true");
 }
@@ -721,6 +1088,251 @@ function truncate(value, max) {
   return `${text.slice(0, max - 3)}...`;
 }
 
+async function stageImageUploads(files) {
+  if (sending) return;
+  const allowed = new Set(["image/png", "image/jpeg", "image/jpg"]);
+  const validFiles = files.filter((file) => allowed.has(file.type));
+  const invalidCount = files.length - validFiles.length;
+
+  if (invalidCount) {
+    appendMessage({
+      role: "assistant",
+      text: `Skipped ${invalidCount} file(s). Only PNG/JPG/JPEG is enabled right now.`,
+      includeInHistory: false,
+    });
+  }
+
+  if (!validFiles.length) {
+    return;
+  }
+
+  const slotsLeft = Math.max(0, 10 - pendingImageUploads.length);
+  if (slotsLeft <= 0) {
+    appendMessage({
+      role: "assistant",
+      text: "Attachment limit reached. You can attach up to 10 images at a time.",
+      includeInHistory: false,
+    });
+    return;
+  }
+
+  const accepted = validFiles.slice(0, slotsLeft);
+  const dropped = validFiles.length - accepted.length;
+  if (dropped > 0) {
+    appendMessage({
+      role: "assistant",
+      text: `Added first ${accepted.length} images. Max 10 attachments allowed.`,
+      includeInHistory: false,
+    });
+  }
+
+  for (const file of accepted) {
+    try {
+      const imageDataUrl = await fileToDataUrl(file);
+      pendingImageUploads.push({
+        id: createUploadId(),
+        fileName: file.name,
+        fileType: file.type,
+        size: file.size,
+        dataUrl: imageDataUrl,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not read selected file.";
+      appendMessage({
+        role: "assistant",
+        text: `Could not attach ${file.name}: ${message}`,
+        includeInHistory: false,
+      });
+    }
+  }
+
+  renderPendingImagePreview();
+  syncWebSearchUI();
+  setStatus(
+    `${pendingImageUploads.length} image attachment(s) ready. Web search is disabled in attachment mode.`
+  );
+}
+
+function requestImageDescribe(payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_DESCRIBE_IMAGE", ...payload }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read selected file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildUploadContextSnapshot(analyses) {
+  const blocks = analyses.map((item, index) => {
+    const cleanAnalysis = compactImageAnalysis(item.analysis);
+    return [
+      `Image ${index + 1}: ${item.fileName}`,
+      `Visible facts: ${cleanAnalysis}`,
+    ].join("\n");
+  });
+
+  return ["Uploaded image context:", ...blocks].join("\n\n");
+}
+
+function buildAttachedContext() {
+  return (latestUploadContext || "").slice(0, 3600);
+}
+
+function compactImageAnalysis(input) {
+  const lines = String(input || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
+
+  if (!lines.length) {
+    return "No clear visual details extracted.";
+  }
+
+  return lines.join(" | ").slice(0, 900);
+}
+
+function renderPendingImagePreview() {
+  if (!pendingImageUploads.length) {
+    uploadPreviewListNode.hidden = true;
+    uploadPreviewListNode.innerHTML = "";
+    return;
+  }
+
+  uploadPreviewListNode.hidden = false;
+  uploadPreviewListNode.innerHTML = "";
+
+  pendingImageUploads.forEach((upload) => {
+    const card = document.createElement("article");
+    card.className = "upload-preview-card";
+    card.setAttribute("data-upload-id", upload.id);
+
+    const thumbBtn = document.createElement("button");
+    thumbBtn.type = "button";
+    thumbBtn.className = "upload-preview-thumb";
+    thumbBtn.setAttribute("data-upload-action", "open");
+    thumbBtn.title = "Open image preview";
+
+    const img = document.createElement("img");
+    img.src = upload.dataUrl;
+    img.alt = upload.fileName;
+    thumbBtn.appendChild(img);
+
+    const meta = document.createElement("div");
+    meta.className = "upload-preview-meta";
+    const name = document.createElement("p");
+    name.className = "upload-preview-name";
+    name.textContent = upload.fileName;
+    const size = document.createElement("p");
+    size.className = "upload-preview-size";
+    size.textContent = formatBytes(upload.size || 0);
+    meta.append(name, size);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "upload-preview-remove";
+    removeBtn.setAttribute("data-upload-action", "remove");
+    removeBtn.title = "Remove image";
+    removeBtn.textContent = "✕";
+
+    card.append(thumbBtn, meta, removeBtn);
+    uploadPreviewListNode.appendChild(card);
+  });
+}
+
+function clearPendingImageUploads() {
+  pendingImageUploads = [];
+  renderPendingImagePreview();
+  syncWebSearchUI();
+}
+
+function removePendingImageUpload(uploadId) {
+  pendingImageUploads = pendingImageUploads.filter((item) => item.id !== uploadId);
+  renderPendingImagePreview();
+  syncWebSearchUI();
+}
+
+function openImagePreviewModal(dataUrl) {
+  if (!dataUrl) return;
+  imagePreviewModalImgNode.src = dataUrl;
+  imagePreviewModalNode.hidden = false;
+}
+
+function closeImagePreviewModal() {
+  imagePreviewModalNode.hidden = true;
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function createUploadId() {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function hasPendingAttachments() {
+  return pendingImageUploads.length > 0;
+}
+
+function isWebSearchLocked() {
+  return sending || hasPendingAttachments() || activeMode === CHAT_MODES.IMAGE;
+}
+
+function getDefaultModelOptionForMode(mode = activeMode) {
+  const visible = getVisibleModelsForMode(mode);
+  if (!visible.length) {
+    return MODEL_OPTIONS.find((model) => model.apiModel === DEFAULT_MODEL_API) || MODEL_OPTIONS[0];
+  }
+  return visible.find((model) => model.apiModel === DEFAULT_MODEL_API) || visible[0];
+}
+
+function getVisibleModelsForMode(mode = activeMode) {
+  const resolvedMode = resolveMode(mode);
+  if (resolvedMode === CHAT_MODES.IMAGE) {
+    return [];
+  }
+  if (resolvedMode === CHAT_MODES.CODE) {
+    return MODEL_OPTIONS.filter((model) => CODE_MODE_MODELS.has(model.apiModel));
+  }
+  return MODEL_OPTIONS;
+}
+
+function ensureSelectedModelForMode() {
+  const visible = getVisibleModelsForMode(activeMode);
+  if (!visible.length) return;
+  if (!selectedModel || !visible.some((item) => item.apiModel === selectedModel.apiModel)) {
+    selectedModel = getDefaultModelOptionForMode(activeMode);
+    saveSelectedModel(selectedModel.apiModel);
+  }
+}
+
+function resolveMode(mode) {
+  if (mode === CHAT_MODES.CODE) return CHAT_MODES.CODE;
+  if (mode === CHAT_MODES.IMAGE) return CHAT_MODES.IMAGE;
+  return CHAT_MODES.CHAT;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -728,4 +1340,82 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function hasFencedCodeBlocks(text) {
+  return /```/.test(String(text || ""));
+}
+
+function extractCopyPayloadFromMessage(text) {
+  const source = String(text || "");
+  const blocks = [];
+  const regex = /```[a-zA-Z0-9_-]*\n?([\s\S]*?)```/g;
+  let match = regex.exec(source);
+  while (match) {
+    const body = String(match[1] || "").trim();
+    if (body) blocks.push(body);
+    match = regex.exec(source);
+  }
+  if (blocks.length) {
+    return blocks.join("\n\n");
+  }
+  return source.trim();
+}
+
+async function copyTextToClipboard(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_error) {
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "readonly");
+      area.style.position = "absolute";
+      area.style.left = "-9999px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      return ok;
+    } catch (_fallbackError) {
+      return false;
+    }
+  }
+}
+
+function extractHtmlPreviewPayload(text) {
+  const source = String(text || "");
+  if (!source.trim()) return "";
+
+  const regex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+  let match = regex.exec(source);
+  while (match) {
+    const lang = String(match[1] || "").trim().toLowerCase();
+    const body = String(match[2] || "").trim();
+    if (!body) {
+      match = regex.exec(source);
+      continue;
+    }
+    if (lang === "html" || lang === "htm" || /<!doctype html>|<html[\s>]|<body[\s>]/i.test(body)) {
+      return body;
+    }
+    match = regex.exec(source);
+  }
+
+  if (/<!doctype html>|<html[\s>]|<body[\s>]/i.test(source)) {
+    return source.trim();
+  }
+  return "";
+}
+
+function openPreviewInNewTab(html) {
+  const payload = String(html || "").trim();
+  if (!payload) return;
+  const blob = new Blob([payload], { type: "text/html;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  window.open(objectUrl, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 }

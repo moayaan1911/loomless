@@ -1,9 +1,22 @@
 const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
 const STORAGE_TAVILY_API_KEY = "loomless_ai_tavily_api_key";
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
+const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
 const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
 const CHAT_MODEL = PRIMARY_NIM_MODEL;
+const CODE_CHAT_MAX_TOKENS = 100000;
+const CODE_CHAT_FALLBACK_TOKENS = 12000;
+const CHAT_MODES = {
+  CHAT: "chat",
+  CODE: "code",
+};
+const CODE_CHAT_ALLOWED_MODELS = new Set([
+  "zai/glm5",
+  "nvidia/nemotron-3-nano-30b-a3b",
+  "qwen/qwen3.5-397b-a17b",
+  "moonshotai/kimi-k2.5",
+]);
 const CHAT_ALLOWED_MODELS = new Set([
   "minimaxai/minimax-m2.5",
   "qwen/qwen3.5-397b-a17b",
@@ -26,6 +39,9 @@ const CHAT_ALLOWED_MODELS = new Set([
 ]);
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const TAVILY_SEARCH_ENDPOINT = "https://api.tavily.com/search";
+const NIM_CHAT_TIMEOUT_MS = 180000;
+const NIM_VISION_TIMEOUT_MS = 150000;
+const TAVILY_TIMEOUT_MS = 45000;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "LOOMLESS_AI_SUMMARIZE") {
@@ -38,6 +54,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "LOOMLESS_AI_CHAT") {
     generateChatReply(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "LOOMLESS_AI_DESCRIBE_IMAGE") {
+    describeUploadedImage(message, sendResponse);
     return true;
   }
   return false;
@@ -122,7 +142,7 @@ async function generateWriteDraft(message, sendResponse) {
 
 async function generateChatReply(message, sendResponse) {
   try {
-    const { prompt, history, context, title, url, model, scope, webSearch } = message || {};
+    const { prompt, history, context, title, url, model, scope, webSearch, mode } = message || {};
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       sendResponse({ ok: false, error: "Please enter a message." });
       return;
@@ -142,7 +162,8 @@ async function generateChatReply(message, sendResponse) {
     const pageTitle = typeof title === "string" ? title : "";
     const pageUrl = typeof url === "string" ? url : "";
     const pageContext = typeof context === "string" ? context : "";
-    const selectedModel = resolveChatModel(model);
+    const chatMode = resolveChatMode(mode);
+    const selectedModel = resolveChatModel(model, chatMode);
     const chatScope = scope === "general" ? "general" : "page";
     const wantsWebSearch = Boolean(webSearch);
 
@@ -166,14 +187,14 @@ async function generateChatReply(message, sendResponse) {
         history: historyItems,
         model: selectedModel,
         scope: chatScope,
+        mode: chatMode,
         sources: webPayload.sources,
       });
 
-      rawOutput = await callModelWithConfig(nimApiKey, webPrompt, selectedModel, {
+      rawOutput = await callModelWithFallbackModel(nimApiKey, webPrompt, selectedModel, {
         temperature: 0.25,
-        maxTokens: 480,
-        systemPrompt:
-          "You are LoomLess GPT, an AI assistant developed by LoomLess AI. Use provided web sources only. For factual claims, add citation numbers like [1], [2]. Do not invent sources.",
+        maxTokens: chatMode === CHAT_MODES.CODE ? CODE_CHAT_MAX_TOKENS : 1400,
+        systemPrompt: buildWebSystemPrompt(chatMode),
         responseMode: "raw",
       });
       sources = webPayload.sources;
@@ -187,10 +208,11 @@ async function generateChatReply(message, sendResponse) {
         url: pageUrl,
         model: selectedModel,
         scope: chatScope,
+        mode: chatMode,
       });
     }
 
-    const cleaned = sanitizeChatResponse(rawOutput);
+    const cleaned = sanitizeChatResponse(rawOutput, chatMode);
     if (!cleaned) {
       sendResponse({ ok: false, error: "Could not generate a response. Please try again." });
       return;
@@ -205,36 +227,89 @@ async function generateChatReply(message, sendResponse) {
   }
 }
 
+async function describeUploadedImage(message, sendResponse) {
+  try {
+    const { imageDataUrl, prompt } = message || {};
+    if (!imageDataUrl || typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) {
+      sendResponse({ ok: false, error: "Please upload a valid image (PNG/JPG/JPEG)." });
+      return;
+    }
+
+    const nimApiKey = await getStorageValue(STORAGE_NIM_API_KEY);
+    if (!nimApiKey) {
+      sendResponse({
+        ok: false,
+        error: "AI is not configured yet. Please add your API key and try again.",
+      });
+      return;
+    }
+
+    const description = await callVisionModel(nimApiKey, {
+      imageDataUrl,
+      prompt:
+        typeof prompt === "string" && prompt.trim()
+          ? prompt.trim()
+          : "Analyze this image and return only short factual bullet points.",
+    });
+
+    const cleaned = sanitizeChatResponse(description);
+    if (!cleaned) {
+      sendResponse({ ok: false, error: "Could not describe this image. Please try another image." });
+      return;
+    }
+
+    sendResponse({ ok: true, reply: cleaned, model: VISION_MODEL });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to analyze image.",
+    });
+  }
+}
+
 async function callChatModelWithRetry(apiKey, payload) {
   const contextAttempts = [4200, 2200, 900];
+  const modelAttempts = uniqueModelAttempts(payload.model);
+  const chatMode = resolveChatMode(payload.mode);
   let lastError = null;
 
   for (const contextLimit of contextAttempts) {
-    try {
-      const isGeneral = payload.scope === "general";
-      const chatPrompt = buildChatPrompt({
-        prompt: payload.prompt,
-        history: payload.history,
-        context: isGeneral ? "" : (payload.context || "").slice(0, contextLimit),
-        title: isGeneral ? "" : payload.title,
-        url: isGeneral ? "" : payload.url,
-        model: payload.model,
-        scope: payload.scope,
-      });
+    for (const modelToTry of modelAttempts) {
+      try {
+        const isGeneral = payload.scope === "general";
+        const trimmedContext = (payload.context || "").slice(0, contextLimit);
+        const chatPrompt = buildChatPrompt({
+          prompt: payload.prompt,
+          history: payload.history,
+          context: trimmedContext,
+          title: isGeneral ? "" : payload.title,
+          url: isGeneral ? "" : payload.url,
+          model: modelToTry,
+          scope: payload.scope,
+          mode: chatMode,
+        });
 
-      return await callModelWithConfig(apiKey, chatPrompt, payload.model || CHAT_MODEL, {
-        temperature: 0.35,
-        maxTokens: 340,
-        systemPrompt: isGeneral
-          ? "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. If asked identity, answer: I am LoomLess GPT, an AI assistant developed by LoomLess AI."
-          : "You are LoomLess AI in page-assistant mode. Reply directly and clearly. Keep responses concise by default. Use page context only when provided. Never claim to be a different model than the current one.",
-        responseMode: "raw",
-      });
-    } catch (error) {
-      lastError = error;
-      const message = error instanceof Error ? error.message.toLowerCase() : "";
-      const shouldRetry = message.includes("status 400") || message.includes("too long");
-      if (!shouldRetry) {
+        return await callModelWithTokenBudgetRetry(apiKey, {
+          prompt: chatPrompt,
+          model: modelToTry,
+          temperature: 0.35,
+          maxTokens: chatMode === CHAT_MODES.CODE ? CODE_CHAT_MAX_TOKENS : 2200,
+          systemPrompt: isGeneral
+            ? buildGeneralSystemPrompt(chatMode)
+            : buildPageAssistantSystemPrompt(chatMode),
+          responseMode: "raw",
+        });
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        const shouldRetryContext = message.includes("status 400") || message.includes("too long");
+        const shouldRetryModel = shouldRetryWithFallbackModel(error, modelToTry);
+        if (shouldRetryModel) {
+          continue;
+        }
+        if (shouldRetryContext) {
+          break;
+        }
         throw error;
       }
     }
@@ -246,6 +321,70 @@ async function callChatModelWithRetry(apiKey, payload) {
   throw new Error("Failed to generate chat response.");
 }
 
+async function callModelWithFallbackModel(apiKey, prompt, preferredModel, config) {
+  const models = uniqueModelAttempts(preferredModel);
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      return await callModelWithTokenBudgetRetry(apiKey, {
+        ...config,
+        prompt,
+        model,
+      });
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryWithFallbackModel(error, model)) {
+        throw error;
+      }
+    }
+  }
+
+  if (lastError) throw lastError;
+  throw new Error("Could not generate a response.");
+}
+
+async function callModelWithTokenBudgetRetry(apiKey, config) {
+  try {
+    return await callModelWithConfig(apiKey, config.prompt, config.model, config);
+  } catch (error) {
+    if (!shouldRetryWithLowerTokenBudget(error, config.maxTokens)) {
+      throw error;
+    }
+    return callModelWithConfig(apiKey, config.prompt, config.model, {
+      ...config,
+      maxTokens: CODE_CHAT_FALLBACK_TOKENS,
+    });
+  }
+}
+
+function uniqueModelAttempts(preferredModel) {
+  const models = [];
+  if (preferredModel && typeof preferredModel === "string") {
+    models.push(preferredModel.trim());
+  }
+  models.push(CHAT_MODEL);
+  return Array.from(new Set(models.filter(Boolean)));
+}
+
+function shouldRetryWithLowerTokenBudget(error, attemptedTokens) {
+  if (!error || attemptedTokens <= CODE_CHAT_FALLBACK_TOKENS) return false;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("status 400") ||
+    message.includes("max_tokens") ||
+    message.includes("maximum") ||
+    message.includes("too long") ||
+    message.includes("token")
+  );
+}
+
+function shouldRetryWithFallbackModel(error, attemptedModel) {
+  if (!error || attemptedModel === CHAT_MODEL) return false;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes("status 404") || message.includes("model") || message.includes("not found");
+}
+
 async function runTavilySearch(apiKey, query) {
   const cleanQuery = String(query || "").trim();
   if (!cleanQuery) {
@@ -253,7 +392,7 @@ async function runTavilySearch(apiKey, query) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  const timeout = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
 
   try {
     const response = await fetch(TAVILY_SEARCH_ENDPOINT, {
@@ -298,6 +437,76 @@ async function runTavilySearch(apiKey, query) {
       query: typeof data?.query === "string" && data.query.trim() ? data.query.trim() : cleanQuery,
       sources,
     };
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Web search timed out. Please retry or shorten your query.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callVisionModel(apiKey, payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NIM_VISION_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(NIM_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        temperature: 0.15,
+        max_tokens: 220,
+        top_p: 0.9,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are LoomLess GPT Vision. Return only visible facts in 4-6 concise bullet points. Keep each bullet under 18 words. No speculation.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: payload.prompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: payload.imageDataUrl,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error?.message || `AI request failed with status ${response.status}`;
+      throw new Error(message);
+    }
+
+    const content = extractContent(data);
+    if (!content || typeof content !== "string") {
+      throw new Error("AI returned an empty image analysis response.");
+    }
+    return content.trim();
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(
+        "Image analysis timed out on this model. Please retry, use fewer/lighter images, or switch to a faster model."
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -310,7 +519,7 @@ function sanitizeSourceText(value) {
     .slice(0, 280);
 }
 
-function buildWebSearchPrompt({ prompt, history, sources, model, scope }) {
+function buildWebSearchPrompt({ prompt, history, sources, model, scope, mode }) {
   const cleanHistory = history
     .filter((item) => item && typeof item === "object")
     .map((item) => {
@@ -343,6 +552,14 @@ function buildWebSearchPrompt({ prompt, history, sources, model, scope }) {
     scope === "general"
       ? "Mode: General chat with web search."
       : "Mode: Page assistant chat with web search.";
+  const codeModeRules =
+    mode === CHAT_MODES.CODE
+      ? [
+          "- This is CODE mode.",
+          "- If the user asks for code/markup/config, return fenced code blocks with explicit language tags.",
+          "- Prefer complete runnable output over partial snippets.",
+        ]
+      : [];
 
   return [
     "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
@@ -354,6 +571,7 @@ function buildWebSearchPrompt({ prompt, history, sources, model, scope }) {
     "- If sources are insufficient, say so clearly.",
     "- Keep answer concise and useful.",
     "- Never mention hidden reasoning.",
+    ...codeModeRules,
     "",
     cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
     "Web sources:",
@@ -433,7 +651,9 @@ async function callModel(apiKey, prompt, model) {
 
 async function callModelWithConfig(apiKey, prompt, model, config) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 70000);
+  const timeoutMs =
+    Number(config?.maxTokens || 0) > CODE_CHAT_FALLBACK_TOKENS ? 420000 : NIM_CHAT_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(NIM_ENDPOINT, {
@@ -488,6 +708,13 @@ async function callModelWithConfig(apiKey, prompt, model, config) {
       return formatStrictShortSummary(sanitized);
     }
     return sanitized;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(
+        "Model response timed out. Open-weight models can be slow right now. Please retry or switch to a faster model."
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -743,10 +970,8 @@ function sanitizeWriteResponse(content) {
   return lines.join("\n").trim();
 }
 
-function sanitizeChatResponse(content) {
+function sanitizeChatResponse(content, mode = CHAT_MODES.CHAT) {
   const sanitized = sanitizeModelResponse(content, "write")
-    .replace(/```[a-zA-Z0-9_-]*\n?/g, "")
-    .replace(/```/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
@@ -772,10 +997,15 @@ function sanitizeChatResponse(content) {
     lines.shift();
   }
 
-  return lines.join("\n").trim();
+  const cleaned = lines.join("\n").trim();
+  if (!cleaned) return "";
+  if (mode === CHAT_MODES.CODE) {
+    return ensureFencedCodeOutput(cleaned, true);
+  }
+  return ensureFencedCodeOutput(cleaned, false);
 }
 
-function buildChatPrompt({ prompt, history, context, title, url, model, scope }) {
+function buildChatPrompt({ prompt, history, context, title, url, model, scope, mode }) {
   const cleanHistory = history
     .filter((item) => item && typeof item === "object")
     .map((item) => {
@@ -793,6 +1023,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope })
     .slice(-8);
 
   const isGeneral = scope === "general";
+  const isCodeMode = mode === CHAT_MODES.CODE;
   const base = isGeneral
     ? [
         "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
@@ -800,8 +1031,12 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope })
         "Rules:",
         "- This is general chat mode, not page mode.",
         "- Reply in clean markdown when useful.",
-        "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+        isCodeMode
+          ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
+          : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
         "- If user asks who you are, answer exactly: I am LoomLess GPT, an AI assistant developed by LoomLess AI.",
+        "- Always answer the latest user message first. Do not repeat old greeting/identity unless asked now.",
+        "- If additional uploaded-file context is provided, use it as high-priority context.",
         "- If user asks which model you are, answer with the exact current serving model ID only.",
         "- Never claim you are GPT-4 or any different model.",
         "- Never include chain-of-thought or internal analysis.",
@@ -824,7 +1059,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope })
     ...base,
     title ? `Page title: ${title}` : "",
     url ? `Page URL: ${url}` : "",
-    context ? `Page context:\n${context}` : "",
+    context ? `${isGeneral ? "Additional user-provided context" : "Page context"}:\n${context}` : "",
     cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
     "",
     `User message:\n${prompt}`,
@@ -833,11 +1068,81 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope })
     .join("\n");
 }
 
-function resolveChatModel(model) {
+function ensureFencedCodeOutput(text, forceWrap) {
+  if (!text) return "";
+  if (/```/.test(text)) return text;
+  if (!forceWrap && !looksLikeCode(text)) return text;
+  const lang = detectCodeLanguage(text);
+  return `\`\`\`${lang}\n${text}\n\`\`\``;
+}
+
+function looksLikeCode(text) {
+  const sample = String(text || "").trim();
+  if (!sample) return false;
+  return (
+    /<!doctype html>/i.test(sample) ||
+    /<html[\s>]/i.test(sample) ||
+    /^\s*(import|export|def |class |function |const |let |var )/m.test(sample) ||
+    /^\s*#include\s+</m.test(sample) ||
+    /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i.test(sample) ||
+    /{[\s\S]*}/.test(sample)
+  );
+}
+
+function detectCodeLanguage(text) {
+  const sample = String(text || "").trim();
+  if (/<!doctype html>|<html[\s>]|<head[\s>]|<body[\s>]/i.test(sample)) return "html";
+  if (/<\?php/i.test(sample)) return "php";
+  if (/^\s*(def |import |from .+ import )/m.test(sample)) return "python";
+  if (/^\s*(function |const |let |var |import |export )/m.test(sample)) return "javascript";
+  if (/^\s*(public class |class .+\{|System\.out\.println)/m.test(sample)) return "java";
+  if (/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE)\b/im.test(sample)) return "sql";
+  if (/^\s*(#include <|int main\()/m.test(sample)) return "cpp";
+  if (/^\s*package main|fmt\./m.test(sample)) return "go";
+  if (/^\s*(apiVersion:|kind:|metadata:)/m.test(sample)) return "yaml";
+  return "text";
+}
+
+function isAbortError(error) {
+  if (!error) return false;
+  if (error instanceof DOMException && error.name === "AbortError") return true;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes("abort");
+}
+
+function resolveChatModel(model, mode = CHAT_MODES.CHAT) {
   if (typeof model !== "string") return CHAT_MODEL;
   const clean = model.trim();
   if (!clean) return CHAT_MODEL;
+  if (mode === CHAT_MODES.CODE && !CODE_CHAT_ALLOWED_MODELS.has(clean)) {
+    return CHAT_MODEL;
+  }
   return CHAT_ALLOWED_MODELS.has(clean) ? clean : CHAT_MODEL;
+}
+
+function resolveChatMode(mode) {
+  return mode === CHAT_MODES.CODE ? CHAT_MODES.CODE : CHAT_MODES.CHAT;
+}
+
+function buildGeneralSystemPrompt(mode) {
+  if (mode === CHAT_MODES.CODE) {
+    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is CODE mode. Prioritize complete outputs. Wrap code/markup/config in fenced markdown code blocks with explicit language tags. Avoid partial stubs unless user asks.";
+  }
+  return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. If asked identity, answer: I am LoomLess GPT, an AI assistant developed by LoomLess AI.";
+}
+
+function buildPageAssistantSystemPrompt(mode) {
+  if (mode === CHAT_MODES.CODE) {
+    return "You are LoomLess AI in CODE mode. Use provided context when relevant. Return code/markup/config in fenced markdown code blocks with explicit language tags and prefer complete outputs.";
+  }
+  return "You are LoomLess AI in page-assistant mode. Reply directly and clearly. Keep responses concise by default. Use page context only when provided. Never claim to be a different model than the current one.";
+}
+
+function buildWebSystemPrompt(mode) {
+  if (mode === CHAT_MODES.CODE) {
+    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI, using web sources. For factual claims add citations like [1], [2]. For code/markup/config outputs, return fenced markdown code blocks with explicit language tags.";
+  }
+  return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. Use provided web sources only. For factual claims, add citation numbers like [1], [2]. Do not invent sources.";
 }
 
 function getStorageValue(key) {
