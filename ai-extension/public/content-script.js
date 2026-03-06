@@ -2,7 +2,19 @@
   if (window.__loomlessAiFloatingInitialized) return;
   window.__loomlessAiFloatingInitialized = true;
 
+  const iconApi =
+    globalThis.LoomLessIconMap && typeof globalThis.LoomLessIconMap.html === "function"
+      ? globalThis.LoomLessIconMap
+      : null;
+
+  function iconHtml(name, className = "") {
+    if (!iconApi) return "";
+    return iconApi.html(name, className);
+  }
+
   const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
+  const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
+  const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
   const BUTTON_ID = "loomless-ai-floating-icon";
   const MENU_ID = "loomless-ai-radial-menu";
   const TOAST_ID = "loomless-ai-toast";
@@ -24,6 +36,9 @@
   const CHAT_INPUT_ID = "loomless-ai-chat-input";
   const CHAT_SEND_ID = "loomless-ai-chat-send";
   let floatingEnabled = false;
+  let floatingRequested = false;
+  let authenticated = false;
+  let profileCompleted = false;
   let chatLoading = false;
   let chatHistory = [];
 
@@ -166,7 +181,7 @@
     document.removeEventListener("mousedown", closeMenuOnOutsideClick, true);
   }
 
-  function createActionButton({ label, emoji, offsetX, offsetY, onClick }) {
+  function createActionButton({ label, iconName, offsetX, offsetY, onClick }) {
     const action = document.createElement("button");
     action.type = "button";
     action.title = label;
@@ -195,8 +210,18 @@
     });
 
     const icon = document.createElement("span");
-    icon.textContent = emoji;
-    icon.style.fontSize = "14px";
+    icon.innerHTML = iconHtml(iconName, "floating-action-icon");
+    if (!icon.innerHTML) {
+      icon.textContent = "*";
+      icon.style.fontSize = "14px";
+    } else {
+      Object.assign(icon.style, {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "14px",
+      });
+    }
 
     const text = document.createElement("span");
     text.textContent = label;
@@ -213,9 +238,9 @@
   }
 
   function toggleFloatingFromMenu() {
-    const nextState = !floatingEnabled;
+    const nextState = !floatingRequested;
     chrome.storage.local.set({ [STORAGE_FLOATING_KEY]: nextState });
-    setFloatingState(nextState);
+    setFloatingRequestedState(nextState);
   }
 
   function toggleRadialMenu() {
@@ -245,7 +270,7 @@
     const actions = [
       {
         label: "Summarize",
-        emoji: "📝",
+        iconName: "summarize",
         offsetX: 0,
         offsetY: 68,
         onClick: async () => {
@@ -255,7 +280,7 @@
       },
       {
         label: "Chat",
-        emoji: "💬",
+        iconName: "chat",
         offsetX: -60,
         offsetY: 34,
         onClick: () => {
@@ -265,7 +290,7 @@
       },
       {
         label: floatingEnabled ? "Disable" : "Enable",
-        emoji: floatingEnabled ? "⏻" : "⚡",
+        iconName: floatingEnabled ? "power" : "bolt",
         offsetX: 0,
         offsetY: -68,
         onClick: () => {
@@ -275,7 +300,7 @@
       },
       {
         label: "Write",
-        emoji: "✍️",
+        iconName: "write",
         offsetX: -60,
         offsetY: -34,
         onClick: async () => {
@@ -549,7 +574,7 @@
       }
       appendChatMessage({
         role: "assistant",
-        text: "Hey 👋 I am LoomLess AI. Ask anything about this page.",
+        text: "Hey, I am LoomLess AI. Ask anything about this page.",
         includeInHistory: false,
       });
       setChatState({
@@ -642,7 +667,7 @@
 
     appendChatMessage({
       role: "assistant",
-      text: "Hey 👋 I am LoomLess AI. Ask anything about this page.",
+      text: "Hey, I am LoomLess AI. Ask anything about this page.",
       includeInHistory: false,
     });
 
@@ -1394,26 +1419,57 @@
     closeAllOverlays();
   }
 
-  function setFloatingState(enabled) {
-    floatingEnabled = enabled;
-    if (enabled) {
+  function hasValidAuthSession(raw) {
+    return Boolean(raw && typeof raw === "object" && raw.accessToken && raw.userId);
+  }
+
+  function applyFloatingState() {
+    const nextEnabled = floatingRequested && authenticated && profileCompleted;
+    floatingEnabled = nextEnabled;
+    if (nextEnabled) {
       createFloatingButton();
       return;
     }
     removeFloatingButton();
   }
 
-  chrome.storage.local.get([STORAGE_FLOATING_KEY], (result) => {
-    setFloatingState(Boolean(result[STORAGE_FLOATING_KEY]));
+  function setFloatingRequestedState(enabled) {
+    floatingRequested = Boolean(enabled);
+    applyFloatingState();
+  }
+
+  function setAuthState(rawSession) {
+    authenticated = hasValidAuthSession(rawSession);
+    applyFloatingState();
+  }
+
+  function setProfileState(nextValue) {
+    profileCompleted = nextValue === true;
+    applyFloatingState();
+  }
+
+  chrome.storage.local.get([STORAGE_FLOATING_KEY, STORAGE_AUTH_SESSION, STORAGE_PROFILE_COMPLETED], (result) => {
+    floatingRequested = Boolean(result[STORAGE_FLOATING_KEY]);
+    authenticated = hasValidAuthSession(result[STORAGE_AUTH_SESSION]);
+    profileCompleted = result[STORAGE_PROFILE_COMPLETED] === true;
+    applyFloatingState();
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !(STORAGE_FLOATING_KEY in changes)) return;
-    setFloatingState(Boolean(changes[STORAGE_FLOATING_KEY].newValue));
+    if (areaName !== "local") return;
+    if (STORAGE_FLOATING_KEY in changes) {
+      setFloatingRequestedState(Boolean(changes[STORAGE_FLOATING_KEY].newValue));
+    }
+    if (STORAGE_AUTH_SESSION in changes) {
+      setAuthState(changes[STORAGE_AUTH_SESSION].newValue);
+    }
+    if (STORAGE_PROFILE_COMPLETED in changes) {
+      setProfileState(changes[STORAGE_PROFILE_COMPLETED].newValue);
+    }
   });
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type !== "LOOMLESS_AI_SET_FLOATING") return;
-    setFloatingState(Boolean(message.enabled));
+    setFloatingRequestedState(Boolean(message.enabled));
   });
 })();

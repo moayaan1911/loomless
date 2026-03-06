@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LoomLess AI Access</title>
+    <link rel="stylesheet" href="./auth.css" />
+  </head>
+  <body>
+    <canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+
+    <main class="shell">
+      <header class="hero">
+        <img src="./icon.png" alt="LoomLess AI" class="logo" />
+        <div>
+          <p class="eyebrow">LoomLess AI Access</p>
+          <h1>
+            <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+            <span>Continue to LoomLess AI</span>
+          </h1>
+        </div>
+      </header>
+
+      <section id="stage-login" class="card stage">
+        <h2 class="title-with-icon">
+          <span data-ll-icon="verify" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+          <span>Continue to LoomLess AI</span>
+        </h2>
+        <p class="desc">
+          Single flow for both login and signup. Enter email, receive OTP, verify, and continue.
+        </p>
+        <form id="login-form" class="form">
+          <label for="login-email" class="label label-with-icon">
+            <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Email address</span>
+          </label>
+          <input id="login-email" class="input" type="email" maxlength="254" autocomplete="email" required />
+
+          <button id="send-code-btn" class="btn primary" type="button">
+            <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Send OTP</span>
+          </button>
+
+          <div id="otp-step" class="otp-step" hidden>
+            <label for="otp-code" class="label label-with-icon">
+              <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span>Verification code</span>
+            </label>
+            <input
+              id="otp-code"
+              class="input"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{4,12}"
+              maxlength="12"
+              autocomplete="one-time-code"
+              placeholder="Enter OTP code"
+              required
+            />
+
+            <div class="otp-actions">
+              <button id="verify-code-btn" class="btn primary" type="button">
+                <span data-ll-icon="success" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                <span>Verify and Continue</span>
+              </button>
+              <button id="resend-code-btn" class="btn ghost" type="button">
+                <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                <span>Resend OTP</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section id="stage-profile" class="card stage" hidden>
+        <h2 class="title-with-icon">
+          <span data-ll-icon="userPlus" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+          <span>Complete your profile</span>
+        </h2>
+        <p class="desc">Only for first-time users. Keep it short and real.</p>
+        <form id="profile-form" class="form">
+          <label for="profile-name" class="label label-with-icon">
+            <span data-ll-icon="user" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Name</span>
+          </label>
+          <input id="profile-name" class="input" type="text" maxlength="60" autocomplete="name" required />
+
+          <label for="profile-age" class="label label-with-icon">
+            <span data-ll-icon="age" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Age</span>
+          </label>
+          <input id="profile-age" class="input" type="number" min="13" max="100" step="1" required />
+
+          <button id="profile-submit" class="btn primary" type="submit">
+            <span data-ll-icon="success" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Save and Continue</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="stage-success" class="card stage" hidden>
+        <h2 class="title-with-icon">
+          <span data-ll-icon="success" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+          <span>You are all set</span>
+        </h2>
+        <p class="desc">
+          You can now open LoomLess AI extension popup and start using chat + floating assistant.
+        </p>
+        <button id="close-btn" class="btn primary" type="button">
+          <span data-ll-icon="rocket" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span>Done, Close This Tab</span>
+        </button>
+      </section>
+
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="./icon-map.js"></script>
+    <script type="module" src="./auth.js"></script>
+  </body>
+</html>

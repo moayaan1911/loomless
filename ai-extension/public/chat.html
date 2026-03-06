@@ -22,28 +22,37 @@
           </div>
 
           <div class="header-actions">
+            <button id="pin-session-btn" class="ghost-btn pin-session-btn" aria-pressed="false" title="Pin this chat">
+              <span class="pin-session-icon" data-ll-icon="pin" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span id="pin-session-label">Pin</span>
+            </button>
             <button id="model-picker-btn" class="ghost-btn model-picker-btn" aria-expanded="false">
               <img id="active-model-icon" class="model-picker-icon" src="./icon.png" alt="" />
               <span id="model-picker-label">Model</span>
-              <span class="model-picker-chevron" aria-hidden="true">▾</span>
+              <span class="model-picker-chevron" data-ll-icon="chevronDown" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
             </button>
           </div>
         </header>
 
         <div id="chat-messages" class="chat-messages"></div>
 
+        <section id="auth-gate" class="auth-gate" hidden>
+          <h3>Sign in required</h3>
+          <p>Open LoomLess AI extension popup and login with email/password to use chat.</p>
+        </section>
+
         <footer class="composer">
           <div class="mode-tabs" role="tablist" aria-label="Assistant mode">
             <button id="mode-chat-btn" type="button" class="mode-tab active" data-chat-mode="chat" aria-selected="true">
-              <span class="mode-tab-icon" aria-hidden="true">◉</span>
+              <span class="mode-tab-icon" data-ll-icon="modeChat" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Chat</span>
             </button>
             <button id="mode-code-btn" type="button" class="mode-tab" data-chat-mode="code" aria-selected="false">
-              <span class="mode-tab-icon code" aria-hidden="true">&lt;/&gt;</span>
+              <span class="mode-tab-icon code" data-ll-icon="modeCode" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Code</span>
             </button>
             <button id="mode-image-btn" type="button" class="mode-tab" data-chat-mode="image" aria-selected="false">
-              <span class="mode-tab-icon" aria-hidden="true">▣</span>
+              <span class="mode-tab-icon" data-ll-icon="modeImage" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Image</span>
             </button>
           </div>
@@ -53,27 +62,47 @@
             <textarea id="chat-input" rows="1" placeholder="Ask anything..."></textarea>
             <div class="composer-right">
               <div class="upload-wrap">
-                <button id="upload-btn" type="button" class="upload-btn" title="Upload file">📎</button>
+                <button id="upload-btn" type="button" class="upload-btn" title="Upload file">
+                  <span data-ll-icon="upload" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+                </button>
                 <div id="upload-menu" class="upload-menu" hidden>
-                  <button id="upload-image-option" type="button" class="upload-option">🖼 Upload Image</button>
-                  <button id="upload-pdf-option" type="button" class="upload-option">📄 Upload PDF</button>
-                  <button id="upload-doc-option" type="button" class="upload-option">📝 Upload DOC/TXT</button>
-                  <button id="upload-ppt-option" type="button" class="upload-option">📊 Upload PPT</button>
-                  <button id="upload-sheet-option" type="button" class="upload-option">📈 Upload Sheet</button>
+                  <button id="upload-image-option" type="button" class="upload-option">
+                    <span data-ll-icon="uploadImage" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Upload Image</span>
+                  </button>
+                  <button id="upload-pdf-option" type="button" class="upload-option">
+                    <span data-ll-icon="uploadPdf" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Upload PDF</span>
+                  </button>
+                  <button id="upload-doc-option" type="button" class="upload-option">
+                    <span data-ll-icon="uploadDoc" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Upload DOC/TXT</span>
+                  </button>
+                  <button id="upload-ppt-option" type="button" class="upload-option">
+                    <span data-ll-icon="uploadPpt" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Upload PPT</span>
+                  </button>
+                  <button id="upload-sheet-option" type="button" class="upload-option">
+                    <span data-ll-icon="uploadSheet" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Upload Sheet</span>
+                  </button>
                 </div>
               </div>
               <button id="web-search-toggle" type="button" class="web-toggle" aria-pressed="false">
-                <span class="web-toggle-emoji" aria-hidden="true">🌐</span>
+                <span class="web-toggle-emoji" data-ll-icon="web" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
                 <span>Web</span>
               </button>
-              <button id="send-btn" class="primary-btn">Send</button>
+              <button id="send-btn" class="primary-btn">
+                <span class="send-btn-icon" data-ll-icon="send" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                <span>Send</span>
+              </button>
             </div>
           </div>
           <div class="composer-actions">
             <span class="hint">Press Enter to send · Shift + Enter for new line</span>
           </div>
           <p class="model-speed-disclaimer">
-            <span class="model-speed-icon" aria-hidden="true">⚠️</span>
+            <span class="model-speed-icon" data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
             <span><strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait. If results are slow, switch to the default model.</em></strong></span>
           </p>
           <input id="image-upload-input" type="file" accept="image/png,image/jpeg,image/jpg" multiple hidden />
@@ -144,6 +173,7 @@
     <script src="./vendor/mammoth.browser.min.js"></script>
     <script src="./vendor/xlsx.full.min.js"></script>
     <script src="./vendor/jspdf.umd.min.js"></script>
+    <script src="./icon-map.js"></script>
     <script type="module" src="./chat.js"></script>
   </body>
 </html>

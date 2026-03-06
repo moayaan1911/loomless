@@ -44,6 +44,9 @@ h1 {
 }
 
 .toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 0.9rem;
   color: #eaf1ff;
   font-weight: 600;
@@ -96,6 +99,10 @@ h1 {
 }
 
 .chat-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   margin-top: 2px;
   border: 1px solid rgba(119, 171, 255, 0.44);
@@ -110,4 +117,41 @@ h1 {
 
 .chat-page-btn:hover {
   filter: brightness(1.06);
+}
+
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid rgba(255, 159, 159, 0.45);
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: rgba(92, 26, 35, 0.42);
+  color: #ffd9df;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  filter: brightness(1.08);
+}
+
+.auth-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.auth-feedback.error {
+  color: #ffb0bf;
+}
+
+.auth-feedback.ok {
+  color: #9de6c8;
 }

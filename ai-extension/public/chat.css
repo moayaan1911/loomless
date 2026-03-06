@@ -65,6 +65,7 @@ body {
 }
 
 .chat-panel {
+  position: relative;
   height: calc(100vh - 32px);
   min-height: 0;
   border: 1px solid var(--panel-border);
@@ -75,6 +76,14 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.chat-panel.auth-locked .chat-messages,
+.chat-panel.auth-locked .composer {
+  opacity: 0.22;
+  pointer-events: none;
+  user-select: none;
+  filter: blur(1px);
 }
 
 .chat-header {
@@ -120,6 +129,31 @@ body {
   gap: 8px;
 }
 
+.pin-session-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: rgba(121, 186, 255, 0.62);
+  background: rgba(14, 25, 49, 0.92);
+}
+
+.pin-session-btn[aria-pressed="true"] {
+  border-color: rgba(125, 221, 176, 0.85);
+  color: #d9ffe8;
+  background: linear-gradient(140deg, rgba(24, 99, 89, 0.48), rgba(27, 90, 64, 0.38));
+}
+
+.pin-session-btn:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.pin-session-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .chat-messages {
   flex: 1 1 auto;
   min-height: 0;
@@ -130,6 +164,39 @@ body {
   padding: 14px 16px;
   scrollbar-width: thin;
   scrollbar-color: #9fb1cc rgba(255, 255, 255, 0.08);
+}
+
+.auth-gate {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(124, 176, 255, 0.28);
+  border-radius: 20px;
+  background: rgba(8, 15, 30, 0.92);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 20px;
+  z-index: 20;
+}
+
+.auth-gate[hidden] {
+  display: none !important;
+}
+
+.auth-gate h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #eaf2ff;
+}
+
+.auth-gate p {
+  margin: 0;
+  max-width: 540px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #b2c4e8;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -250,10 +317,10 @@ body {
 }
 
 .msg-action-icon {
-  font-size: 12px;
-  line-height: 1;
-  min-width: 12px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
 }
 
 .msg-bubble p {
@@ -470,17 +537,15 @@ body {
 }
 
 .mode-tab-icon {
-  font-size: 12px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 14px;
-  text-align: center;
   opacity: 0.92;
 }
 
 .mode-tab-icon.code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
-  font-size: 11px;
+  min-width: 14px;
 }
 
 .composer-box {
@@ -511,8 +576,6 @@ body {
   border: 1px solid rgba(119, 171, 255, 0.38);
   background: rgba(20, 31, 56, 0.92);
   color: #d7e8ff;
-  font-size: 17px;
-  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -543,6 +606,9 @@ body {
 }
 
 .upload-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -702,8 +768,9 @@ body {
 }
 
 .web-toggle-emoji {
-  font-size: 13px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .web-toggle:disabled {
@@ -737,8 +804,9 @@ body {
 }
 
 .model-speed-icon {
-  font-size: 13px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ghost-btn,
@@ -777,9 +845,33 @@ body {
 }
 
 .model-picker-chevron {
-  font-size: 12px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #b8d9ff;
+}
+
+.ll-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-icon-wrap svg {
+  display: block;
+}
+
+.inline-icon-sm {
+  font-size: 12px;
+}
+
+.inline-icon-md {
+  font-size: 16px;
+}
+
+.send-btn-icon {
+  display: inline-flex;
+  align-items: center;
 }
 
 .primary-btn {
@@ -788,6 +880,10 @@ body {
   background: linear-gradient(130deg, var(--primary-a), var(--primary-b));
   min-width: 74px;
   height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .ghost-btn:disabled,

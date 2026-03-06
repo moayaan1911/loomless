@@ -1,8 +1,29 @@
 import * as pdfjsLib from "./vendor/pdf.mjs";
 
+const iconApi =
+  globalThis.LoomLessIconMap && typeof globalThis.LoomLessIconMap.html === "function"
+    ? globalThis.LoomLessIconMap
+    : null;
+
+function iconHtml(name, className = "inline-icon-sm") {
+  if (!iconApi) return "";
+  return iconApi.html(name, className);
+}
+
+function labelWithIcon(name, label) {
+  const icon = iconHtml(name, "inline-icon-sm");
+  if (!icon) return `<span>${label}</span>`;
+  return `${icon}<span>${label}</span>`;
+}
+
 const STORAGE_SELECTED_MODEL_PREFIX = "loomless_ai_chat_page_model";
 const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
+const STORAGE_SUPABASE_URL = "loomless_ai_supabase_url";
+const STORAGE_SUPABASE_KEY = "loomless_ai_supabase_key";
+const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
+const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
+const STORAGE_CHAT_SESSION_ID = "loomless_ai_chat_active_session_id";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
@@ -224,6 +245,10 @@ const modelPickerBtn = document.getElementById("model-picker-btn");
 const activeModelIconNode = document.getElementById("active-model-icon");
 const modelPickerLabelNode = document.getElementById("model-picker-label");
 const modelPickerPopover = document.getElementById("model-picker-popover");
+const chatPanelNode = document.querySelector(".chat-panel");
+const authGateNode = document.getElementById("auth-gate");
+const pinSessionBtn = document.getElementById("pin-session-btn");
+const pinSessionLabelNode = document.getElementById("pin-session-label");
 const messagesNode = document.getElementById("chat-messages");
 const inputNode = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
@@ -269,12 +294,23 @@ let pendingDocumentUploads = [];
 const missingIcons = new Set();
 let activeMode = loadChatMode();
 let selectedModel = loadSelectedModel(activeMode);
+let currentSessionId = loadOrCreateSessionId();
+let isSessionPinned = loadPinnedState(currentSessionId);
+let supabaseReady = false;
+let authSession = null;
+let profileCompleted = false;
+let pinActionBusy = false;
+let pinSyncInFlight = false;
+let pinSyncQueued = false;
+let lastPinnedSnapshotHash = "";
+let supabaseConfigCache = null;
 let regenerateMenuTargetButton = null;
 let regenerateMenuRequestMeta = null;
 let regenerateMenuSourceRow = null;
 const regenerateMenuNode = createRegenerateMenu();
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.mjs";
+iconApi?.mount?.(document);
 
 modelPickerBtn.setAttribute("aria-expanded", "false");
 
@@ -284,16 +320,41 @@ syncActiveModelUI();
 syncModeTabs();
 syncModeUI();
 syncWebSearchUI();
+syncPinSessionUI();
 renderPendingUploadPreview();
 appendMessage({
   role: "assistant",
-  text: "Hey 👋 I am LoomLess GPT. Ask anything.",
+  text: "Hey, I am LoomLess GPT. Ask anything.",
   includeInHistory: false,
 });
+initializeSupabaseState();
 
 sendBtn.addEventListener("click", () => {
   runSend();
 });
+
+pinSessionBtn?.addEventListener("click", () => {
+  handlePinSessionToggle();
+});
+
+if (chrome?.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (!(STORAGE_AUTH_SESSION in changes) && !(STORAGE_PROFILE_COMPLETED in changes)) return;
+    if (STORAGE_AUTH_SESSION in changes) {
+      authSession = normalizeAuthSession(changes[STORAGE_AUTH_SESSION].newValue);
+    }
+    if (STORAGE_PROFILE_COMPLETED in changes) {
+      profileCompleted = changes[STORAGE_PROFILE_COMPLETED].newValue === true;
+    }
+    supabaseConfigCache = null;
+    if ((!authSession || !profileCompleted) && isSessionPinned) {
+      isSessionPinned = false;
+      savePinnedState(currentSessionId, false);
+    }
+    void initializeSupabaseState();
+  });
+}
 
 modeTabNodes.forEach((node) => {
   node.addEventListener("click", () => {
@@ -471,6 +532,11 @@ autoResizeInput();
 
 async function runSend() {
   if (sending) return;
+  if (!authSession || !profileCompleted) {
+    setStatus("Sign in + setup required. Open extension popup and continue.");
+    syncAuthGateUI();
+    return;
+  }
   if (activeMode === CHAT_MODES.IMAGE) {
     const prompt = (inputNode.value || "").trim();
     if (!prompt) {
@@ -478,7 +544,14 @@ async function runSend() {
       return;
     }
 
-    appendMessage({ role: "user", text: prompt });
+    appendMessage({
+      role: "user",
+      text: prompt,
+      historyMeta: {
+        model: selectedModel.apiModel,
+        mode: CHAT_MODES.IMAGE,
+      },
+    });
     const loadingRow = appendLoadingMessage(`Generating image: ${truncate(prompt, 64)}`);
 
     inputNode.value = "";
@@ -528,15 +601,29 @@ async function runSend() {
     return;
   }
 
-  const historyForRequest = chatHistory.slice(-8);
+  const historyForRequest = chatHistory.slice(-8).map((item) => ({
+    role: item.role,
+    content: item.content,
+  }));
   const attachmentLine =
     attachmentsForSend.length === 0
       ? ""
       : attachmentsForSend.length === 1
-        ? `📎 ${attachmentsForSend[0].fileName}`
-        : `📎 ${attachmentsForSend.length} files attached`;
+        ? `Attachment: ${attachmentsForSend[0].fileName}`
+        : `Attachments: ${attachmentsForSend.length} files attached`;
   const userText = attachmentLine ? `${attachmentLine}\n\n${finalPrompt}` : finalPrompt;
-  appendMessage({ role: "user", text: userText });
+  appendMessage({
+    role: "user",
+    text: userText,
+    historyMeta: {
+      model: selectedModel.apiModel,
+      mode: activeMode,
+      metadata: {
+        attachmentCount: attachmentsForSend.length,
+        webSearch: effectiveWebSearch,
+      },
+    },
+  });
   const loadingLabel = attachmentsForSend.length
     ? `Analyzing ${attachmentsForSend.length} file${attachmentsForSend.length > 1 ? "s" : ""}`
     : activeMode === CHAT_MODES.CODE
@@ -636,6 +723,14 @@ async function runSend() {
       text: response.reply,
       sources: Array.isArray(response.sources) ? response.sources : [],
       searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
+      historyMeta: {
+        model: selectedModel.apiModel,
+        mode: activeMode,
+        metadata: {
+          webSearch: effectiveWebSearch,
+          sourceCount: Array.isArray(response.sources) ? response.sources.length : 0,
+        },
+      },
       requestMeta:
         activeMode === CHAT_MODES.CHAT
           ? {
@@ -691,14 +786,474 @@ function requestImageGenerate(payload) {
 
 function setSending(next) {
   sending = next;
-  sendBtn.textContent = next ? "Sending..." : "Send";
+  sendBtn.innerHTML = next ? "<span>Sending...</span>" : `${iconHtml("send", "inline-icon-sm")}<span>Send</span>`;
   syncModeUI();
   syncWebSearchUI();
+  syncPinSessionUI();
 }
 
 function setStatus(value) {
   if (!statusNode) return;
   statusNode.textContent = value;
+}
+
+function loadOrCreateSessionId() {
+  const existing = String(localStorage.getItem(STORAGE_CHAT_SESSION_ID) || "").trim();
+  if (existing) return existing;
+  const nextId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem(STORAGE_CHAT_SESSION_ID, nextId);
+  return nextId;
+}
+
+function getPinnedStorageKey(sessionId) {
+  return `loomless_ai_chat_pinned_${sessionId}`;
+}
+
+function loadPinnedState(sessionId) {
+  return localStorage.getItem(getPinnedStorageKey(sessionId)) === "1";
+}
+
+function savePinnedState(sessionId, pinned) {
+  localStorage.setItem(getPinnedStorageKey(sessionId), pinned ? "1" : "0");
+}
+
+async function initializeSupabaseState() {
+  let config = null;
+  try {
+    config = await getSupabaseConfig();
+  } catch (_error) {
+    config = null;
+  }
+  supabaseReady = Boolean(config);
+  authSession = config?.authSession || null;
+  profileCompleted = Boolean(config?.profileCompleted);
+  if ((!supabaseReady || !authSession || !profileCompleted) && isSessionPinned) {
+    isSessionPinned = false;
+    savePinnedState(currentSessionId, false);
+  }
+  syncAuthGateUI();
+  syncPinSessionUI();
+}
+
+function syncAuthGateUI() {
+  const locked = !authSession || !profileCompleted;
+  if (chatPanelNode) {
+    chatPanelNode.classList.toggle("auth-locked", locked);
+  }
+  if (authGateNode) {
+    authGateNode.hidden = !locked;
+    const titleNode = authGateNode.querySelector("h3");
+    const textNode = authGateNode.querySelector("p");
+    if (titleNode && textNode) {
+      if (!authSession) {
+        titleNode.textContent = "Sign in required";
+        textNode.textContent = "Open LoomLess AI extension popup and login to use chat.";
+      } else {
+        titleNode.textContent = "Complete setup required";
+        textNode.textContent =
+          "Open LoomLess AI extension popup, click Continue, and complete name/age setup.";
+      }
+    }
+  }
+}
+
+function syncPinSessionUI() {
+  if (!pinSessionBtn || !pinSessionLabelNode) return;
+  pinSessionBtn.setAttribute("aria-pressed", isSessionPinned ? "true" : "false");
+  pinSessionLabelNode.textContent = pinActionBusy ? "Working..." : isSessionPinned ? "Pinned" : "Pin";
+  pinSessionBtn.disabled = sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted;
+  if (!supabaseReady) {
+    pinSessionBtn.title = "Supabase config missing in extension storage.";
+    return;
+  }
+  if (!authSession) {
+    pinSessionBtn.title = "Sign in from extension popup to enable pinning.";
+    return;
+  }
+  if (!profileCompleted) {
+    pinSessionBtn.title = "Complete setup from extension popup to enable pinning.";
+    return;
+  }
+  pinSessionBtn.title = isSessionPinned
+    ? "Unpin this chat and remove it from cloud storage."
+    : "Pin this chat to Supabase.";
+}
+
+async function handlePinSessionToggle() {
+  if (sending || pinActionBusy) return;
+  if (!authSession || !profileCompleted || !supabaseReady) {
+    let refreshed = null;
+    try {
+      refreshed = await getSupabaseConfig({ refresh: true });
+    } catch (_error) {
+      refreshed = null;
+    }
+    supabaseReady = Boolean(refreshed);
+    authSession = refreshed?.authSession || null;
+    profileCompleted = Boolean(refreshed?.profileCompleted);
+    syncAuthGateUI();
+    syncPinSessionUI();
+  }
+  if (!authSession) {
+    setStatus("Sign in required for cloud pin.");
+    return;
+  }
+  if (!supabaseReady) {
+    setStatus("Supabase is not configured yet.");
+    return;
+  }
+  if (!profileCompleted) {
+    setStatus("Complete setup first from extension popup.");
+    return;
+  }
+
+  pinActionBusy = true;
+  syncPinSessionUI();
+
+  try {
+    if (!isSessionPinned) {
+      await upsertPinnedSessionToSupabase({ skipIfUnchanged: false });
+      isSessionPinned = true;
+      savePinnedState(currentSessionId, true);
+      setStatus("Chat pinned to Supabase.");
+    } else {
+      await deletePinnedSessionFromSupabase();
+      isSessionPinned = false;
+      savePinnedState(currentSessionId, false);
+      lastPinnedSnapshotHash = "";
+      setStatus("Chat unpinned.");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Pin action failed.";
+    setStatus(message);
+  } finally {
+    pinActionBusy = false;
+    syncPinSessionUI();
+  }
+}
+
+function buildSessionTitleFromHistory(messages) {
+  const firstUser = messages.find((item) => item.role === "user" && String(item.content || "").trim());
+  const base = firstUser ? String(firstUser.content || "") : "LoomLess Chat";
+  const singleLine = base.replace(/\s+/g, " ").trim();
+  return singleLine.slice(0, 120) || "LoomLess Chat";
+}
+
+function getChatHistoryForPersistence() {
+  return chatHistory.map((item, index) => ({
+    role: item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user",
+    content: String(item.content || ""),
+    model: typeof item.model === "string" && item.model.trim() ? item.model.trim() : null,
+    mode: typeof item.mode === "string" && item.mode.trim() ? item.mode.trim() : null,
+    createdAt:
+      typeof item.createdAt === "string" && item.createdAt.trim() ? item.createdAt : new Date().toISOString(),
+    messageIndex: index,
+    metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
+  }));
+}
+
+function buildPinnedSnapshotHash(messages) {
+  return JSON.stringify(
+    messages.map((item) => [item.role, item.content, item.model || "", item.mode || "", item.messageIndex])
+  );
+}
+
+function requestPinnedSessionSync() {
+  if (!isSessionPinned || !supabaseReady || !authSession || !profileCompleted) return;
+  pinSyncQueued = true;
+  if (pinSyncInFlight) return;
+  void flushPinnedSessionSyncQueue();
+}
+
+async function flushPinnedSessionSyncQueue() {
+  pinSyncInFlight = true;
+  while (pinSyncQueued) {
+    pinSyncQueued = false;
+    try {
+      await upsertPinnedSessionToSupabase({ skipIfUnchanged: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Pinned sync failed.";
+      setStatus(`Pinned sync failed: ${message}`);
+      break;
+    }
+  }
+  pinSyncInFlight = false;
+}
+
+async function upsertPinnedSessionToSupabase({ skipIfUnchanged = true } = {}) {
+  const config = await getSupabaseConfig();
+  if (!config) {
+    throw new Error("Supabase config missing.");
+  }
+
+  const messages = getChatHistoryForPersistence();
+  const snapshotHash = buildPinnedSnapshotHash(messages);
+  if (skipIfUnchanged && snapshotHash === lastPinnedSnapshotHash) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const sessionPayload = {
+    user_id: config.userId,
+    session_id: currentSessionId,
+    title: buildSessionTitleFromHistory(messages),
+    pinned: true,
+    last_model: selectedModel?.apiModel || null,
+    message_count: messages.length,
+    last_message_at: nowIso,
+    metadata: {
+      mode: activeMode,
+      source: "loomless-ai-extension",
+      updated_at: nowIso,
+    },
+  };
+
+  await supabaseRestRequest("ai_chat_sessions?on_conflict=user_id,session_id", {
+    method: "POST",
+    body: [sessionPayload],
+    prefer: "resolution=merge-duplicates,return=minimal",
+  });
+
+  const encodedSessionId = encodeURIComponent(currentSessionId);
+  const encodedUserId = encodeURIComponent(config.userId);
+  await supabaseRestRequest(
+    `ai_chat_messages?session_id=eq.${encodedSessionId}&user_id=eq.${encodedUserId}`,
+    {
+      method: "DELETE",
+      prefer: "return=minimal",
+    }
+  );
+
+  if (messages.length) {
+    const rows = messages.map((item) => ({
+      user_id: config.userId,
+      session_id: currentSessionId,
+      role: item.role,
+      content: item.content,
+      model: item.model,
+      mode: item.mode,
+      message_index: item.messageIndex,
+      created_at: item.createdAt,
+      metadata: item.metadata,
+    }));
+
+    await supabaseRestRequest("ai_chat_messages", {
+      method: "POST",
+      body: rows,
+      prefer: "return=minimal",
+    });
+  }
+
+  lastPinnedSnapshotHash = snapshotHash;
+}
+
+async function deletePinnedSessionFromSupabase() {
+  const config = await getSupabaseConfig();
+  if (!config) {
+    throw new Error("Supabase config missing.");
+  }
+  const encodedSessionId = encodeURIComponent(currentSessionId);
+  const encodedUserId = encodeURIComponent(config.userId);
+  await supabaseRestRequest(
+    `ai_chat_sessions?session_id=eq.${encodedSessionId}&user_id=eq.${encodedUserId}`,
+    {
+      method: "DELETE",
+      prefer: "return=minimal",
+    }
+  );
+}
+
+async function supabaseRestRequest(path, { method = "GET", body, prefer = "return=representation" } = {}) {
+  const config = await getSupabaseConfig();
+  if (!config) {
+    throw new Error("Supabase config missing.");
+  }
+
+  const url = `${config.url}/rest/v1/${path}`;
+  const headers = {
+    apikey: config.key,
+    Authorization: `Bearer ${config.accessToken}`,
+    Prefer: prefer,
+  };
+
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const json = await response.json();
+      detail = json?.message || json?.error || detail;
+    } catch (_error) {
+      // ignore JSON parse failure
+    }
+    throw new Error(`Supabase request failed (${response.status}): ${detail}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    return text;
+  }
+}
+
+async function getSupabaseConfig({ refresh = false } = {}) {
+  if (!refresh && supabaseConfigCache) {
+    return supabaseConfigCache;
+  }
+
+  const result = await chromeStorageGet([
+    STORAGE_SUPABASE_URL,
+    STORAGE_SUPABASE_KEY,
+    STORAGE_AUTH_SESSION,
+    STORAGE_PROFILE_COMPLETED,
+  ]);
+
+  const url = sanitizeSupabaseUrl(result[STORAGE_SUPABASE_URL]);
+  const key = String(result[STORAGE_SUPABASE_KEY] || "").trim();
+  const storedAuth = normalizeAuthSession(result[STORAGE_AUTH_SESSION]);
+  const storedProfileCompleted = result[STORAGE_PROFILE_COMPLETED] === true;
+
+  if (!url || !key || !storedAuth) {
+    supabaseConfigCache = null;
+    return null;
+  }
+
+  let activeAuth = storedAuth;
+  if (activeAuth.expiresAt && activeAuth.expiresAt <= Date.now() + 60_000) {
+    let refreshed = null;
+    try {
+      refreshed = await refreshAuthSession(activeAuth, url, key);
+    } catch (_error) {
+      refreshed = null;
+    }
+    if (!refreshed) {
+      supabaseConfigCache = null;
+      await chromeStorageRemove([STORAGE_AUTH_SESSION, STORAGE_PROFILE_COMPLETED]);
+      return null;
+    }
+    activeAuth = refreshed;
+    await chromeStorageSet({ [STORAGE_AUTH_SESSION]: activeAuth });
+  }
+
+  supabaseConfigCache = {
+    url,
+    key,
+    accessToken: activeAuth.accessToken,
+    userId: activeAuth.userId,
+    authSession: activeAuth,
+    profileCompleted: storedProfileCompleted,
+  };
+  return supabaseConfigCache;
+}
+
+function sanitizeSupabaseUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.replace(/\/+$/, "");
+}
+
+function normalizeAuthSession(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const accessToken = String(raw.accessToken || "").trim();
+  const refreshToken = String(raw.refreshToken || "").trim();
+  const userId = String(raw.userId || "").trim();
+  const email = String(raw.email || "").trim();
+  const expiresAt = Number(raw.expiresAt || 0);
+  if (!accessToken || !refreshToken || !userId) return null;
+  return {
+    accessToken,
+    refreshToken,
+    userId,
+    email,
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0,
+  };
+}
+
+async function refreshAuthSession(session, url, key) {
+  if (!session?.refreshToken) return null;
+  const response = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh_token: session.refreshToken }),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object") return null;
+  const accessToken = String(payload.access_token || "").trim();
+  const refreshToken = String(payload.refresh_token || "").trim();
+  const userId = String(payload.user?.id || "").trim();
+  if (!accessToken || !refreshToken || !userId) return null;
+  const expiresAtSeconds = Number(payload.expires_at || 0);
+  const expiresInSeconds = Number(payload.expires_in || 0);
+  const expiresAt =
+    Number.isFinite(expiresAtSeconds) && expiresAtSeconds > 0
+      ? expiresAtSeconds * 1000
+      : Date.now() + (Number.isFinite(expiresInSeconds) && expiresInSeconds > 0 ? expiresInSeconds : 3600) * 1000;
+
+  return {
+    accessToken,
+    refreshToken,
+    userId,
+    email: String(payload.user?.email || "").trim(),
+    expiresAt,
+  };
+}
+
+function chromeStorageGet(keys) {
+  if (!chrome?.storage?.local) {
+    return Promise.resolve({});
+  }
+  return new Promise((resolve) => {
+    chrome.storage.local.get(keys, (result) => {
+      if (chrome.runtime?.lastError) {
+        resolve({});
+        return;
+      }
+      resolve(result || {});
+    });
+  });
+}
+
+function chromeStorageSet(payload) {
+  if (!chrome?.storage?.local) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    chrome.storage.local.set(payload, () => {
+      resolve();
+    });
+  });
+}
+
+function chromeStorageRemove(keys) {
+  if (!chrome?.storage?.local) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    chrome.storage.local.remove(keys, () => {
+      resolve();
+    });
+  });
 }
 
 function appendMessage({
@@ -707,6 +1262,7 @@ function appendMessage({
   includeInHistory = true,
   sources = [],
   searchQuery = "",
+  historyMeta = null,
   requestMeta = null,
 }) {
   const row = document.createElement("div");
@@ -723,16 +1279,14 @@ function appendMessage({
     const copyBtn = document.createElement("button");
     copyBtn.type = "button";
     copyBtn.className = "msg-copy-btn";
-    copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy Code</span>';
+    copyBtn.innerHTML = labelWithIcon("copy", "Copy Code");
     copyBtn.addEventListener("click", async () => {
       const payload = extractCopyPayloadFromMessage(text);
       if (!payload) return;
       const copied = await copyTextToClipboard(payload);
-      copyBtn.innerHTML = copied
-        ? '<span class="msg-action-icon" aria-hidden="true">✓</span><span>Copied</span>'
-        : '<span class="msg-action-icon" aria-hidden="true">!</span><span>Copy Failed</span>';
+      copyBtn.innerHTML = copied ? labelWithIcon("check", "Copied") : "<span>Copy Failed</span>";
       setTimeout(() => {
-        copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy Code</span>';
+        copyBtn.innerHTML = labelWithIcon("copy", "Copy Code");
       }, 1400);
     });
     actionRow.appendChild(copyBtn);
@@ -743,7 +1297,7 @@ function appendMessage({
         const downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
         downloadBtn.className = "msg-download-btn";
-        downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+        downloadBtn.innerHTML = labelWithIcon("download", "Download");
         downloadBtn.addEventListener("click", () => {
           downloadGeneratedFile(downloadPayload);
         });
@@ -755,7 +1309,7 @@ function appendMessage({
         const previewBtn = document.createElement("button");
         previewBtn.type = "button";
         previewBtn.className = "msg-preview-btn";
-        previewBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">↗</span><span>Preview</span>';
+        previewBtn.innerHTML = labelWithIcon("preview", "Preview");
         previewBtn.addEventListener("click", () => {
           openPreviewInNewTab(previewHtml);
         });
@@ -780,10 +1334,18 @@ function appendMessage({
 
   if (includeInHistory) {
     row.setAttribute("data-history-index", String(chatHistory.length));
-    chatHistory.push({ role, content: text });
+    chatHistory.push({
+      role,
+      content: text,
+      model: historyMeta?.model || null,
+      mode: historyMeta?.mode || activeMode,
+      createdAt: historyMeta?.createdAt || new Date().toISOString(),
+      metadata: historyMeta?.metadata || {},
+    });
     if (chatHistory.length > 16) {
       chatHistory = chatHistory.slice(-16);
     }
+    requestPinnedSessionSync();
   }
 }
 
@@ -794,21 +1356,19 @@ function createChatModeActionRow({ answerText, requestMeta }) {
   const copyBtn = document.createElement("button");
   copyBtn.type = "button";
   copyBtn.className = "msg-copy-btn";
-  copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy</span>';
+  copyBtn.innerHTML = labelWithIcon("copy", "Copy");
   copyBtn.addEventListener("click", async () => {
     const copied = await copyTextToClipboard(answerText);
-    copyBtn.innerHTML = copied
-      ? '<span class="msg-action-icon" aria-hidden="true">✓</span><span>Copied</span>'
-      : '<span class="msg-action-icon" aria-hidden="true">!</span><span>Copy Failed</span>';
+    copyBtn.innerHTML = copied ? labelWithIcon("check", "Copied") : "<span>Copy Failed</span>";
     setTimeout(() => {
-      copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy</span>';
+      copyBtn.innerHTML = labelWithIcon("copy", "Copy");
     }, 1300);
   });
 
   const downloadBtn = document.createElement("button");
   downloadBtn.type = "button";
   downloadBtn.className = "msg-download-btn";
-  downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+  downloadBtn.innerHTML = labelWithIcon("download", "Download");
   downloadBtn.addEventListener("click", async () => {
     downloadBtn.disabled = true;
     try {
@@ -830,7 +1390,7 @@ function createChatModeActionRow({ answerText, requestMeta }) {
   const regenerateBtn = document.createElement("button");
   regenerateBtn.type = "button";
   regenerateBtn.className = "msg-regenerate-btn";
-  regenerateBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">↻</span><span>Regenerate</span>';
+  regenerateBtn.innerHTML = labelWithIcon("regenerate", "Regenerate");
   regenerateBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     openRegenerateMenu(regenerateBtn, requestMeta);
@@ -867,7 +1427,7 @@ function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
   const downloadBtn = document.createElement("button");
   downloadBtn.type = "button";
   downloadBtn.className = "msg-download-btn";
-  downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+  downloadBtn.innerHTML = labelWithIcon("download", "Download");
   downloadBtn.addEventListener("click", () => {
     const link = document.createElement("a");
     link.href = imageDataUrl;
@@ -886,10 +1446,18 @@ function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
   chatHistory.push({
     role: "assistant",
     content: `Generated image for prompt: ${prompt}`,
+    model: model || selectedModel.apiModel,
+    mode: CHAT_MODES.IMAGE,
+    createdAt: new Date().toISOString(),
+    metadata: {
+      prompt,
+      image: true,
+    },
   });
   if (chatHistory.length > 16) {
     chatHistory = chatHistory.slice(-16);
   }
+  requestPinnedSessionSync();
 }
 
 function createSourcesChip(sources, query) {
@@ -1459,6 +2027,7 @@ function syncModeUI() {
   }
   modelPickerBtn.disabled = sending;
   webSearchToggleNode.hidden = !isChatMode;
+  syncPinSessionUI();
 
   if (!isChatMode && webSearchEnabled) {
     webSearchEnabled = false;
@@ -1561,14 +2130,10 @@ function saveWebSearchEnabled(enabled) {
 }
 
 function setSelectedModel(model) {
-  const switched = selectedModel.apiModel !== model.apiModel;
   selectedModel = model;
   saveSelectedModel(model.apiModel, activeMode);
   syncActiveModelUI();
   renderModelCards();
-  if (switched) {
-    chatHistory = [];
-  }
 }
 
 function toggleUploadMenu() {
@@ -2126,7 +2691,7 @@ function renderPendingUploadPreview() {
     removeBtn.className = "upload-preview-remove";
     removeBtn.setAttribute("data-upload-action", "remove");
     removeBtn.title = "Remove attachment";
-    removeBtn.textContent = "✕";
+    removeBtn.innerHTML = iconHtml("remove", "inline-icon-sm");
 
     card.append(previewNode, meta, removeBtn);
     uploadPreviewListNode.appendChild(card);

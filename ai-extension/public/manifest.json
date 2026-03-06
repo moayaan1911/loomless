@@ -24,7 +24,8 @@
   "host_permissions": [
     "https://integrate.api.nvidia.com/*",
     "https://ai.api.nvidia.com/*",
-    "https://api.tavily.com/*"
+    "https://api.tavily.com/*",
+    "https://*.supabase.co/*"
   ],
   "web_accessible_resources": [
     {
@@ -35,7 +36,7 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["content-script.js"],
+      "js": ["icon-map.js", "content-script.js"],
       "run_at": "document_idle"
     }
   ]
