@@ -235,7 +235,21 @@ async function generateChatReply(message, sendResponse) {
       });
     }
 
-    const cleaned = sanitizeChatResponse(rawOutput, chatMode);
+    let cleaned = sanitizeChatResponse(rawOutput, chatMode);
+    if (shouldForceIdentityRetry(promptText, cleaned)) {
+      const retryOutput = await callChatModelWithRetry(nimApiKey, {
+        prompt: buildDirectAnswerRetryPrompt(promptText),
+        history: historyItems,
+        context: pageContext,
+        title: pageTitle,
+        url: pageUrl,
+        model: selectedModel,
+        scope: chatScope,
+        mode: chatMode,
+      });
+      cleaned = sanitizeChatResponse(retryOutput, chatMode);
+    }
+
     if (!cleaned) {
       sendResponse({ ok: false, error: "Could not generate a response. Please try again." });
       return;
@@ -1277,6 +1291,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
 
   const isGeneral = scope === "general";
   const isCodeMode = mode === CHAT_MODES.CODE;
+  const wantsIdentity = isIdentityPrompt(prompt);
   const base = isGeneral
     ? [
         "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
@@ -1287,9 +1302,12 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
         isCodeMode
           ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
           : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
-        "- If user asks who you are, answer exactly: I am LoomLess GPT, an AI assistant developed by LoomLess AI.",
+        wantsIdentity
+          ? "- Identity line must be exactly: I am LoomLess GPT, an AI assistant developed by LoomLess AI."
+          : "- Do not introduce yourself unless user explicitly asks identity.",
         "- Always answer the latest user message first. Do not repeat old greeting/identity unless asked now.",
         "- If additional uploaded-file context is provided, use it as high-priority context.",
+        "- If uploaded-file context exists, answer the user task from that context first.",
         "- If user asks which model you are, answer with the exact current serving model ID only.",
         "- Never claim you are GPT-4 or any different model.",
         "- Never include chain-of-thought or internal analysis.",
@@ -1401,7 +1419,7 @@ function buildGeneralSystemPrompt(mode) {
   if (mode === CHAT_MODES.CODE) {
     return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is CODE mode. Prioritize complete outputs. Wrap code/markup/config in fenced markdown code blocks with explicit language tags. Avoid partial stubs unless user asks.";
   }
-  return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. If asked identity, answer: I am LoomLess GPT, an AI assistant developed by LoomLess AI.";
+  return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. Only provide identity line when the latest user message explicitly asks identity.";
 }
 
 function buildPageAssistantSystemPrompt(mode) {
@@ -1428,4 +1446,34 @@ function getStorageValue(key) {
       resolve(typeof result[key] === "string" ? result[key].trim() : "");
     });
   });
+}
+
+function isIdentityPrompt(prompt) {
+  const text = String(prompt || "").toLowerCase();
+  return (
+    text.includes("who are you") ||
+    text.includes("what are you") ||
+    text.includes("introduce yourself") ||
+    text.includes("tell me about yourself")
+  );
+}
+
+function shouldForceIdentityRetry(prompt, response) {
+  if (isIdentityPrompt(prompt)) return false;
+  const normalized = String(response || "").trim().toLowerCase();
+  if (!normalized) return false;
+  const identityLine = "i am loomless gpt, an ai assistant developed by loomless ai.";
+  if (normalized === identityLine) return true;
+  if (normalized.startsWith(identityLine) && normalized.length < 190) return true;
+  return false;
+}
+
+function buildDirectAnswerRetryPrompt(prompt) {
+  return [
+    prompt,
+    "",
+    "Important:",
+    "- Answer the user request directly.",
+    "- Do not introduce yourself unless user explicitly asks identity.",
+  ].join("\n");
 }

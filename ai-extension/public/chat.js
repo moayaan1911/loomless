@@ -1,8 +1,10 @@
+import * as pdfjsLib from "./vendor/pdf.mjs";
+
 const STORAGE_SELECTED_MODEL_PREFIX = "loomless_ai_chat_page_model";
 const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
-const DEFAULT_CODE_MODEL_API = "minimaxai/minimax-m2.5";
+const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
 const CHAT_MODES = {
   CHAT: "chat",
@@ -231,7 +233,15 @@ const uploadBtnNode = document.getElementById("upload-btn");
 const uploadWrapNode = uploadBtnNode?.closest(".upload-wrap") || null;
 const uploadMenuNode = document.getElementById("upload-menu");
 const uploadImageOptionNode = document.getElementById("upload-image-option");
+const uploadPdfOptionNode = document.getElementById("upload-pdf-option");
+const uploadDocOptionNode = document.getElementById("upload-doc-option");
+const uploadPptOptionNode = document.getElementById("upload-ppt-option");
+const uploadSheetOptionNode = document.getElementById("upload-sheet-option");
 const imageUploadInputNode = document.getElementById("image-upload-input");
+const pdfUploadInputNode = document.getElementById("pdf-upload-input");
+const docUploadInputNode = document.getElementById("doc-upload-input");
+const pptUploadInputNode = document.getElementById("ppt-upload-input");
+const sheetUploadInputNode = document.getElementById("sheet-upload-input");
 const uploadPreviewListNode = document.getElementById("upload-preview-list");
 const sourcesModalNode = document.getElementById("sources-modal");
 const sourcesBackdropNode = document.getElementById("sources-backdrop");
@@ -247,15 +257,24 @@ const modeNoteNode = document.getElementById("mode-note");
 
 const INPUT_MIN_HEIGHT = 42;
 const INPUT_MAX_HEIGHT = 140;
+const APP_NAME = "LoomLess GPT";
+const APP_URL = "loomless.fun";
 
 let sending = false;
 let chatHistory = [];
 let webSearchEnabled = loadWebSearchEnabled();
 let latestUploadContext = "";
 let pendingImageUploads = [];
+let pendingDocumentUploads = [];
 const missingIcons = new Set();
 let activeMode = loadChatMode();
 let selectedModel = loadSelectedModel(activeMode);
+let regenerateMenuTargetButton = null;
+let regenerateMenuRequestMeta = null;
+let regenerateMenuSourceRow = null;
+const regenerateMenuNode = createRegenerateMenu();
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.mjs";
 
 modelPickerBtn.setAttribute("aria-expanded", "false");
 
@@ -265,7 +284,7 @@ syncActiveModelUI();
 syncModeTabs();
 syncModeUI();
 syncWebSearchUI();
-renderPendingImagePreview();
+renderPendingUploadPreview();
 appendMessage({
   role: "assistant",
   text: "Hey 👋 I am LoomLess GPT. Ask anything.",
@@ -301,11 +320,59 @@ uploadImageOptionNode.addEventListener("click", () => {
   imageUploadInputNode.click();
 });
 
+uploadPdfOptionNode.addEventListener("click", () => {
+  closeUploadMenu();
+  pdfUploadInputNode.click();
+});
+
+uploadDocOptionNode.addEventListener("click", () => {
+  closeUploadMenu();
+  docUploadInputNode.click();
+});
+
+uploadPptOptionNode.addEventListener("click", () => {
+  closeUploadMenu();
+  pptUploadInputNode.click();
+});
+
+uploadSheetOptionNode.addEventListener("click", () => {
+  closeUploadMenu();
+  sheetUploadInputNode.click();
+});
+
 imageUploadInputNode.addEventListener("change", async () => {
   const files = Array.from(imageUploadInputNode.files || []);
   imageUploadInputNode.value = "";
   if (!files.length) return;
   await stageImageUploads(files);
+});
+
+pdfUploadInputNode.addEventListener("change", async () => {
+  const files = Array.from(pdfUploadInputNode.files || []);
+  pdfUploadInputNode.value = "";
+  if (!files.length) return;
+  await stageDocumentUploads(files);
+});
+
+docUploadInputNode.addEventListener("change", async () => {
+  const files = Array.from(docUploadInputNode.files || []);
+  docUploadInputNode.value = "";
+  if (!files.length) return;
+  await stageDocumentUploads(files);
+});
+
+pptUploadInputNode.addEventListener("change", async () => {
+  const files = Array.from(pptUploadInputNode.files || []);
+  pptUploadInputNode.value = "";
+  if (!files.length) return;
+  await stageDocumentUploads(files);
+});
+
+sheetUploadInputNode.addEventListener("change", async () => {
+  const files = Array.from(sheetUploadInputNode.files || []);
+  sheetUploadInputNode.value = "";
+  if (!files.length) return;
+  await stageDocumentUploads(files);
 });
 
 uploadPreviewListNode.addEventListener("click", (event) => {
@@ -318,14 +385,14 @@ uploadPreviewListNode.addEventListener("click", (event) => {
   if (!uploadId) return;
 
   if (target.closest("[data-upload-action='remove']")) {
-    removePendingImageUpload(uploadId);
-    setStatus("Attached image removed.");
+    removePendingAttachment(uploadId);
+    setStatus("Attachment removed.");
     return;
   }
 
   if (target.closest("[data-upload-action='open']")) {
-    const found = pendingImageUploads.find((item) => item.id === uploadId);
-    if (found) {
+    const found = findPendingAttachmentById(uploadId);
+    if (found && found.kind === "image") {
       openImagePreviewModal(found.dataUrl);
     }
   }
@@ -363,6 +430,13 @@ document.addEventListener("click", (event) => {
       closeUploadMenu();
     }
   }
+
+  if (!regenerateMenuNode.hidden) {
+    const clickedRegenerate = regenerateMenuNode.contains(target) || regenerateMenuTargetButton?.contains(target);
+    if (!clickedRegenerate) {
+      closeRegenerateMenu();
+    }
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -380,6 +454,9 @@ document.addEventListener("keydown", (event) => {
     }
     if (!uploadMenuNode.hidden) {
       closeUploadMenu();
+    }
+    if (!regenerateMenuNode.hidden) {
+      closeRegenerateMenu();
     }
   }
 });
@@ -441,10 +518,10 @@ async function runSend() {
   }
 
   const text = (inputNode.value || "").trim();
-  const uploadsForSend = pendingImageUploads.map((item) => ({ ...item }));
-  const hasAttachments = uploadsForSend.length > 0;
+  const attachmentsForSend = getPendingAttachmentsSnapshot();
+  const hasAttachments = attachmentsForSend.length > 0;
   const effectiveWebSearch = webSearchEnabled && !hasAttachments;
-  const finalPrompt = text || (uploadsForSend.length ? "Explain the attached image(s)." : "");
+  const finalPrompt = text || (hasAttachments ? "Analyze the attached files." : "");
 
   if (!finalPrompt) {
     setStatus("Type a message first.");
@@ -453,15 +530,15 @@ async function runSend() {
 
   const historyForRequest = chatHistory.slice(-8);
   const attachmentLine =
-    uploadsForSend.length === 0
+    attachmentsForSend.length === 0
       ? ""
-      : uploadsForSend.length === 1
-        ? `📎 ${uploadsForSend[0].fileName}`
-        : `📎 ${uploadsForSend.length} images attached`;
+      : attachmentsForSend.length === 1
+        ? `📎 ${attachmentsForSend[0].fileName}`
+        : `📎 ${attachmentsForSend.length} files attached`;
   const userText = attachmentLine ? `${attachmentLine}\n\n${finalPrompt}` : finalPrompt;
   appendMessage({ role: "user", text: userText });
-  const loadingLabel = uploadsForSend.length
-    ? `Analyzing ${uploadsForSend.length} image${uploadsForSend.length > 1 ? "s" : ""}`
+  const loadingLabel = attachmentsForSend.length
+    ? `Analyzing ${attachmentsForSend.length} file${attachmentsForSend.length > 1 ? "s" : ""}`
     : activeMode === CHAT_MODES.CODE
       ? "Generating code"
     : effectiveWebSearch
@@ -471,32 +548,46 @@ async function runSend() {
 
   inputNode.value = "";
   autoResizeInput();
-  if (uploadsForSend.length) {
-    clearPendingImageUploads();
+  if (attachmentsForSend.length) {
+    clearPendingAttachments();
   }
   setSending(true);
 
   try {
-    if (uploadsForSend.length) {
+    if (attachmentsForSend.length) {
       const analyses = [];
-      for (let index = 0; index < uploadsForSend.length; index += 1) {
-        const upload = uploadsForSend[index];
+      for (let index = 0; index < attachmentsForSend.length; index += 1) {
+        const upload = attachmentsForSend[index];
         updateLoadingMessage(
           loadingRow,
-          `Analyzing ${index + 1}/${uploadsForSend.length}: ${truncate(upload.fileName, 42)}`
+          `Analyzing ${index + 1}/${attachmentsForSend.length}: ${truncate(upload.fileName, 42)}`
         );
-        const visionResponse = await requestImageDescribe({
-          imageDataUrl: upload.dataUrl,
-          prompt:
-            `Extract only visible facts relevant to answering this user query.\nUser query: ${finalPrompt}`,
-        });
-        if (!visionResponse?.ok || !visionResponse?.reply) {
-          throw new Error(visionResponse?.error || `Could not analyze ${upload.fileName}.`);
+        if (upload.kind === "image") {
+          const visionResponse = await requestImageDescribe({
+            imageDataUrl: upload.dataUrl,
+            prompt:
+              `Extract only visible facts relevant to answering this user query.\nUser query: ${finalPrompt}`,
+          });
+          if (!visionResponse?.ok || !visionResponse?.reply) {
+            throw new Error(visionResponse?.error || `Could not analyze ${upload.fileName}.`);
+          }
+          analyses.push({
+            kind: "image",
+            fileName: upload.fileName,
+            analysis: visionResponse.reply,
+            model: visionResponse.model || "nvidia/nemotron-nano-12b-v2-vl",
+          });
+          continue;
+        }
+
+        if (!upload.extractedText) {
+          throw new Error(`Could not extract readable content from ${upload.fileName}.`);
         }
         analyses.push({
+          kind: "document",
           fileName: upload.fileName,
-          analysis: visionResponse.reply,
-          model: visionResponse.model || "nvidia/nemotron-nano-12b-v2-vl",
+          analysis: upload.extractedText,
+          model: "local-parser",
         });
       }
 
@@ -510,7 +601,7 @@ async function runSend() {
     }
 
     const attachedContext = buildAttachedContext();
-    const response = await requestChat({
+    const requestPayload = {
       prompt: finalPrompt,
       history: historyForRequest,
       context: attachedContext,
@@ -520,10 +611,23 @@ async function runSend() {
       mode: activeMode,
       model: selectedModel.apiModel,
       webSearch: effectiveWebSearch,
-    });
+    };
+
+    let response = await requestChat(requestPayload);
 
     if (!response?.ok || !response?.reply) {
       throw new Error(response?.error || "Could not generate response.");
+    }
+
+    // If files were attached and model asks for missing context, retry once with strict context-use instruction.
+    if (hasAttachments && shouldRetryForMissingFileContext(response.reply)) {
+      const retryResponse = await requestChat({
+        ...requestPayload,
+        prompt: buildAttachmentRetryPrompt(finalPrompt),
+      });
+      if (retryResponse?.ok && retryResponse?.reply) {
+        response = retryResponse;
+      }
     }
 
     removeMessageRow(loadingRow);
@@ -532,6 +636,19 @@ async function runSend() {
       text: response.reply,
       sources: Array.isArray(response.sources) ? response.sources : [],
       searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
+      requestMeta:
+        activeMode === CHAT_MODES.CHAT
+          ? {
+              prompt: finalPrompt,
+              history: historyForRequest,
+              context: attachedContext,
+              title: "",
+              url: "",
+              scope: "general",
+              mode: CHAT_MODES.CHAT,
+              webSearch: effectiveWebSearch,
+            }
+          : null,
     });
     setStatus("Ready.");
   } catch (error) {
@@ -584,7 +701,14 @@ function setStatus(value) {
   statusNode.textContent = value;
 }
 
-function appendMessage({ role, text, includeInHistory = true, sources = [], searchQuery = "" }) {
+function appendMessage({
+  role,
+  text,
+  includeInHistory = true,
+  sources = [],
+  searchQuery = "",
+  requestMeta = null,
+}) {
   const row = document.createElement("div");
   row.className = `msg-row ${role}`;
 
@@ -646,16 +770,74 @@ function appendMessage({ role, text, includeInHistory = true, sources = [], sear
     bubble.appendChild(createSourcesChip(sources, searchQuery));
   }
 
+  if (role === "assistant" && activeMode === CHAT_MODES.CHAT && requestMeta) {
+    bubble.appendChild(createChatModeActionRow({ answerText: text, requestMeta }));
+  }
+
   row.appendChild(bubble);
   messagesNode.appendChild(row);
   messagesNode.scrollTop = messagesNode.scrollHeight;
 
   if (includeInHistory) {
+    row.setAttribute("data-history-index", String(chatHistory.length));
     chatHistory.push({ role, content: text });
     if (chatHistory.length > 16) {
       chatHistory = chatHistory.slice(-16);
     }
   }
+}
+
+function createChatModeActionRow({ answerText, requestMeta }) {
+  const actionRow = document.createElement("div");
+  actionRow.className = "msg-action-row chat-mode-action-row";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "msg-copy-btn";
+  copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy</span>';
+  copyBtn.addEventListener("click", async () => {
+    const copied = await copyTextToClipboard(answerText);
+    copyBtn.innerHTML = copied
+      ? '<span class="msg-action-icon" aria-hidden="true">✓</span><span>Copied</span>'
+      : '<span class="msg-action-icon" aria-hidden="true">!</span><span>Copy Failed</span>';
+    setTimeout(() => {
+      copyBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⧉</span><span>Copy</span>';
+    }, 1300);
+  });
+
+  const downloadBtn = document.createElement("button");
+  downloadBtn.type = "button";
+  downloadBtn.className = "msg-download-btn";
+  downloadBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">⬇</span><span>Download</span>';
+  downloadBtn.addEventListener("click", async () => {
+    downloadBtn.disabled = true;
+    try {
+      await downloadChatTranscriptPdf();
+      setStatus("Chat exported as PDF.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not export PDF.";
+      appendMessage({
+        role: "assistant",
+        text: `PDF export failed.\n\n${message}`,
+        includeInHistory: false,
+      });
+      setStatus("PDF export failed.");
+    } finally {
+      downloadBtn.disabled = false;
+    }
+  });
+
+  const regenerateBtn = document.createElement("button");
+  regenerateBtn.type = "button";
+  regenerateBtn.className = "msg-regenerate-btn";
+  regenerateBtn.innerHTML = '<span class="msg-action-icon" aria-hidden="true">↻</span><span>Regenerate</span>';
+  regenerateBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openRegenerateMenu(regenerateBtn, requestMeta);
+  });
+
+  actionRow.append(copyBtn, downloadBtn, regenerateBtn);
+  return actionRow;
 }
 
 function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
@@ -780,6 +962,324 @@ function openSourcesModal(sources, query) {
 
 function closeSourcesModal() {
   sourcesModalNode.hidden = true;
+}
+
+function createRegenerateMenu() {
+  const menu = document.createElement("div");
+  menu.className = "regenerate-menu";
+  menu.hidden = true;
+  document.body.appendChild(menu);
+  return menu;
+}
+
+function openRegenerateMenu(anchorButton, requestMeta) {
+  if (!anchorButton || !requestMeta) return;
+  regenerateMenuTargetButton = anchorButton;
+  regenerateMenuRequestMeta = requestMeta;
+  regenerateMenuSourceRow = anchorButton.closest(".msg-row");
+
+  regenerateMenuNode.innerHTML = "";
+  const title = document.createElement("p");
+  title.className = "regenerate-menu-title";
+  title.textContent = "Regenerate with model";
+  regenerateMenuNode.appendChild(title);
+
+  const models = getVisibleModelsForMode(CHAT_MODES.CHAT);
+  models.forEach((model) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "regenerate-menu-option";
+    option.innerHTML = `
+      <img class="regenerate-menu-icon" src="./${model.icon}" alt="${model.provider}" />
+      <span class="regenerate-menu-text">${model.name}</span>
+    `;
+    option.addEventListener("click", () => {
+      handleRegenerateSelection(model.apiModel);
+    });
+    regenerateMenuNode.appendChild(option);
+  });
+
+  const rect = anchorButton.getBoundingClientRect();
+  regenerateMenuNode.style.left = `${Math.max(16, rect.left - 180)}px`;
+  regenerateMenuNode.style.top = `${rect.bottom + 8}px`;
+  regenerateMenuNode.hidden = false;
+}
+
+function closeRegenerateMenu() {
+  regenerateMenuNode.hidden = true;
+  regenerateMenuNode.innerHTML = "";
+  regenerateMenuTargetButton = null;
+  regenerateMenuRequestMeta = null;
+  regenerateMenuSourceRow = null;
+}
+
+async function handleRegenerateSelection(modelApi) {
+  const requestMeta = regenerateMenuRequestMeta;
+  closeRegenerateMenu();
+  if (!requestMeta || sending) return;
+
+  const model = MODEL_OPTIONS.find((item) => item.apiModel === modelApi);
+  const loadingRow = appendLoadingMessage(`Regenerating with ${model?.name || modelApi}`);
+  setSending(true);
+
+  try {
+    const response = await requestChat({
+      prompt: requestMeta.prompt,
+      history: Array.isArray(requestMeta.history) ? requestMeta.history : [],
+      context: typeof requestMeta.context === "string" ? requestMeta.context : "",
+      title: typeof requestMeta.title === "string" ? requestMeta.title : "",
+      url: typeof requestMeta.url === "string" ? requestMeta.url : "",
+      scope: requestMeta.scope || "general",
+      mode: CHAT_MODES.CHAT,
+      model: modelApi,
+      webSearch: Boolean(requestMeta.webSearch),
+    });
+
+    if (!response?.ok || !response?.reply) {
+      throw new Error(response?.error || "Could not regenerate response.");
+    }
+
+    removeMessageRow(loadingRow);
+    appendMessage({
+      role: "assistant",
+      text: response.reply,
+      sources: Array.isArray(response.sources) ? response.sources : [],
+      searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
+      requestMeta,
+    });
+    setStatus(`Regenerated with ${model?.name || modelApi}.`);
+  } catch (error) {
+    removeMessageRow(loadingRow);
+    const message = error instanceof Error ? error.message : "Regenerate failed.";
+    appendMessage({
+      role: "assistant",
+      text: `Regenerate failed.\n\n${message}`,
+      includeInHistory: false,
+    });
+    setStatus("Regenerate failed.");
+  } finally {
+    setSending(false);
+  }
+}
+
+async function downloadChatTranscriptPdf() {
+  const transcript = getTranscriptEntriesForExport();
+  if (!transcript.length) {
+    throw new Error("No chat messages available to export.");
+  }
+
+  const jsPdfCtor = window.jspdf?.jsPDF;
+  if (typeof jsPdfCtor !== "function") {
+    throw new Error("PDF engine is not loaded.");
+  }
+
+  const doc = new jsPdfCtor({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  const maxWidth = pageWidth - margin * 2;
+  const bubbleWidth = Math.min(430, maxWidth * 0.78);
+  let y = margin;
+
+  const logoDataUrl = await loadAssetAsDataUrl("./icon.png").catch(() => "");
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, "PNG", margin, y - 6, 26, 26);
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(APP_NAME, margin + 34, y + 12);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(92, 118, 170);
+  doc.text(APP_URL, margin + 34, y + 27);
+  doc.text(`Exported: ${new Date().toLocaleString()}`, pageWidth - margin, y + 27, { align: "right" });
+
+  y += 42;
+  doc.setTextColor(24, 34, 52);
+
+  for (const item of transcript) {
+    const isUser = item.role === "user";
+    const x = isUser ? pageWidth - margin - bubbleWidth : margin;
+    const contentWidth = bubbleWidth - 20;
+    const blocks = parseMarkdownForPdf(item.text, isUser);
+
+    let blockHeight = 28;
+    for (const block of blocks) {
+      const fontSize = block.style === "heading" ? 11 : block.style === "code" ? 9 : 10;
+      const lineHeight = block.style === "code" ? 12 : 13;
+      const lines = block.text
+        ? doc.splitTextToSize(sanitizePdfText(block.text), contentWidth)
+        : [""];
+      blockHeight += Math.max(1, lines.length) * lineHeight;
+      if (block.style !== "blank") {
+        blockHeight += 2;
+      }
+    }
+    blockHeight += 8;
+
+    if (y + blockHeight > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+
+    doc.setDrawColor(151, 179, 232);
+    doc.setFillColor(isUser ? 231 : 245, isUser ? 240 : 248, isUser ? 255 : 255);
+    doc.roundedRect(x, y, bubbleWidth, blockHeight, 8, 8, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(63, 89, 146);
+    if (isUser) {
+      doc.text("User", x + bubbleWidth - 10, y + 14, { align: "right" });
+    } else {
+      doc.text("Assistant", x + 10, y + 14);
+    }
+
+    let contentY = y + 28;
+    for (const block of blocks) {
+      if (block.style === "blank") {
+        contentY += 5;
+        continue;
+      }
+
+      const fontName = block.style === "code" ? "courier" : "helvetica";
+      const fontStyle = block.style === "heading" ? "bold" : "normal";
+      const fontSize = block.style === "heading" ? 11 : block.style === "code" ? 9 : 10;
+      const lineHeight = block.style === "code" ? 12 : 13;
+      const lines = doc.splitTextToSize(sanitizePdfText(block.text), contentWidth);
+
+      doc.setFont(fontName, fontStyle);
+      doc.setFontSize(fontSize);
+      doc.setTextColor(30, 40, 60);
+
+      for (const line of lines) {
+        if (isUser) {
+          doc.text(line, x + bubbleWidth - 10, contentY, { align: "right" });
+        } else {
+          doc.text(line, x + 10, contentY);
+        }
+        contentY += lineHeight;
+      }
+      contentY += 2;
+    }
+
+    y += blockHeight + 10;
+  }
+
+  doc.save(`loomless-chat-${Date.now()}.pdf`);
+}
+
+function getTranscriptEntriesForExport() {
+  return chatHistory
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const role = item.role === "assistant" ? "assistant" : "user";
+      const text = typeof item.content === "string" ? item.content.trim() : "";
+      if (!text) return null;
+      return { role, text };
+    })
+    .filter(Boolean);
+}
+
+function sanitizePdfText(input) {
+  return String(input || "")
+    .replace(/\r/g, "")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function parseMarkdownForPdf(rawText, isUser = false) {
+  const source = String(rawText || "").replace(/\r/g, "");
+  if (!source.trim()) return [{ style: "paragraph", text: "" }];
+  if (isUser) {
+    return [{ style: "paragraph", text: stripInlineMarkdownForPdf(source.replace(/\n+/g, " ").trim()) }];
+  }
+
+  const lines = source.split("\n");
+  const blocks = [];
+  let inCode = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^```/.test(trimmed)) {
+      inCode = !inCode;
+      continue;
+    }
+    if (!trimmed) {
+      blocks.push({ style: "blank", text: "" });
+      continue;
+    }
+    if (inCode) {
+      blocks.push({ style: "code", text: trimmed });
+      continue;
+    }
+    if (/^#{1,3}\s+/.test(trimmed)) {
+      blocks.push({ style: "heading", text: stripInlineMarkdownForPdf(trimmed.replace(/^#{1,3}\s+/, "")) });
+      continue;
+    }
+    if (/^[-*]\s+/.test(trimmed)) {
+      blocks.push({ style: "paragraph", text: `- ${stripInlineMarkdownForPdf(trimmed.replace(/^[-*]\s+/, ""))}` });
+      continue;
+    }
+    if (/^\d+\.\s+/.test(trimmed)) {
+      blocks.push({ style: "paragraph", text: stripInlineMarkdownForPdf(trimmed) });
+      continue;
+    }
+    blocks.push({ style: "paragraph", text: stripInlineMarkdownForPdf(trimmed) });
+  }
+
+  return blocks;
+}
+
+function stripInlineMarkdownForPdf(text) {
+  return String(text || "")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1 ($2)")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1");
+}
+
+async function loadAssetAsDataUrl(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Could not load app icon.");
+  }
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read app icon."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function shouldRetryForMissingFileContext(reply) {
+  const text = String(reply || "").toLowerCase();
+  if (!text) return false;
+  return (
+    text.includes("not able to evaluate") ||
+    text.includes("without a specific") ||
+    text.includes("without specific") ||
+    text.includes("could you clarify") ||
+    text.includes("need more context") ||
+    text.includes("cannot assess")
+  );
+}
+
+function buildAttachmentRetryPrompt(prompt) {
+  return [
+    prompt,
+    "",
+    "Important:",
+    "- Use the uploaded-file context already provided above.",
+    "- Do not ask for more context.",
+    "- Give a direct answer in concise bullet points.",
+  ].join("\n");
 }
 
 function appendLoadingMessage(label = "Thinking") {
@@ -969,7 +1469,7 @@ function syncModeUI() {
   }
 
   if (!isChatMode && hasPendingAttachments()) {
-    clearPendingImageUploads();
+    clearPendingAttachments();
     latestUploadContext = "";
   }
 
@@ -1263,11 +1763,11 @@ async function stageImageUploads(files) {
     return;
   }
 
-  const slotsLeft = Math.max(0, 10 - pendingImageUploads.length);
+  const slotsLeft = Math.max(0, 10 - getPendingAttachmentCount());
   if (slotsLeft <= 0) {
     appendMessage({
       role: "assistant",
-      text: "Attachment limit reached. You can attach up to 10 images at a time.",
+      text: "Attachment limit reached. You can attach up to 10 files at a time.",
       includeInHistory: false,
     });
     return;
@@ -1278,7 +1778,7 @@ async function stageImageUploads(files) {
   if (dropped > 0) {
     appendMessage({
       role: "assistant",
-      text: `Added first ${accepted.length} images. Max 10 attachments allowed.`,
+      text: `Added first ${accepted.length} files. Max 10 attachments allowed.`,
       includeInHistory: false,
     });
   }
@@ -1288,6 +1788,7 @@ async function stageImageUploads(files) {
       const imageDataUrl = await fileToDataUrl(file);
       pendingImageUploads.push({
         id: createUploadId(),
+        kind: "image",
         fileName: file.name,
         fileType: file.type,
         size: file.size,
@@ -1303,10 +1804,79 @@ async function stageImageUploads(files) {
     }
   }
 
-  renderPendingImagePreview();
+  renderPendingUploadPreview();
   syncWebSearchUI();
   setStatus(
-    `${pendingImageUploads.length} image attachment(s) ready. Web search is disabled in attachment mode.`
+    `${getPendingAttachmentCount()} attachment(s) ready. Web search is disabled in attachment mode.`
+  );
+}
+
+async function stageDocumentUploads(files) {
+  if (sending) return;
+  const allowedExtensions = new Set(["pdf", "doc", "docx", "txt", "ppt", "pptx", "xls", "xlsx"]);
+  const validFiles = files.filter((file) => allowedExtensions.has(getFileExtension(file.name)));
+  const invalidCount = files.length - validFiles.length;
+
+  if (invalidCount) {
+    appendMessage({
+      role: "assistant",
+      text: `Skipped ${invalidCount} file(s). Supported formats: PDF, DOCX, TXT, PPTX, XLSX/XLS.`,
+      includeInHistory: false,
+    });
+  }
+
+  if (!validFiles.length) {
+    return;
+  }
+
+  const slotsLeft = Math.max(0, 10 - getPendingAttachmentCount());
+  if (slotsLeft <= 0) {
+    appendMessage({
+      role: "assistant",
+      text: "Attachment limit reached. You can attach up to 10 files at a time.",
+      includeInHistory: false,
+    });
+    return;
+  }
+
+  const accepted = validFiles.slice(0, slotsLeft);
+  const dropped = validFiles.length - accepted.length;
+  if (dropped > 0) {
+    appendMessage({
+      role: "assistant",
+      text: `Added first ${accepted.length} files. Max 10 attachments allowed.`,
+      includeInHistory: false,
+    });
+  }
+
+  for (const file of accepted) {
+    try {
+      const extractedText = await extractDocumentText(file);
+      if (!extractedText) {
+        throw new Error("No readable text found in this file.");
+      }
+      pendingDocumentUploads.push({
+        id: createUploadId(),
+        kind: "document",
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        size: file.size,
+        extractedText,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not parse selected file.";
+      appendMessage({
+        role: "assistant",
+        text: `Could not attach ${file.name}: ${message}`,
+        includeInHistory: false,
+      });
+    }
+  }
+
+  renderPendingUploadPreview();
+  syncWebSearchUI();
+  setStatus(
+    `${getPendingAttachmentCount()} attachment(s) ready. Web search is disabled in attachment mode.`
   );
 }
 
@@ -1331,16 +1901,148 @@ function fileToDataUrl(file) {
   });
 }
 
+async function extractDocumentText(file) {
+  const extension = getFileExtension(file.name);
+  if (extension === "txt") {
+    const text = await file.text();
+    return compactExtractedText(text);
+  }
+  if (extension === "docx") {
+    return extractDocxText(file);
+  }
+  if (extension === "pdf") {
+    return extractPdfText(file);
+  }
+  if (extension === "pptx") {
+    return extractPptxText(file);
+  }
+  if (extension === "xlsx" || extension === "xls") {
+    return extractSheetText(file);
+  }
+  if (extension === "doc" || extension === "ppt") {
+    throw new Error("Legacy .doc/.ppt is not supported yet. Use .docx/.pptx.");
+  }
+  throw new Error("Unsupported file format.");
+}
+
+async function extractDocxText(file) {
+  if (!window.mammoth || typeof window.mammoth.extractRawText !== "function") {
+    throw new Error("DOCX parser not loaded.");
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await window.mammoth.extractRawText({ arrayBuffer });
+  return compactExtractedText(result?.value || "");
+}
+
+async function extractPdfText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const documentTask = pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  });
+  const pdf = await documentTask.promise;
+
+  const pageCount = Math.min(pdf.numPages, 20);
+  const parts = [];
+  for (let pageNum = 1; pageNum <= pageCount; pageNum += 1) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const line = content.items
+      .map((item) => (typeof item?.str === "string" ? item.str : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (line) {
+      parts.push(line);
+    }
+  }
+
+  return compactExtractedText(parts.join("\n"));
+}
+
+async function extractPptxText(file) {
+  if (!window.JSZip || typeof window.JSZip.loadAsync !== "function") {
+    throw new Error("PPTX parser not loaded.");
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const zip = await window.JSZip.loadAsync(arrayBuffer);
+
+  const slideNames = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+    .sort((a, b) => {
+      const aNum = Number((a.match(/slide(\d+)\.xml/i) || [])[1] || 0);
+      const bNum = Number((b.match(/slide(\d+)\.xml/i) || [])[1] || 0);
+      return aNum - bNum;
+    });
+
+  const parts = [];
+  for (const slideName of slideNames.slice(0, 40)) {
+    const xml = await zip.file(slideName)?.async("string");
+    if (!xml) continue;
+    const matches = Array.from(xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/gi));
+    const text = matches.map((m) => decodeXmlEntities(m[1] || "")).join(" ");
+    if (text.trim()) {
+      parts.push(text.trim());
+    }
+  }
+
+  return compactExtractedText(parts.join("\n"));
+}
+
+async function extractSheetText(file) {
+  if (!window.XLSX || typeof window.XLSX.read !== "function") {
+    throw new Error("Sheet parser not loaded.");
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = window.XLSX.read(arrayBuffer, { type: "array" });
+  const sheetNames = Array.isArray(workbook.SheetNames) ? workbook.SheetNames : [];
+  if (!sheetNames.length) {
+    return "";
+  }
+
+  const sections = [];
+  for (const sheetName of sheetNames.slice(0, 8)) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = window.XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      blankrows: false,
+      raw: false,
+      defval: "",
+    });
+
+    const rowLines = rows
+      .slice(0, 200)
+      .map((row) => (Array.isArray(row) ? row.map((cell) => String(cell || "").trim()).join(" | ") : ""))
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    if (rowLines.length) {
+      sections.push(`Sheet: ${sheetName}\n${rowLines.join("\n")}`);
+    }
+  }
+
+  return compactExtractedText(sections.join("\n\n"));
+}
+
+function decodeXmlEntities(value) {
+  const element = document.createElement("textarea");
+  element.innerHTML = String(value || "");
+  return element.value;
+}
+
 function buildUploadContextSnapshot(analyses) {
   const blocks = analyses.map((item, index) => {
-    const cleanAnalysis = compactImageAnalysis(item.analysis);
+    const cleanAnalysis =
+      item.kind === "document" ? compactExtractedText(item.analysis) : compactImageAnalysis(item.analysis);
+    const label = item.kind === "document" ? "Document" : "Image";
     return [
-      `Image ${index + 1}: ${item.fileName}`,
-      `Visible facts: ${cleanAnalysis}`,
+      `${label} ${index + 1}: ${item.fileName}`,
+      `Extracted facts: ${cleanAnalysis}`,
     ].join("\n");
   });
 
-  return ["Uploaded image context:", ...blocks].join("\n\n");
+  return ["Uploaded file context:", ...blocks].join("\n\n");
 }
 
 function buildAttachedContext() {
@@ -1362,8 +2064,20 @@ function compactImageAnalysis(input) {
   return lines.join(" | ").slice(0, 900);
 }
 
-function renderPendingImagePreview() {
-  if (!pendingImageUploads.length) {
+function compactExtractedText(input) {
+  const normalized = String(input || "")
+    .replace(/\r/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return "";
+  }
+  return normalized.slice(0, 5000);
+}
+
+function renderPendingUploadPreview() {
+  const attachments = getPendingAttachmentsSnapshot();
+  if (!attachments.length) {
     uploadPreviewListNode.hidden = true;
     uploadPreviewListNode.innerHTML = "";
     return;
@@ -1372,21 +2086,30 @@ function renderPendingImagePreview() {
   uploadPreviewListNode.hidden = false;
   uploadPreviewListNode.innerHTML = "";
 
-  pendingImageUploads.forEach((upload) => {
+  attachments.forEach((upload) => {
     const card = document.createElement("article");
     card.className = "upload-preview-card";
     card.setAttribute("data-upload-id", upload.id);
 
-    const thumbBtn = document.createElement("button");
-    thumbBtn.type = "button";
-    thumbBtn.className = "upload-preview-thumb";
-    thumbBtn.setAttribute("data-upload-action", "open");
-    thumbBtn.title = "Open image preview";
+    let previewNode;
+    if (upload.kind === "image") {
+      const thumbBtn = document.createElement("button");
+      thumbBtn.type = "button";
+      thumbBtn.className = "upload-preview-thumb";
+      thumbBtn.setAttribute("data-upload-action", "open");
+      thumbBtn.title = "Open image preview";
 
-    const img = document.createElement("img");
-    img.src = upload.dataUrl;
-    img.alt = upload.fileName;
-    thumbBtn.appendChild(img);
+      const img = document.createElement("img");
+      img.src = upload.dataUrl;
+      img.alt = upload.fileName;
+      thumbBtn.appendChild(img);
+      previewNode = thumbBtn;
+    } else {
+      const docNode = document.createElement("div");
+      docNode.className = "upload-preview-thumb upload-preview-thumb-doc";
+      docNode.textContent = getAttachmentGlyph(upload.fileName);
+      previewNode = docNode;
+    }
 
     const meta = document.createElement("div");
     meta.className = "upload-preview-meta";
@@ -1402,24 +2125,42 @@ function renderPendingImagePreview() {
     removeBtn.type = "button";
     removeBtn.className = "upload-preview-remove";
     removeBtn.setAttribute("data-upload-action", "remove");
-    removeBtn.title = "Remove image";
+    removeBtn.title = "Remove attachment";
     removeBtn.textContent = "✕";
 
-    card.append(thumbBtn, meta, removeBtn);
+    card.append(previewNode, meta, removeBtn);
     uploadPreviewListNode.appendChild(card);
   });
 }
 
-function clearPendingImageUploads() {
+function clearPendingAttachments() {
   pendingImageUploads = [];
-  renderPendingImagePreview();
+  pendingDocumentUploads = [];
+  renderPendingUploadPreview();
   syncWebSearchUI();
 }
 
-function removePendingImageUpload(uploadId) {
+function removePendingAttachment(uploadId) {
   pendingImageUploads = pendingImageUploads.filter((item) => item.id !== uploadId);
-  renderPendingImagePreview();
+  pendingDocumentUploads = pendingDocumentUploads.filter((item) => item.id !== uploadId);
+  renderPendingUploadPreview();
   syncWebSearchUI();
+}
+
+function findPendingAttachmentById(uploadId) {
+  return (
+    pendingImageUploads.find((item) => item.id === uploadId) ||
+    pendingDocumentUploads.find((item) => item.id === uploadId) ||
+    null
+  );
+}
+
+function getPendingAttachmentsSnapshot() {
+  return [...pendingImageUploads.map((item) => ({ ...item })), ...pendingDocumentUploads.map((item) => ({ ...item }))];
+}
+
+function getPendingAttachmentCount() {
+  return pendingImageUploads.length + pendingDocumentUploads.length;
 }
 
 function openImagePreviewModal(dataUrl) {
@@ -1448,8 +2189,23 @@ function createUploadId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function getFileExtension(fileName) {
+  const name = String(fileName || "").toLowerCase();
+  const parts = name.split(".");
+  return parts.length > 1 ? parts.pop() || "" : "";
+}
+
+function getAttachmentGlyph(fileName) {
+  const extension = getFileExtension(fileName);
+  if (extension === "pdf") return "PDF";
+  if (extension === "docx" || extension === "doc" || extension === "txt") return "DOC";
+  if (extension === "pptx" || extension === "ppt") return "PPT";
+  if (extension === "xlsx" || extension === "xls") return "XLS";
+  return "FILE";
+}
+
 function hasPendingAttachments() {
-  return pendingImageUploads.length > 0;
+  return getPendingAttachmentCount() > 0;
 }
 
 function isWebSearchLocked() {

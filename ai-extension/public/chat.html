@@ -56,10 +56,10 @@
                 <button id="upload-btn" type="button" class="upload-btn" title="Upload file">📎</button>
                 <div id="upload-menu" class="upload-menu" hidden>
                   <button id="upload-image-option" type="button" class="upload-option">🖼 Upload Image</button>
-                  <button type="button" class="upload-option disabled" disabled>🎥 Upload Video (Soon)</button>
-                  <button type="button" class="upload-option disabled" disabled>📄 Upload PDF (Soon)</button>
-                  <button type="button" class="upload-option disabled" disabled>📝 Upload DOC (Soon)</button>
-                  <button type="button" class="upload-option disabled" disabled>📊 Upload PPT (Soon)</button>
+                  <button id="upload-pdf-option" type="button" class="upload-option">📄 Upload PDF</button>
+                  <button id="upload-doc-option" type="button" class="upload-option">📝 Upload DOC/TXT</button>
+                  <button id="upload-ppt-option" type="button" class="upload-option">📊 Upload PPT</button>
+                  <button id="upload-sheet-option" type="button" class="upload-option">📈 Upload Sheet</button>
                 </div>
               </div>
               <button id="web-search-toggle" type="button" class="web-toggle" aria-pressed="false">
@@ -74,9 +74,31 @@
           </div>
           <p class="model-speed-disclaimer">
             <span class="model-speed-icon" aria-hidden="true">⚠️</span>
-            <span><strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait.</em></strong></span>
+            <span><strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait. If results are slow, switch to the default model.</em></strong></span>
           </p>
           <input id="image-upload-input" type="file" accept="image/png,image/jpeg,image/jpg" multiple hidden />
+          <input id="pdf-upload-input" type="file" accept=".pdf,application/pdf" multiple hidden />
+          <input
+            id="doc-upload-input"
+            type="file"
+            accept=".doc,.docx,.txt,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            multiple
+            hidden
+          />
+          <input
+            id="ppt-upload-input"
+            type="file"
+            accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            multiple
+            hidden
+          />
+          <input
+            id="sheet-upload-input"
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            multiple
+            hidden
+          />
         </footer>
       </section>
 
@@ -118,6 +140,10 @@
       </section>
     </main>
 
+    <script src="./vendor/jszip.min.js"></script>
+    <script src="./vendor/mammoth.browser.min.js"></script>
+    <script src="./vendor/xlsx.full.min.js"></script>
+    <script src="./vendor/jspdf.umd.min.js"></script>
     <script type="module" src="./chat.js"></script>
   </body>
 </html>
