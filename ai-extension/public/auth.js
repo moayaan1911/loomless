@@ -15,6 +15,7 @@ const successStageNode = document.getElementById("stage-success");
 const statusNode = document.getElementById("status");
 
 const loginFormNode = document.getElementById("login-form");
+const emailStepNode = document.getElementById("email-step");
 const loginEmailNode = document.getElementById("login-email");
 const sendCodeBtnNode = document.getElementById("send-code-btn");
 const otpStepNode = document.getElementById("otp-step");
@@ -263,6 +264,9 @@ async function sendOtp(email) {
 }
 
 function revealOtpStep() {
+  if (emailStepNode) {
+    emailStepNode.hidden = true;
+  }
   otpStepNode.hidden = false;
   if (otpCodeNode) {
     otpCodeNode.value = "";
@@ -272,6 +276,9 @@ function revealOtpStep() {
 
 function resetLoginFlow() {
   pendingOtpEmail = "";
+  if (emailStepNode) {
+    emailStepNode.hidden = false;
+  }
   if (otpStepNode) {
     otpStepNode.hidden = true;
   }

@@ -22,9 +22,13 @@
           </div>
 
           <div class="header-actions">
-            <button id="pin-session-btn" class="ghost-btn pin-session-btn" aria-pressed="false" title="Pin this chat">
+            <button id="new-chat-btn" class="ghost-btn new-chat-btn" title="Start a new chat">
+              <span data-ll-icon="chat" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span>New Chat</span>
+            </button>
+            <button id="pin-session-btn" class="ghost-btn pin-session-btn" aria-pressed="false" title="Save this chat">
               <span class="pin-session-icon" data-ll-icon="pin" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-              <span id="pin-session-label">Pin</span>
+              <span id="pin-session-label">Save</span>
             </button>
             <button id="model-picker-btn" class="ghost-btn model-picker-btn" aria-expanded="false">
               <img id="active-model-icon" class="model-picker-icon" src="./icon.png" alt="" />
@@ -33,6 +37,10 @@
             </button>
           </div>
         </header>
+        <p id="session-save-disclaimer" class="session-save-disclaimer">
+          <span data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span>Unsaved chat. Save this chat before New Chat, otherwise it will be lost.</span>
+        </p>
 
         <div id="chat-messages" class="chat-messages"></div>
 

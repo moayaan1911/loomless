@@ -129,6 +129,14 @@ body {
   gap: 8px;
 }
 
+.new-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: rgba(103, 175, 255, 0.62);
+  background: rgba(14, 25, 49, 0.9);
+}
+
 .pin-session-btn {
   display: inline-flex;
   align-items: center;
@@ -152,6 +160,22 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.session-save-disclaimer {
+  margin: 0;
+  padding: 8px 16px 10px;
+  border-bottom: 1px solid var(--line);
+  color: #f4d684;
+  font-size: 12px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.session-save-disclaimer.saved {
+  color: #9de6c8;
 }
 
 .chat-messages {

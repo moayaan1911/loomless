@@ -247,8 +247,10 @@ const modelPickerLabelNode = document.getElementById("model-picker-label");
 const modelPickerPopover = document.getElementById("model-picker-popover");
 const chatPanelNode = document.querySelector(".chat-panel");
 const authGateNode = document.getElementById("auth-gate");
+const newChatBtn = document.getElementById("new-chat-btn");
 const pinSessionBtn = document.getElementById("pin-session-btn");
 const pinSessionLabelNode = document.getElementById("pin-session-label");
+const sessionSaveDisclaimerNode = document.getElementById("session-save-disclaimer");
 const messagesNode = document.getElementById("chat-messages");
 const inputNode = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
@@ -335,6 +337,10 @@ sendBtn.addEventListener("click", () => {
 
 pinSessionBtn?.addEventListener("click", () => {
   handlePinSessionToggle();
+});
+
+newChatBtn?.addEventListener("click", () => {
+  void handleNewChat();
 });
 
 if (chrome?.storage?.onChanged) {
@@ -800,9 +806,13 @@ function setStatus(value) {
 function loadOrCreateSessionId() {
   const existing = String(localStorage.getItem(STORAGE_CHAT_SESSION_ID) || "").trim();
   if (existing) return existing;
-  const nextId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const nextId = createSessionId();
   localStorage.setItem(STORAGE_CHAT_SESSION_ID, nextId);
   return nextId;
+}
+
+function createSessionId() {
+  return `session_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function getPinnedStorageKey(sessionId) {
@@ -860,23 +870,98 @@ function syncAuthGateUI() {
 function syncPinSessionUI() {
   if (!pinSessionBtn || !pinSessionLabelNode) return;
   pinSessionBtn.setAttribute("aria-pressed", isSessionPinned ? "true" : "false");
-  pinSessionLabelNode.textContent = pinActionBusy ? "Working..." : isSessionPinned ? "Pinned" : "Pin";
+  pinSessionLabelNode.textContent = pinActionBusy ? "Working..." : isSessionPinned ? "Saved" : "Save";
   pinSessionBtn.disabled = sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted;
+  if (newChatBtn) {
+    newChatBtn.disabled = sending || pinActionBusy;
+  }
   if (!supabaseReady) {
     pinSessionBtn.title = "Supabase config missing in extension storage.";
+    syncSessionSaveDisclaimer();
     return;
   }
   if (!authSession) {
-    pinSessionBtn.title = "Sign in from extension popup to enable pinning.";
+    pinSessionBtn.title = "Sign in from extension popup to enable cloud save.";
+    syncSessionSaveDisclaimer();
     return;
   }
   if (!profileCompleted) {
-    pinSessionBtn.title = "Complete setup from extension popup to enable pinning.";
+    pinSessionBtn.title = "Complete setup from extension popup to enable cloud save.";
+    syncSessionSaveDisclaimer();
     return;
   }
   pinSessionBtn.title = isSessionPinned
-    ? "Unpin this chat and remove it from cloud storage."
-    : "Pin this chat to Supabase.";
+    ? "Saved to Supabase. Click to unsave."
+    : "Save this chat to Supabase.";
+  syncSessionSaveDisclaimer();
+}
+
+function syncSessionSaveDisclaimer() {
+  if (!sessionSaveDisclaimerNode) return;
+
+  const textNode = sessionSaveDisclaimerNode.querySelector("span:last-child");
+  if (!(textNode instanceof HTMLElement)) return;
+
+  if (isSessionPinned) {
+    sessionSaveDisclaimerNode.classList.add("saved");
+    textNode.textContent = "Saved chat. You can start a New Chat safely.";
+    return;
+  }
+
+  sessionSaveDisclaimerNode.classList.remove("saved");
+  textNode.textContent = "Unsaved chat. Save this chat before New Chat, otherwise it will be lost.";
+}
+
+function hasUnsavedSessionContent() {
+  return !isSessionPinned && chatHistory.length > 0;
+}
+
+async function handleNewChat() {
+  if (sending || pinActionBusy) return;
+
+  if (hasUnsavedSessionContent()) {
+    const wantsSave = window.confirm(
+      "This chat is not saved and will be lost.\n\nPress OK to save first, or Cancel to continue without saving."
+    );
+    if (wantsSave) {
+      await handlePinSessionToggle();
+      if (!isSessionPinned) {
+        setStatus("Could not save this chat. New chat cancelled.");
+        return;
+      }
+    }
+  }
+
+  startNewChatSession();
+}
+
+function startNewChatSession() {
+  closeModelPicker();
+  closeUploadMenu();
+  closeRegenerateMenu();
+  closeSourcesModal();
+  closeImagePreviewModal();
+  clearPendingAttachments();
+
+  chatHistory = [];
+  latestUploadContext = "";
+  lastPinnedSnapshotHash = "";
+
+  currentSessionId = createSessionId();
+  localStorage.setItem(STORAGE_CHAT_SESSION_ID, currentSessionId);
+  isSessionPinned = loadPinnedState(currentSessionId);
+
+  messagesNode.innerHTML = "";
+  appendMessage({
+    role: "assistant",
+    text: "Hey, I am LoomLess GPT. Ask anything.",
+    includeInHistory: false,
+  });
+
+  inputNode.value = "";
+  autoResizeInput();
+  syncPinSessionUI();
+  setStatus("Started a new chat.");
 }
 
 async function handlePinSessionToggle() {
@@ -895,7 +980,7 @@ async function handlePinSessionToggle() {
     syncPinSessionUI();
   }
   if (!authSession) {
-    setStatus("Sign in required for cloud pin.");
+    setStatus("Sign in required for cloud save.");
     return;
   }
   if (!supabaseReady) {
@@ -915,16 +1000,16 @@ async function handlePinSessionToggle() {
       await upsertPinnedSessionToSupabase({ skipIfUnchanged: false });
       isSessionPinned = true;
       savePinnedState(currentSessionId, true);
-      setStatus("Chat pinned to Supabase.");
+      setStatus("Chat saved to Supabase.");
     } else {
       await deletePinnedSessionFromSupabase();
       isSessionPinned = false;
       savePinnedState(currentSessionId, false);
       lastPinnedSnapshotHash = "";
-      setStatus("Chat unpinned.");
+      setStatus("Chat unsaved.");
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Pin action failed.";
+    const message = error instanceof Error ? error.message : "Save action failed.";
     setStatus(message);
   } finally {
     pinActionBusy = false;
@@ -972,8 +1057,8 @@ async function flushPinnedSessionSyncQueue() {
     try {
       await upsertPinnedSessionToSupabase({ skipIfUnchanged: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Pinned sync failed.";
-      setStatus(`Pinned sync failed: ${message}`);
+      const message = error instanceof Error ? error.message : "Save sync failed.";
+      setStatus(`Save sync failed: ${message}`);
       break;
     }
   }

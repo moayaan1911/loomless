@@ -14,32 +14,27 @@
         <img src="./icon.png" alt="LoomLess AI" class="logo" />
         <div>
           <p class="eyebrow">LoomLess AI Access</p>
-          <h1>
-            <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
-            <span>Continue to LoomLess AI</span>
-          </h1>
         </div>
       </header>
 
       <section id="stage-login" class="card stage">
         <h2 class="title-with-icon">
           <span data-ll-icon="verify" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
-          <span>Continue to LoomLess AI</span>
+          <span>Verify your email</span>
         </h2>
-        <p class="desc">
-          Single flow for both login and signup. Enter email, receive OTP, verify, and continue.
-        </p>
         <form id="login-form" class="form">
-          <label for="login-email" class="label label-with-icon">
-            <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-            <span>Email address</span>
-          </label>
-          <input id="login-email" class="input" type="email" maxlength="254" autocomplete="email" required />
+          <div id="email-step" class="email-step">
+            <label for="login-email" class="label label-with-icon">
+              <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span>Email address</span>
+            </label>
+            <input id="login-email" class="input" type="email" maxlength="254" autocomplete="email" required />
 
-          <button id="send-code-btn" class="btn primary" type="button">
-            <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-            <span>Send OTP</span>
-          </button>
+            <button id="send-code-btn" class="btn primary" type="button">
+              <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span>Send OTP</span>
+            </button>
+          </div>
 
           <div id="otp-step" class="otp-step" hidden>
             <label for="otp-code" class="label label-with-icon">
