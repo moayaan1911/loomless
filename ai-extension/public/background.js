@@ -1,5 +1,4 @@
 const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
-const STORAGE_TAVILY_API_KEY = "loomless_ai_tavily_api_key";
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
@@ -16,15 +15,15 @@ const IMAGE_GEN_ALLOWED_MODELS = new Set([
   "black-forest-labs/flux.1-dev",
   "black-forest-labs/flux.1-schnell",
   "black-forest-labs/flux.1-kontext-dev",
-  "stabilityai/stable-diffusion-3.5-large",
+  "stabilityai/stable-diffusion-3-medium",
 ]);
 const IMAGE_GEN_ENDPOINTS = {
   "black-forest-labs/flux.1-dev": "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev",
   "black-forest-labs/flux.1-schnell": "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell",
   "black-forest-labs/flux.1-kontext-dev":
     "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-kontext-dev",
-  "stabilityai/stable-diffusion-3.5-large":
-    "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large",
+  "stabilityai/stable-diffusion-3-medium":
+    "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3-medium",
 };
 const CHAT_ALLOWED_MODELS = new Set([
   "minimaxai/minimax-m2.5",
@@ -48,13 +47,19 @@ const CHAT_ALLOWED_MODELS = new Set([
 ]);
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NIM_OPENAI_IMAGE_ENDPOINT = "https://integrate.api.nvidia.com/v1/images/generations";
-const TAVILY_SEARCH_ENDPOINT = "https://api.tavily.com/search";
 const NIM_CHAT_TIMEOUT_MS = 180000;
 const NIM_VISION_TIMEOUT_MS = 150000;
 const NIM_IMAGE_TIMEOUT_MS = 240000;
-const TAVILY_TIMEOUT_MS = 45000;
+const USER_ABORT_MESSAGE = "Request stopped by user.";
+const activeRequestControllers = new Map();
+const canceledRequestIds = new Set();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "LOOMLESS_AI_ABORT_REQUEST") {
+    const aborted = abortActiveRequest(message?.requestId);
+    sendResponse({ ok: aborted });
+    return false;
+  }
   if (message?.type === "LOOMLESS_AI_SUMMARIZE") {
     summarizePage(message, sendResponse);
     return true;
@@ -80,9 +85,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function summarizePage(message, sendResponse) {
   try {
-    const { text, title, url } = message || {};
+    const { text, title, url, sourceType } = message || {};
     if (!text || typeof text !== "string") {
-      sendResponse({ ok: false, error: "No page text provided for summarization." });
+      sendResponse({ ok: false, error: "No readable content provided for summarization." });
       return;
     }
 
@@ -95,7 +100,7 @@ async function summarizePage(message, sendResponse) {
       return;
     }
 
-    const prompt = buildSummaryPrompt({ title, url, text });
+    const prompt = buildSummaryPrompt({ title, url, text, sourceType });
     const result = await callNimWithFallback(nimApiKey, prompt);
     sendResponse({ ok: true, summary: result });
   } catch (error) {
@@ -156,8 +161,9 @@ async function generateWriteDraft(message, sendResponse) {
 }
 
 async function generateChatReply(message, sendResponse) {
+  const requestId = normalizeRequestId(message?.requestId);
   try {
-    const { prompt, history, context, title, url, model, scope, webSearch, mode } = message || {};
+    const { prompt, history, context, title, url, model, scope, mode } = message || {};
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       sendResponse({ ok: false, error: "Please enter a message." });
       return;
@@ -180,52 +186,17 @@ async function generateChatReply(message, sendResponse) {
     const chatMode = resolveChatMode(mode);
     const selectedModel = resolveChatModel(model, chatMode);
     const chatScope = scope === "general" ? "general" : "page";
-    const wantsWebSearch = Boolean(webSearch);
-
-    let rawOutput = "";
-    let sources = [];
-    let webQuery = "";
-
-    if (wantsWebSearch) {
-      const tavilyApiKey = await getStorageValue(STORAGE_TAVILY_API_KEY);
-      if (!tavilyApiKey) {
-        sendResponse({
-          ok: false,
-          error: "Web Search is ON but Tavily API key is missing. Add TRAVILY_API/TAVILY_API and rebuild.",
-        });
-        return;
-      }
-
-      const webPayload = await runTavilySearch(tavilyApiKey, promptText);
-      const webPrompt = buildWebSearchPrompt({
-        prompt: promptText,
-        history: historyItems,
-        model: selectedModel,
-        scope: chatScope,
-        mode: chatMode,
-        sources: webPayload.sources,
-      });
-
-      rawOutput = await callModelWithFallbackModel(nimApiKey, webPrompt, selectedModel, {
-        temperature: 0.25,
-        maxTokens: chatMode === CHAT_MODES.CODE ? CODE_CHAT_MAX_TOKENS : 1400,
-        systemPrompt: buildWebSystemPrompt(chatMode),
-        responseMode: "raw",
-      });
-      sources = webPayload.sources;
-      webQuery = webPayload.query;
-    } else {
-      rawOutput = await callChatModelWithRetry(nimApiKey, {
-        prompt: promptText,
-        history: historyItems,
-        context: pageContext,
-        title: pageTitle,
-        url: pageUrl,
-        model: selectedModel,
-        scope: chatScope,
-        mode: chatMode,
-      });
-    }
+    const rawOutput = await callChatModelWithRetry(nimApiKey, {
+      prompt: promptText,
+      history: historyItems,
+      context: pageContext,
+      title: pageTitle,
+      url: pageUrl,
+      model: selectedModel,
+      scope: chatScope,
+      mode: chatMode,
+      requestId,
+    });
 
     let cleaned = sanitizeChatResponse(rawOutput, chatMode);
     if (shouldForceIdentityRetry(promptText, cleaned)) {
@@ -238,6 +209,7 @@ async function generateChatReply(message, sendResponse) {
         model: selectedModel,
         scope: chatScope,
         mode: chatMode,
+        requestId,
       });
       cleaned = sanitizeChatResponse(retryOutput, chatMode);
     }
@@ -247,16 +219,27 @@ async function generateChatReply(message, sendResponse) {
       return;
     }
 
-    sendResponse({ ok: true, reply: cleaned, sources, webQuery });
+    sendResponse({ ok: true, reply: cleaned });
   } catch (error) {
+    if (isUserAbortError(error, requestId)) {
+      sendResponse({
+        ok: false,
+        error: USER_ABORT_MESSAGE,
+        aborted: true,
+      });
+      return;
+    }
     sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : "Failed to generate chat response.",
     });
+  } finally {
+    clearCanceledRequest(requestId);
   }
 }
 
 async function describeUploadedImage(message, sendResponse) {
+  const requestId = normalizeRequestId(message?.requestId);
   try {
     const { imageDataUrl, prompt } = message || {};
     if (!imageDataUrl || typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) {
@@ -279,6 +262,7 @@ async function describeUploadedImage(message, sendResponse) {
         typeof prompt === "string" && prompt.trim()
           ? prompt.trim()
           : "Analyze this image and return only short factual bullet points.",
+      requestId,
     });
 
     const cleaned = sanitizeChatResponse(description);
@@ -289,16 +273,27 @@ async function describeUploadedImage(message, sendResponse) {
 
     sendResponse({ ok: true, reply: cleaned, model: VISION_MODEL });
   } catch (error) {
+    if (isUserAbortError(error, requestId)) {
+      sendResponse({
+        ok: false,
+        error: USER_ABORT_MESSAGE,
+        aborted: true,
+      });
+      return;
+    }
     sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : "Failed to analyze image.",
     });
+  } finally {
+    clearCanceledRequest(requestId);
   }
 }
 
 async function generateImage(message, sendResponse) {
+  const requestId = normalizeRequestId(message?.requestId);
   try {
-    const { prompt, model } = message || {};
+    const { prompt, model, strictModel } = message || {};
     const cleanPrompt = typeof prompt === "string" ? prompt.trim() : "";
     if (!cleanPrompt) {
       sendResponse({ ok: false, error: "Please enter an image prompt." });
@@ -318,6 +313,8 @@ async function generateImage(message, sendResponse) {
     const imageResult = await callImageGenerationWithFallback(nimApiKey, {
       prompt: cleanPrompt,
       model: selectedModel,
+      strictModel: strictModel === true,
+      requestId,
     });
 
     sendResponse({
@@ -326,10 +323,20 @@ async function generateImage(message, sendResponse) {
       model: imageResult.modelUsed || selectedModel,
     });
   } catch (error) {
+    if (isUserAbortError(error, requestId)) {
+      sendResponse({
+        ok: false,
+        error: USER_ABORT_MESSAGE,
+        aborted: true,
+      });
+      return;
+    }
     sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : "Failed to generate image.",
     });
+  } finally {
+    clearCanceledRequest(requestId);
   }
 }
 
@@ -364,8 +371,12 @@ async function callChatModelWithRetry(apiKey, payload) {
             ? buildGeneralSystemPrompt(chatMode)
             : buildPageAssistantSystemPrompt(chatMode),
           responseMode: "raw",
+          requestId: payload.requestId,
         });
       } catch (error) {
+        if (isUserAbortError(error, payload.requestId)) {
+          throw error;
+        }
         lastError = error;
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         const shouldRetryContext = message.includes("status 400") || message.includes("too long");
@@ -399,6 +410,9 @@ async function callModelWithFallbackModel(apiKey, prompt, preferredModel, config
         model,
       });
     } catch (error) {
+      if (isUserAbortError(error, config?.requestId)) {
+        throw error;
+      }
       lastError = error;
       if (!shouldRetryWithFallbackModel(error, model)) {
         throw error;
@@ -414,6 +428,9 @@ async function callModelWithTokenBudgetRetry(apiKey, config) {
   try {
     return await callModelWithConfig(apiKey, config.prompt, config.model, config);
   } catch (error) {
+    if (isUserAbortError(error, config?.requestId)) {
+      throw error;
+    }
     if (!shouldRetryWithLowerTokenBudget(error, config.maxTokens)) {
       throw error;
     }
@@ -451,70 +468,9 @@ function shouldRetryWithFallbackModel(error, attemptedModel) {
   return message.includes("status 404") || message.includes("model") || message.includes("not found");
 }
 
-async function runTavilySearch(apiKey, query) {
-  const cleanQuery = String(query || "").trim();
-  if (!cleanQuery) {
-    throw new Error("Web search query is empty.");
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(TAVILY_SEARCH_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query: cleanQuery,
-        search_depth: "advanced",
-        max_results: 6,
-        include_answer: false,
-        include_images: false,
-        include_raw_content: false,
-      }),
-      signal: controller.signal,
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message = data?.error || data?.detail || `Web search failed with status ${response.status}`;
-      throw new Error(String(message));
-    }
-
-    const rawResults = Array.isArray(data?.results) ? data.results : [];
-    const sources = rawResults
-      .filter((item) => item && typeof item.url === "string")
-      .slice(0, 6)
-      .map((item, index) => ({
-        id: index + 1,
-        title: sanitizeSourceText(item.title) || `Source ${index + 1}`,
-        url: item.url,
-        snippet: sanitizeSourceText(item.content || item.snippet || ""),
-      }));
-
-    if (!sources.length) {
-      throw new Error("No web results found for this query.");
-    }
-
-    return {
-      query: typeof data?.query === "string" && data.query.trim() ? data.query.trim() : cleanQuery,
-      sources,
-    };
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error("Web search timed out. Please retry or shorten your query.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function callVisionModel(apiKey, payload) {
-  const controller = new AbortController();
+  const requestId = normalizeRequestId(payload?.requestId);
+  const controller = createRequestAbortController(requestId);
   const timeout = setTimeout(() => controller.abort(), NIM_VISION_TIMEOUT_MS);
 
   try {
@@ -568,6 +524,9 @@ async function callVisionModel(apiKey, payload) {
     return content.trim();
   } catch (error) {
     if (isAbortError(error)) {
+      if (isRequestCanceled(requestId)) {
+        throw createUserAbortError();
+      }
       throw new Error(
         "Image analysis timed out on this model. Please retry, use fewer/lighter images, or switch to a faster model."
       );
@@ -575,6 +534,7 @@ async function callVisionModel(apiKey, payload) {
     throw error;
   } finally {
     clearTimeout(timeout);
+    releaseRequestAbortController(requestId, controller);
   }
 }
 
@@ -583,6 +543,8 @@ async function callImageGenerationWithFallback(apiKey, payload) {
   const cleanPayload = {
     prompt: String(payload?.prompt || "").trim(),
     model: requestedModel,
+    strictModel: payload?.strictModel === true,
+    requestId: normalizeRequestId(payload?.requestId),
   };
 
   let primaryError = null;
@@ -593,7 +555,21 @@ async function callImageGenerationWithFallback(apiKey, payload) {
       modelUsed: cleanPayload.model,
     };
   } catch (error) {
+    if (isUserAbortError(error, payload?.requestId)) {
+      throw error;
+    }
     primaryError = error;
+  }
+
+  if (cleanPayload.strictModel) {
+    if (shouldRetryImageWithFallback(primaryError)) {
+      const imageDataUrl = await callOpenAiImageEndpoint(apiKey, cleanPayload);
+      return {
+        imageDataUrl,
+        modelUsed: cleanPayload.model,
+      };
+    }
+    throw primaryError;
   }
 
   const directFallbackModel = pickDirectImageFallbackModel(cleanPayload.model, primaryError);
@@ -655,7 +631,7 @@ function pickDirectImageFallbackModel(model, error) {
   }
 
   if (
-    activeModel === "stabilityai/stable-diffusion-3.5-large" &&
+    activeModel === "stabilityai/stable-diffusion-3-medium" &&
     (message.includes("status 404") || message.includes("not found") || message.includes("unsupported"))
   ) {
     return "black-forest-labs/flux.1-dev";
@@ -670,7 +646,8 @@ async function callModelSpecificImageEndpoint(apiKey, payload) {
     throw new Error("Selected image model is not supported.");
   }
 
-  const controller = new AbortController();
+  const requestId = normalizeRequestId(payload?.requestId);
+  const controller = createRequestAbortController(requestId);
   const timeout = setTimeout(() => controller.abort(), NIM_IMAGE_TIMEOUT_MS);
 
   try {
@@ -706,16 +683,21 @@ async function callModelSpecificImageEndpoint(apiKey, payload) {
     return imageDataUrl;
   } catch (error) {
     if (isAbortError(error)) {
+      if (isRequestCanceled(requestId)) {
+        throw createUserAbortError();
+      }
       throw new Error("Image generation timed out. Please retry with a shorter prompt.");
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    releaseRequestAbortController(requestId, controller);
   }
 }
 
 async function callOpenAiImageEndpoint(apiKey, payload) {
-  const controller = new AbortController();
+  const requestId = normalizeRequestId(payload?.requestId);
+  const controller = createRequestAbortController(requestId);
   const timeout = setTimeout(() => controller.abort(), NIM_IMAGE_TIMEOUT_MS);
 
   try {
@@ -746,11 +728,15 @@ async function callOpenAiImageEndpoint(apiKey, payload) {
     return imageDataUrl;
   } catch (error) {
     if (isAbortError(error)) {
+      if (isRequestCanceled(requestId)) {
+        throw createUserAbortError();
+      }
       throw new Error("Image generation timed out. Please retry with a shorter prompt.");
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    releaseRequestAbortController(requestId, controller);
   }
 }
 
@@ -846,85 +832,28 @@ function blobToDataUrl(blob) {
     });
 }
 
-function sanitizeSourceText(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 280);
-}
-
-function buildWebSearchPrompt({ prompt, history, sources, model, scope, mode }) {
-  const cleanHistory = history
-    .filter((item) => item && typeof item === "object")
-    .map((item) => {
-      const role = item.role === "assistant" ? "Assistant" : "User";
-      const text =
-        typeof item.content === "string"
-          ? item.content.trim()
-          : typeof item.text === "string"
-            ? item.text.trim()
-            : "";
-      if (!text) return "";
-      return `${role}: ${text.slice(0, 900)}`;
-    })
-    .filter(Boolean)
-    .slice(-6);
-
-  const sourceBlocks = sources
-    .map((source) => {
-      return [
-        `[${source.id}] ${source.title}`,
-        `URL: ${source.url}`,
-        source.snippet ? `Snippet: ${source.snippet}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-    })
-    .join("\n\n");
-
-  const modeLine =
-    scope === "general"
-      ? "Mode: General chat with web search."
-      : "Mode: Page assistant chat with web search.";
-  const codeModeRules =
-    mode === CHAT_MODES.CODE
-      ? [
-          "- This is CODE mode.",
-          "- If the user asks for code/markup/config, return fenced code blocks with explicit language tags.",
-          "- Prefer complete runnable output over partial snippets.",
-        ]
-      : [];
-
-  return [
-    "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
-    modeLine,
-    model ? `Current serving model ID: ${model}` : "",
-    "Rules:",
-    "- Use ONLY the provided web sources for factual statements.",
-    "- Add citation numbers like [1], [2] for factual lines.",
-    "- If sources are insufficient, say so clearly.",
-    "- Keep answer concise and useful.",
-    "- Never mention hidden reasoning.",
-    ...codeModeRules,
-    "",
-    cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
-    "Web sources:",
-    sourceBlocks,
-    "",
-    `User message:\n${prompt}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function buildSummaryPrompt({ title, url, text }) {
-  const cleanTitle = typeof title === "string" && title.trim() ? title.trim() : "Untitled page";
+function buildSummaryPrompt({ title, url, text, sourceType }) {
+  const isVideoSummary = sourceType === "video";
+  const isVideoFallbackSummary = sourceType === "video-fallback";
+  const treatAsVideo = isVideoSummary || isVideoFallbackSummary;
+  const cleanTitle =
+    typeof title === "string" && title.trim() ? title.trim() : treatAsVideo ? "Untitled video" : "Untitled page";
   const cleanUrl = typeof url === "string" ? url : "";
   const trimmedText = text.slice(0, 18000);
 
   return [
     "You are an expert summarizer.",
     "Return ONLY concise markdown summary.",
+    isVideoSummary
+      ? "Summarize the video's spoken content from the transcript/captions provided."
+      : isVideoFallbackSummary
+        ? "Summarize what the video appears to be about using only the page details provided below."
+      : "Summarize the page content provided below.",
+    isVideoSummary
+      ? "Do not summarize page layout, channel info, comments, or description unless the transcript explicitly mentions them."
+      : isVideoFallbackSummary
+        ? "Be explicit that this is based on page/video metadata, title, and visible details. Do not invent spoken content or scene-by-scene events."
+      : "",
     "Hard rules:",
     "1) Do not include analysis, thinking, preamble, or explanations.",
     "2) Use exactly this output format and nothing else:",
@@ -943,10 +872,10 @@ function buildSummaryPrompt({ title, url, text }) {
     "4) Every bullet must be one line and concise.",
     "5) Use relevant emojis if useful, but keep the summary readable.",
     "",
-    `Page title: ${cleanTitle}`,
-    cleanUrl ? `Page URL: ${cleanUrl}` : "",
+    `${treatAsVideo ? "Video" : "Page"} title: ${cleanTitle}`,
+    cleanUrl ? `${treatAsVideo ? "Video" : "Page"} URL: ${cleanUrl}` : "",
     "",
-    "Page content:",
+    isVideoSummary ? "Video transcript/captions:" : isVideoFallbackSummary ? "Video page details:" : "Page content:",
     trimmedText,
   ]
     .filter(Boolean)
@@ -986,7 +915,8 @@ async function callModel(apiKey, prompt, model) {
 }
 
 async function callModelWithConfig(apiKey, prompt, model, config) {
-  const controller = new AbortController();
+  const requestId = normalizeRequestId(config?.requestId);
+  const controller = createRequestAbortController(requestId);
   const timeoutMs =
     Number(config?.maxTokens || 0) > CODE_CHAT_FALLBACK_TOKENS ? 420000 : NIM_CHAT_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -1046,6 +976,9 @@ async function callModelWithConfig(apiKey, prompt, model, config) {
     return sanitized;
   } catch (error) {
     if (isAbortError(error)) {
+      if (isRequestCanceled(requestId)) {
+        throw createUserAbortError();
+      }
       throw new Error(
         "Model response timed out. Open-weight models can be slow right now. Please retry or switch to a faster model."
       );
@@ -1053,7 +986,89 @@ async function callModelWithConfig(apiKey, prompt, model, config) {
     throw error;
   } finally {
     clearTimeout(timeout);
+    releaseRequestAbortController(requestId, controller);
   }
+}
+
+function normalizeRequestId(value) {
+  const requestId = typeof value === "string" ? value.trim() : "";
+  return requestId || "";
+}
+
+function createRequestAbortController(requestId) {
+  const controller = new AbortController();
+  if (!requestId) {
+    return controller;
+  }
+
+  let controllers = activeRequestControllers.get(requestId);
+  if (!controllers) {
+    controllers = new Set();
+    activeRequestControllers.set(requestId, controllers);
+  }
+  controllers.add(controller);
+
+  if (canceledRequestIds.has(requestId)) {
+    controller.abort();
+  }
+
+  return controller;
+}
+
+function releaseRequestAbortController(requestId, controller) {
+  if (!requestId) return;
+  const controllers = activeRequestControllers.get(requestId);
+  if (!controllers) return;
+  controllers.delete(controller);
+  if (!controllers.size) {
+    activeRequestControllers.delete(requestId);
+  }
+}
+
+function abortActiveRequest(requestId) {
+  const normalized = normalizeRequestId(requestId);
+  if (!normalized) return false;
+
+  canceledRequestIds.add(normalized);
+  const controllers = activeRequestControllers.get(normalized);
+  if (!controllers || !controllers.size) {
+    return true;
+  }
+
+  controllers.forEach((controller) => {
+    try {
+      controller.abort();
+    } catch (_error) {
+      // ignore controller abort failures
+    }
+  });
+
+  return true;
+}
+
+function clearCanceledRequest(requestId) {
+  const normalized = normalizeRequestId(requestId);
+  if (!normalized) return;
+  canceledRequestIds.delete(normalized);
+}
+
+function isRequestCanceled(requestId) {
+  const normalized = normalizeRequestId(requestId);
+  return normalized ? canceledRequestIds.has(normalized) : false;
+}
+
+function createUserAbortError() {
+  const error = new Error(USER_ABORT_MESSAGE);
+  error.name = "LoomLessUserAbortError";
+  return error;
+}
+
+function isUserAbortError(error, requestId = "") {
+  if (!error) return false;
+  if (error instanceof Error && error.name === "LoomLessUserAbortError") {
+    return true;
+  }
+  return isRequestCanceled(requestId);
 }
 
 function extractContent(data) {
@@ -1389,6 +1404,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
   const isGeneral = scope === "general";
   const isCodeMode = mode === CHAT_MODES.CODE;
   const wantsIdentity = isIdentityPrompt(prompt);
+  const wantsTableOutput = shouldUseTableFormat(prompt);
   const base = isGeneral
     ? [
         "You are LoomLess GPT, an AI assistant developed by LoomLess AI.",
@@ -1399,6 +1415,10 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
         isCodeMode
           ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
           : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
+        wantsTableOutput
+          ? "- If the user asks for a comparison or table format, return a valid markdown table with a header row and alignment separator row."
+          : "",
+        wantsTableOutput ? "- Keep table cells concise and readable. Do not fake columns with plain text pipes outside markdown table syntax." : "",
         wantsIdentity
           ? "- Identity line must be exactly: I am LoomLess GPT, an AI assistant developed by LoomLess AI."
           : "- Do not introduce yourself unless user explicitly asks identity.",
@@ -1431,9 +1451,21 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
     cleanHistory.length ? `Chat history:\n${cleanHistory.join("\n")}` : "",
     "",
     `User message:\n${prompt}`,
-  ]
+    ]
     .filter(Boolean)
     .join("\n");
+}
+
+function shouldUseTableFormat(prompt) {
+  const text = String(prompt || "").toLowerCase();
+  if (!text) return false;
+  return (
+    text.includes("table") ||
+    text.includes("tabular") ||
+    text.includes("compare") ||
+    text.includes("comparison") ||
+    text.includes("vs")
+  );
 }
 
 function ensureFencedCodeOutput(text, forceWrap) {
@@ -1521,13 +1553,6 @@ function buildPageAssistantSystemPrompt(mode) {
     return "You are LoomLess AI in CODE mode. Use provided context when relevant. Return code/markup/config in fenced markdown code blocks with explicit language tags and prefer complete outputs.";
   }
   return "You are LoomLess AI in page-assistant mode. Reply directly and clearly. Keep responses concise by default. Use page context only when provided. Never claim to be a different model than the current one.";
-}
-
-function buildWebSystemPrompt(mode) {
-  if (mode === CHAT_MODES.CODE) {
-    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI, using web sources. For factual claims add citations like [1], [2]. For code/markup/config outputs, return fenced markdown code blocks with explicit language tags.";
-  }
-  return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. Use provided web sources only. For factual claims, add citation numbers like [1], [2]. Do not invent sources.";
 }
 
 function getStorageValue(key) {

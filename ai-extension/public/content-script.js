@@ -19,6 +19,7 @@
   const MENU_ID = "loomless-ai-radial-menu";
   const TOAST_ID = "loomless-ai-toast";
   const SUMMARY_PANEL_ID = "loomless-ai-summary-panel";
+  const SUMMARY_TITLE_ID = "loomless-ai-summary-title";
   const SUMMARY_TEXT_ID = "loomless-ai-summary-text";
   const SUMMARY_STATUS_ID = "loomless-ai-summary-status";
   const SUMMARY_COPY_ID = "loomless-ai-summary-copy";
@@ -324,15 +325,23 @@
 
   async function runSummarizeFlow() {
     closePanelsExcept(SUMMARY_PANEL_ID);
-    const pageText = extractPageText();
-    if (!pageText || pageText.length < 200) {
+    let summaryPayload = null;
+    try {
+      summaryPayload = await buildSummaryPayload();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not extract readable content.");
+      return;
+    }
+
+    if (!summaryPayload?.text || summaryPayload.text.length < 200) {
       showToast("Not enough readable text found on this page.");
       return;
     }
 
     const panel = ensureSummaryPanel();
+    setSummaryPanelTitle(summaryPayload.panelTitle);
     setSummaryState({
-      status: "Summarizing...",
+      status: summaryPayload.loadingStatus || "Summarizing...",
       text: "",
       loading: true,
       error: false,
@@ -341,9 +350,10 @@
 
     try {
       const response = await requestSummary({
-        text: pageText,
+        text: summaryPayload.text,
         title: document.title,
         url: window.location.href,
+        sourceType: summaryPayload.sourceType,
       });
 
       if (!response?.ok) {
@@ -1116,6 +1126,35 @@
     return deduped.join("\n").slice(0, 22000);
   }
 
+  function getHostname() {
+    return String(window.location.hostname || "").toLowerCase();
+  }
+
+  function isYouTubeVideoPage() {
+    const host = getHostname();
+    if (!(host.includes("youtube.com") || host === "youtu.be" || host.endsWith(".youtu.be"))) return false;
+    return Boolean(
+      document.querySelector("video") ||
+        window.location.pathname.startsWith("/watch") ||
+        window.location.pathname.startsWith("/shorts/") ||
+        window.location.pathname.startsWith("/live/") ||
+        window.location.search.includes("v=")
+    );
+  }
+
+  function isOdyseeVideoPage() {
+    return getHostname().includes("odysee.com") && Boolean(document.querySelector("video"));
+  }
+
+  function isDailymotionVideoPage() {
+    const host = getHostname();
+    return host.includes("dailymotion.com") && Boolean(document.querySelector("video") || window.location.pathname.includes("/video/"));
+  }
+
+  function shouldPreferVideoSummary() {
+    return isYouTubeVideoPage() || isOdyseeVideoPage() || isDailymotionVideoPage();
+  }
+
   function extractYouTubeTranscript() {
     if (!window.location.hostname.includes("youtube.com")) return "";
 
@@ -1132,6 +1171,332 @@
       .join("\n");
 
     return normalizeText(transcript);
+  }
+
+  function parseJsonAssignmentFromScripts(variableName) {
+    const scripts = Array.from(document.scripts || []);
+    for (const script of scripts) {
+      const text = script.textContent || "";
+      if (!text.includes(variableName)) continue;
+
+      const assignedObject = extractAssignedObjectLiteral(text, variableName);
+      if (!assignedObject) continue;
+      try {
+        return JSON.parse(assignedObject);
+      } catch (_error) {
+        // Ignore malformed script blobs.
+      }
+    }
+    return null;
+  }
+
+  function extractAssignedObjectLiteral(sourceText, variableName) {
+    const source = String(sourceText || "");
+    const markerIndex = source.indexOf(variableName);
+    if (markerIndex === -1) return "";
+
+    const equalsIndex = source.indexOf("=", markerIndex);
+    if (equalsIndex === -1) return "";
+
+    const objectStart = source.indexOf("{", equalsIndex);
+    if (objectStart === -1) return "";
+
+    let depth = 0;
+    let inString = false;
+    let stringQuote = "";
+    let escaped = false;
+
+    for (let index = objectStart; index < source.length; index += 1) {
+      const char = source[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === stringQuote) {
+          inString = false;
+          stringQuote = "";
+        }
+        continue;
+      }
+
+      if (char === "\"" || char === "'") {
+        inString = true;
+        stringQuote = char;
+        continue;
+      }
+
+      if (char === "{") {
+        depth += 1;
+      } else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          return source.slice(objectStart, index + 1);
+        }
+      }
+    }
+
+    return "";
+  }
+
+  function getYouTubePlayerResponse() {
+    const direct = window.ytInitialPlayerResponse;
+    if (direct && typeof direct === "object") {
+      return direct;
+    }
+    return parseJsonAssignmentFromScripts("ytInitialPlayerResponse");
+  }
+
+  function buildCaptionTrackScore({ languageCode, label, isDefault }) {
+    let score = 0;
+    const cleanLang = String(languageCode || "").toLowerCase();
+    const cleanLabel = String(label || "").toLowerCase();
+    if (isDefault) score += 30;
+    if (cleanLang === "en" || cleanLang.startsWith("en-")) score += 20;
+    if (cleanLabel.includes("english")) score += 10;
+    if (cleanLabel.includes("auto")) score -= 2;
+    return score;
+  }
+
+  function collectYouTubeCaptionTracks() {
+    const playerResponse = getYouTubePlayerResponse();
+    const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!Array.isArray(captionTracks)) return [];
+
+    return captionTracks
+      .map((track) => {
+        const rawUrl = typeof track?.baseUrl === "string" ? track.baseUrl.trim() : "";
+        if (!rawUrl) return null;
+
+        let nextUrl = rawUrl;
+        try {
+          const url = new URL(rawUrl);
+          if (!url.searchParams.get("fmt")) {
+            url.searchParams.set("fmt", "json3");
+          }
+          nextUrl = url.toString();
+        } catch (_error) {
+          nextUrl = rawUrl;
+        }
+
+        return {
+          url: nextUrl,
+          languageCode: String(track?.languageCode || "").trim().toLowerCase(),
+          label: String(track?.name?.simpleText || "").trim(),
+          score: buildCaptionTrackScore({
+            languageCode: track?.languageCode || "",
+            label: track?.name?.simpleText || "",
+            isDefault: track?.isDefault === true,
+          }),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+  }
+
+  function collectDomCaptionTracks() {
+    const tracks = [];
+    document.querySelectorAll("track[src]").forEach((node) => {
+      const kind = String(node.getAttribute("kind") || "").toLowerCase();
+      if (kind && kind !== "captions" && kind !== "subtitles") return;
+
+      const rawSrc = String(node.getAttribute("src") || "").trim();
+      if (!rawSrc) return;
+
+      let url = rawSrc;
+      try {
+        url = new URL(rawSrc, window.location.href).toString();
+      } catch (_error) {
+        url = rawSrc;
+      }
+
+      tracks.push({
+        url,
+        languageCode: String(node.getAttribute("srclang") || "").trim().toLowerCase(),
+        label: String(node.getAttribute("label") || "").trim(),
+        score: buildCaptionTrackScore({
+          languageCode: node.getAttribute("srclang") || "",
+          label: node.getAttribute("label") || "",
+          isDefault: node.hasAttribute("default"),
+        }),
+      });
+    });
+
+    return tracks.sort((a, b) => b.score - a.score);
+  }
+
+  function extractLoadedTextTrackText() {
+    const parts = [];
+    const videos = Array.from(document.querySelectorAll("video"));
+
+    videos.forEach((video) => {
+      const textTracks = Array.from(video.textTracks || []);
+      textTracks.forEach((track) => {
+        const kind = String(track?.kind || "").toLowerCase();
+        if (kind && kind !== "captions" && kind !== "subtitles") return;
+
+        try {
+          if (track.mode === "disabled") {
+            track.mode = "hidden";
+          }
+        } catch (_error) {
+          // Some players lock text track mode.
+        }
+
+        Array.from(track?.cues || []).forEach((cue) => {
+          const text = typeof cue?.text === "string" ? cue.text : "";
+          if (text) {
+            parts.push(text);
+          }
+        });
+      });
+    });
+
+    return normalizeText(parts.join("\n"));
+  }
+
+  async function fetchCaptionTrackText(url) {
+    if (!url) return "";
+
+    try {
+      const response = await fetch(url, {
+        credentials: "include",
+      });
+      if (!response.ok) return "";
+      return parseCaptionPayload(await response.text());
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function parseCaptionPayload(rawText) {
+    const source = String(rawText || "").trim();
+    if (!source) return "";
+    if (source.startsWith("{") || source.startsWith("[")) {
+      return parseJsonCaptionPayload(source);
+    }
+    if (source.startsWith("<")) {
+      return parseXmlCaptionPayload(source);
+    }
+    return parseSubtitleTextPayload(source);
+  }
+
+  function parseJsonCaptionPayload(rawText) {
+    try {
+      const parsed = JSON.parse(rawText);
+      const events = Array.isArray(parsed?.events) ? parsed.events : Array.isArray(parsed) ? parsed : [];
+      const lines = [];
+
+      events.forEach((event) => {
+        const segments = Array.isArray(event?.segs) ? event.segs : [];
+        const line = segments
+          .map((segment) => String(segment?.utf8 || ""))
+          .join("")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (line) {
+          lines.push(line);
+        }
+      });
+
+      return normalizeText(lines.join("\n"));
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function parseXmlCaptionPayload(rawText) {
+    try {
+      const xml = new DOMParser().parseFromString(rawText, "text/xml");
+      if (xml.querySelector("parsererror")) {
+        return parseSubtitleTextPayload(rawText);
+      }
+
+      const text = Array.from(xml.querySelectorAll("text, p, span"))
+        .map((node) => node.textContent || "")
+        .map((line) => line.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .join("\n");
+
+      return normalizeText(text);
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function parseSubtitleTextPayload(rawText) {
+    return normalizeText(
+      String(rawText || "")
+        .replace(/^WEBVTT[^\n]*\n?/i, "")
+        .replace(/^NOTE[^\n]*(?:\n(?!\n).*)*/gim, "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => {
+          if (!line) return false;
+          if (/^\d+$/.test(line)) return false;
+          if (/^\d{1,2}:\d{2}(?::\d{2})?[\.,]\d{3}\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?[\.,]\d{3}/.test(line)) {
+            return false;
+          }
+          if (/^(kind|language|style|region):/i.test(line)) return false;
+          return true;
+        })
+        .join("\n")
+    );
+  }
+
+  function extractVisibleTranscriptText() {
+    const selectors = [
+      "[data-testid*='transcript']",
+      "[class*='transcript']",
+      "[id*='transcript']",
+      "[class*='caption'] [class*='cue']",
+      "[class*='subtitle'] [class*='cue']",
+    ];
+
+    let bestText = "";
+    document.querySelectorAll(selectors.join(",")).forEach((element) => {
+      const text = normalizeText(element.innerText || "");
+      if (text.length > bestText.length) {
+        bestText = text;
+      }
+    });
+
+    return bestText;
+  }
+
+  async function extractVideoText() {
+    const youtubeTranscript = extractYouTubeTranscript();
+    if (youtubeTranscript.length > 300) {
+      return youtubeTranscript;
+    }
+
+    const loadedTrackText = extractLoadedTextTrackText();
+    if (loadedTrackText.length > 300) {
+      return loadedTrackText;
+    }
+
+    const captionTracks = [...collectYouTubeCaptionTracks(), ...collectDomCaptionTracks()];
+    const seenUrls = new Set();
+    for (const track of captionTracks) {
+      if (!track?.url || seenUrls.has(track.url)) continue;
+      seenUrls.add(track.url);
+      const trackText = await fetchCaptionTrackText(track.url);
+      if (trackText.length > 300) {
+        return trackText;
+      }
+    }
+
+    const visibleTranscript = extractVisibleTranscriptText();
+    if (visibleTranscript.length > 300) {
+      return visibleTranscript;
+    }
+
+    return "";
   }
 
   function extractMainDocumentText() {
@@ -1164,13 +1529,43 @@
   }
 
   function extractPageText() {
-    const youtubeTranscript = extractYouTubeTranscript();
-    if (youtubeTranscript.length > 300) {
-      return `YouTube transcript\n\n${youtubeTranscript}`.slice(0, 22000);
-    }
-
     const pageText = extractMainDocumentText();
     return pageText.slice(0, 22000);
+  }
+
+  async function buildSummaryPayload() {
+    if (shouldPreferVideoSummary()) {
+      const videoText = await extractVideoText();
+      if (videoText.length >= 200) {
+        return {
+          text: `Video transcript\n\n${videoText}`.slice(0, 22000),
+          sourceType: "video",
+          panelTitle: "Video Summary",
+          loadingStatus: "Summarizing video...",
+        };
+      }
+
+      const pageText = extractPageText();
+      if (pageText.length < 200) {
+        throw new Error(
+          "No usable transcript, captions, or page details were found for this video."
+        );
+      }
+
+      return {
+        text: `Video page details\n\n${pageText}`.slice(0, 22000),
+        sourceType: "video-fallback",
+        panelTitle: "Video Summary",
+        loadingStatus: "No transcript found. Using page details...",
+      };
+    }
+
+    return {
+      text: extractPageText(),
+      sourceType: "page",
+      panelTitle: "Page Summary",
+      loadingStatus: "Summarizing...",
+    };
   }
 
   function ensureSummaryPanel() {
@@ -1212,6 +1607,7 @@
     });
 
     const title = document.createElement("h3");
+    title.id = SUMMARY_TITLE_ID;
     title.textContent = "Page Summary";
     Object.assign(title.style, {
       margin: "0",
@@ -1292,6 +1688,14 @@
     panel.append(header, status, content);
     document.documentElement.appendChild(panel);
     return panel;
+  }
+
+  function setSummaryPanelTitle(value) {
+    ensureSummaryPanel();
+    const titleNode = document.getElementById(SUMMARY_TITLE_ID);
+    if (titleNode) {
+      titleNode.textContent = value || "Page Summary";
+    }
   }
 
   function stylePanelButton(button) {

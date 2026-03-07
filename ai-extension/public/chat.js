@@ -17,7 +17,6 @@ function labelWithIcon(name, label) {
 }
 
 const STORAGE_SELECTED_MODEL_PREFIX = "loomless_ai_chat_page_model";
-const STORAGE_WEB_SEARCH = "loomless_ai_chat_web_search_enabled";
 const STORAGE_CHAT_MODE = "loomless_ai_chat_mode";
 const STORAGE_SUPABASE_URL = "loomless_ai_supabase_url";
 const STORAGE_SUPABASE_KEY = "loomless_ai_supabase_key";
@@ -33,12 +32,20 @@ const CHAT_MODES = {
   CODE: "code",
   IMAGE: "image",
 };
-const IMAGE_MODE_MODELS = new Set([
+const IMAGE_ONLY_MODELS = new Set([
   "black-forest-labs/flux.1-dev",
   "black-forest-labs/flux.1-schnell",
   "black-forest-labs/flux.1-kontext-dev",
-  "stabilityai/stable-diffusion-3.5-large",
+  "stabilityai/stable-diffusion-3-medium",
 ]);
+const ENABLED_IMAGE_MODE_MODELS = new Set([
+  "black-forest-labs/flux.1-dev",
+  "black-forest-labs/flux.1-schnell",
+]);
+const IMAGE_MODE_MODEL_ORDER = [
+  "black-forest-labs/flux.1-dev",
+  "black-forest-labs/flux.1-schnell",
+];
 
 const MODEL_OPTIONS = [
   {
@@ -75,8 +82,8 @@ const MODEL_OPTIONS = [
   },
   {
     provider: "Stability AI",
-    name: "stable-diffusion-3.5-large",
-    apiModel: "stabilityai/stable-diffusion-3.5-large",
+    name: "stable-diffusion-3-medium",
+    apiModel: "stabilityai/stable-diffusion-3-medium",
     desc: "Popular text-to-image model with strong prompt adherence and quality.",
     icon: "stability.png",
     badges: ["Image"],
@@ -219,7 +226,7 @@ const SHORT_MODEL_DESCRIPTIONS = {
   "black-forest-labs/flux.1-dev": "High-quality image generation with strong visual fidelity.",
   "black-forest-labs/flux.1-schnell": "Faster FLUX variant for quick image generation.",
   "black-forest-labs/flux.1-kontext-dev": "Context-aware FLUX model for richer image creation.",
-  "stabilityai/stable-diffusion-3.5-large": "Stable Diffusion 3.5 large model for text-to-image outputs.",
+  "stabilityai/stable-diffusion-3-medium": "Stable Diffusion 3 medium model for text-to-image outputs.",
   "mistralai/devstral-2-123b-instruct-2512": "Code-first instruct model for developer-heavy tasks.",
   "mistralai/mistral-large-3-675b-instruct-2512": "Premium large model for high-quality long-form output.",
   "meta/llama-3.1-70b-instruct": "Powerful Llama model for detailed and accurate chat.",
@@ -248,15 +255,16 @@ const sessionItemMenuNode = document.getElementById("session-item-menu");
 const sessionMenuEditBtn = document.getElementById("session-menu-edit-btn");
 const sessionMenuDeleteBtn = document.getElementById("session-menu-delete-btn");
 const chatPanelNode = document.querySelector(".chat-panel");
+const chatHeaderNode = document.querySelector(".chat-header");
 const authGateNode = document.getElementById("auth-gate");
 const pinSessionBtn = document.getElementById("pin-session-btn");
 const pinSessionLabelNode = document.getElementById("pin-session-label");
 const sessionSaveDisclaimerNode = document.getElementById("session-save-disclaimer");
 const messagesNode = document.getElementById("chat-messages");
+const imageModeStageNode = document.getElementById("image-mode-stage");
 const inputNode = document.getElementById("chat-input");
 const sendBtn = document.getElementById("send-btn");
 const statusNode = document.getElementById("chat-status");
-const webSearchToggleNode = document.getElementById("web-search-toggle");
 const uploadBtnNode = document.getElementById("upload-btn");
 const uploadWrapNode = uploadBtnNode?.closest(".upload-wrap") || null;
 const uploadMenuNode = document.getElementById("upload-menu");
@@ -271,26 +279,29 @@ const docUploadInputNode = document.getElementById("doc-upload-input");
 const pptUploadInputNode = document.getElementById("ppt-upload-input");
 const sheetUploadInputNode = document.getElementById("sheet-upload-input");
 const uploadPreviewListNode = document.getElementById("upload-preview-list");
-const sourcesModalNode = document.getElementById("sources-modal");
-const sourcesBackdropNode = document.getElementById("sources-backdrop");
-const sourcesCloseBtnNode = document.getElementById("sources-close-btn");
-const sourcesQueryNode = document.getElementById("sources-query");
-const sourcesListNode = document.getElementById("sources-list");
 const imagePreviewModalNode = document.getElementById("image-preview-modal");
 const imagePreviewBackdropNode = document.getElementById("image-preview-backdrop");
 const imagePreviewCloseBtnNode = document.getElementById("image-preview-close-btn");
 const imagePreviewModalImgNode = document.getElementById("image-preview-modal-img");
 const modeTabNodes = Array.from(document.querySelectorAll("[data-chat-mode]"));
+const modeTabsWrapNode = document.querySelector(".mode-tabs");
 const modeNoteNode = document.getElementById("mode-note");
+const composerActionsNode = document.querySelector(".composer-actions");
+const modelSpeedDisclaimerNode = document.querySelector(".model-speed-disclaimer");
 
 const INPUT_MIN_HEIGHT = 42;
 const INPUT_MAX_HEIGHT = 140;
 const APP_NAME = "LoomLess GPT";
 const APP_URL = "loomless.fun";
+const IMAGE_MODE_MODEL_COUNT = IMAGE_MODE_MODEL_ORDER.length;
+const DEFAULT_MODEL_SPEED_DISCLAIMER =
+  "<strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait. If results are slow, switch to the default model.</em></strong>";
+const IMAGE_MODE_SPEED_DISCLAIMER =
+  `<strong><em>Open-weight image model inference can be slow. Keep this tab open while all ${IMAGE_MODE_MODEL_COUNT} models finish generating.</em></strong>`;
 
 let sending = false;
 let chatHistory = [];
-let webSearchEnabled = loadWebSearchEnabled();
+let imageGenerationHistory = [];
 let latestUploadContext = "";
 let pendingImageUploads = [];
 let pendingDocumentUploads = [];
@@ -314,7 +325,9 @@ let activeSessionMenuSessionId = "";
 let regenerateMenuTargetButton = null;
 let regenerateMenuRequestMeta = null;
 let regenerateMenuSourceRow = null;
+let activeRequestState = null;
 const regenerateMenuNode = createRegenerateMenu();
+const USER_ABORT_MESSAGE = "Request stopped by user.";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.mjs";
 iconApi?.mount?.(document);
@@ -326,20 +339,20 @@ renderModelCards();
 syncActiveModelUI();
 syncModeTabs();
 syncModeUI();
-syncWebSearchUI();
 syncPinSessionUI();
 syncSidebarUI();
 syncSidebarFeatureButtons();
 renderSavedSessions();
 renderPendingUploadPreview();
-appendMessage({
-  role: "assistant",
-  text: "Hey, I am LoomLess GPT. Ask anything.",
-  includeInHistory: false,
-});
+renderImageModeStage();
+appendInitialPanelState();
 initializeSupabaseState();
 
 sendBtn.addEventListener("click", () => {
+  if (sending) {
+    void stopActiveRequest();
+    return;
+  }
   runSend();
 });
 
@@ -419,13 +432,6 @@ modeTabNodes.forEach((node) => {
     if (!nextMode) return;
     setActiveMode(nextMode);
   });
-});
-
-webSearchToggleNode.addEventListener("click", () => {
-  if (isWebSearchLocked()) return;
-  webSearchEnabled = !webSearchEnabled;
-  saveWebSearchEnabled(webSearchEnabled);
-  syncWebSearchUI();
 });
 
 uploadBtnNode.addEventListener("click", (event) => {
@@ -526,8 +532,6 @@ modelPickerBtn.addEventListener("click", (event) => {
   toggleModelPicker();
 });
 
-sourcesCloseBtnNode.addEventListener("click", closeSourcesModal);
-sourcesBackdropNode.addEventListener("click", closeSourcesModal);
 imagePreviewCloseBtnNode.addEventListener("click", closeImagePreviewModal);
 imagePreviewBackdropNode.addEventListener("click", closeImagePreviewModal);
 
@@ -571,10 +575,6 @@ document.addEventListener("keydown", (event) => {
       closeImagePreviewModal();
       return;
     }
-    if (!sourcesModalNode.hidden) {
-      closeSourcesModal();
-      return;
-    }
     if (!modelPickerPopover.hidden) {
       closeModelPicker();
     }
@@ -598,6 +598,163 @@ inputNode.addEventListener("keydown", (event) => {
 
 autoResizeInput();
 
+function appendInitialPanelState() {
+  if (activeMode === CHAT_MODES.IMAGE) {
+    renderImageModeStage();
+    return;
+  }
+  appendMessage({
+    role: "assistant",
+    text: "Hey, I am LoomLess GPT. Ask anything.",
+    includeInHistory: false,
+  });
+}
+
+function clearImageGenerationHistory() {
+  imageGenerationHistory = [];
+  renderImageModeStage();
+}
+
+function createImageGenerationBatch(prompt) {
+  return {
+    id: `image_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    prompt,
+    createdAt: new Date().toISOString(),
+    results: IMAGE_MODE_MODEL_ORDER.map((modelApi) => ({
+      modelApi,
+      status: "loading",
+      imageDataUrl: "",
+      error: "",
+    })),
+  };
+}
+
+function updateImageGenerationResult(batchId, modelApi, nextResult) {
+  const entry = imageGenerationHistory.find((item) => item.id === batchId);
+  if (!entry) return;
+  const result = entry.results.find((item) => item.modelApi === modelApi);
+  if (!result) return;
+  Object.assign(result, nextResult);
+  renderImageModeStage();
+}
+
+function renderImageModeStage() {
+  if (!imageModeStageNode) return;
+  imageModeStageNode.innerHTML = "";
+
+  imageGenerationHistory.forEach((entry) => {
+    const batchNode = document.createElement("section");
+    batchNode.className = "image-batch";
+
+    const promptWrap = document.createElement("div");
+    const promptLabel = document.createElement("p");
+    promptLabel.className = "image-batch-prompt-label";
+    promptLabel.textContent = "Prompt";
+
+    const promptText = document.createElement("p");
+    promptText.className = "image-batch-prompt";
+    promptText.textContent = entry.prompt;
+    promptWrap.append(promptLabel, promptText);
+
+    const gridNode = document.createElement("div");
+    gridNode.className = "image-grid";
+
+    entry.results.forEach((result) => {
+      gridNode.appendChild(createImageResultCard(entry, result));
+    });
+
+    batchNode.append(promptWrap, gridNode);
+    imageModeStageNode.appendChild(batchNode);
+  });
+
+  imageModeStageNode.scrollTop = 0;
+}
+
+function createImageResultCard(entry, result) {
+  const card = document.createElement("article");
+  card.className = `image-result-card ${result.status}`;
+
+  const media = document.createElement("div");
+  media.className = "image-result-media";
+
+  if (result.status === "done" && result.imageDataUrl) {
+    const image = document.createElement("img");
+    image.src = result.imageDataUrl;
+    image.alt = `${getModelDisplayName(result.modelApi)} image for: ${entry.prompt}`;
+    image.loading = "lazy";
+    media.appendChild(image);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "image-result-placeholder";
+    placeholder.textContent =
+      result.status === "error" ? truncate(result.error || "Generation failed.", 160) : "Generating...";
+    media.appendChild(placeholder);
+  }
+
+  const footer = document.createElement("div");
+  footer.className = "image-result-footer";
+
+  const textWrap = document.createElement("div");
+  const modelName = document.createElement("p");
+  modelName.className = "image-result-model";
+  modelName.textContent = getModelDisplayName(result.modelApi);
+
+  const statusText = document.createElement("p");
+  statusText.className = "image-result-status";
+  statusText.textContent =
+    result.status === "done" ? "Ready to download" : result.status === "error" ? "Generation failed" : "Generating";
+  textWrap.append(modelName, statusText);
+
+  footer.appendChild(textWrap);
+
+  if (result.status === "done" && result.imageDataUrl) {
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "msg-download-btn";
+    downloadBtn.innerHTML = labelWithIcon("download", "Download");
+    downloadBtn.addEventListener("click", () => {
+      downloadImageResult({
+        imageDataUrl: result.imageDataUrl,
+        modelApi: result.modelApi,
+        prompt: entry.prompt,
+      });
+    });
+    footer.appendChild(downloadBtn);
+  }
+
+  card.append(media, footer);
+  return card;
+}
+
+function getModelDisplayName(modelApi) {
+  return MODEL_OPTIONS.find((item) => item.apiModel === modelApi)?.name || modelApi;
+}
+
+function downloadImageResult({ imageDataUrl, modelApi, prompt }) {
+  const anchor = document.createElement("a");
+  anchor.href = imageDataUrl;
+  anchor.download = buildImageDownloadFileName(modelApi, prompt);
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+}
+
+function buildImageDownloadFileName(modelApi, prompt) {
+  const modelSlug = String(modelApi || "")
+    .split("/")
+    .pop()
+    ?.replace(/[^a-z0-9.-]+/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const promptSlug = String(prompt || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
+  return `loomless-${modelSlug || "image"}-${promptSlug || "prompt"}.png`;
+}
+
 async function runSend() {
   if (sending) return;
   if (!authSession || !profileCompleted) {
@@ -612,46 +769,57 @@ async function runSend() {
       return;
     }
 
-    appendMessage({
-      role: "user",
-      text: prompt,
-      historyMeta: {
-        model: selectedModel.apiModel,
-        mode: CHAT_MODES.IMAGE,
-      },
-    });
-    const loadingRow = appendLoadingMessage(`Generating image: ${truncate(prompt, 64)}`);
-
     inputNode.value = "";
     autoResizeInput();
     setSending(true);
 
     try {
-      const response = await requestImageGenerate({
-        prompt,
-        model: selectedModel.apiModel,
+      const generation = createImageGenerationBatch(prompt);
+      imageGenerationHistory = [generation, ...imageGenerationHistory].slice(0, 8);
+      renderImageModeStage();
+
+      const requests = IMAGE_MODE_MODEL_ORDER.map(async (modelApi) => {
+        try {
+          const response = await requestImageGenerate({
+            prompt,
+            model: modelApi,
+            strictModel: true,
+          });
+
+          if (!response?.ok || !response?.imageDataUrl) {
+            throw new Error(response?.error || "Could not generate image.");
+          }
+
+          updateImageGenerationResult(generation.id, modelApi, {
+            status: "done",
+            imageDataUrl: response.imageDataUrl,
+            error: "",
+          });
+        } catch (error) {
+          updateImageGenerationResult(generation.id, modelApi, {
+            status: "error",
+            imageDataUrl: "",
+            error: error instanceof Error ? error.message : "Image generation failed.",
+          });
+        }
       });
 
-      if (!response?.ok || !response?.imageDataUrl) {
-        throw new Error(response?.error || "Could not generate image.");
-      }
+      await Promise.all(requests);
 
-      removeMessageRow(loadingRow);
-      appendGeneratedImageMessage({
-        prompt,
-        imageDataUrl: response.imageDataUrl,
-        model: response.model || selectedModel.apiModel,
-      });
-      setStatus("Image ready.");
+      const completedEntry = imageGenerationHistory.find((item) => item.id === generation.id);
+      const successCount = Array.isArray(completedEntry?.results)
+        ? completedEntry.results.filter((item) => item.status === "done").length
+        : 0;
+      setStatus(
+        successCount === IMAGE_MODE_MODEL_COUNT
+          ? `All ${IMAGE_MODE_MODEL_COUNT} image generations are ready.`
+          : successCount > 0
+            ? `${successCount} of ${IMAGE_MODE_MODEL_COUNT} image generations completed.`
+            : "Image generation failed for all models."
+      );
     } catch (error) {
-      removeMessageRow(loadingRow);
       const message = error instanceof Error ? error.message : "Image generation failed.";
-      appendMessage({
-        role: "assistant",
-        text: `Image generation failed.\n\n${message}`,
-        includeInHistory: false,
-      });
-      setStatus("Image generation failed.");
+      setStatus(message);
     } finally {
       setSending(false);
     }
@@ -661,7 +829,6 @@ async function runSend() {
   const text = (inputNode.value || "").trim();
   const attachmentsForSend = getPendingAttachmentsSnapshot();
   const hasAttachments = attachmentsForSend.length > 0;
-  const effectiveWebSearch = webSearchEnabled && !hasAttachments;
   const finalPrompt = text || (hasAttachments ? "Analyze the attached files." : "");
 
   if (!finalPrompt) {
@@ -680,7 +847,7 @@ async function runSend() {
         ? `Attachment: ${attachmentsForSend[0].fileName}`
         : `Attachments: ${attachmentsForSend.length} files attached`;
   const userText = attachmentLine ? `${attachmentLine}\n\n${finalPrompt}` : finalPrompt;
-  appendMessage({
+  const userRow = appendMessage({
     role: "user",
     text: userText,
     historyMeta: {
@@ -688,7 +855,6 @@ async function runSend() {
       mode: activeMode,
       metadata: {
         attachmentCount: attachmentsForSend.length,
-        webSearch: effectiveWebSearch,
       },
     },
   });
@@ -696,33 +862,44 @@ async function runSend() {
     ? `Analyzing ${attachmentsForSend.length} file${attachmentsForSend.length > 1 ? "s" : ""}`
     : activeMode === CHAT_MODES.CODE
       ? "Generating code"
-    : effectiveWebSearch
-      ? `Searching web: ${truncate(finalPrompt, 64)}`
       : "Thinking";
   const loadingRow = appendLoadingMessage(loadingLabel);
+  const requestState = beginActiveRequest({
+    kind: "chat-send",
+    userRow,
+    loadingRow,
+    restoreInputValue: text,
+    restoreAttachments: attachmentsForSend,
+  });
 
   inputNode.value = "";
   autoResizeInput();
   if (attachmentsForSend.length) {
     clearPendingAttachments();
   }
-  setSending(true);
 
   try {
     if (attachmentsForSend.length) {
       const analyses = [];
       for (let index = 0; index < attachmentsForSend.length; index += 1) {
+        if (requestState.stopped) {
+          throw createUserAbortError();
+        }
         const upload = attachmentsForSend[index];
         updateLoadingMessage(
           loadingRow,
           `Analyzing ${index + 1}/${attachmentsForSend.length}: ${truncate(upload.fileName, 42)}`
         );
         if (upload.kind === "image") {
+          const requestId = registerActiveRequestId(createRequestId(), requestState);
           const visionResponse = await requestImageDescribe({
             imageDataUrl: upload.dataUrl,
             prompt:
               `Extract only visible facts relevant to answering this user query.\nUser query: ${finalPrompt}`,
-          });
+          }, requestId);
+          if (requestState.stopped || visionResponse?.aborted) {
+            throw createUserAbortError();
+          }
           if (!visionResponse?.ok || !visionResponse?.reply) {
             throw new Error(visionResponse?.error || `Could not analyze ${upload.fileName}.`);
           }
@@ -748,11 +925,11 @@ async function runSend() {
 
       latestUploadContext = buildUploadContextSnapshot(analyses);
 
-      if (effectiveWebSearch) {
-        updateLoadingMessage(loadingRow, `Searching web: ${truncate(finalPrompt, 64)}`);
-      } else {
-        updateLoadingMessage(loadingRow, "Thinking");
-      }
+      updateLoadingMessage(loadingRow, "Thinking");
+    }
+
+    if (requestState.stopped) {
+      throw createUserAbortError();
     }
 
     const attachedContext = buildAttachedContext();
@@ -765,10 +942,13 @@ async function runSend() {
       scope: "general",
       mode: activeMode,
       model: selectedModel.apiModel,
-      webSearch: effectiveWebSearch,
     };
 
-    let response = await requestChat(requestPayload);
+    let response = await requestChat(requestPayload, registerActiveRequestId(createRequestId(), requestState));
+
+    if (requestState.stopped || response?.aborted) {
+      throw createUserAbortError();
+    }
 
     if (!response?.ok || !response?.reply) {
       throw new Error(response?.error || "Could not generate response.");
@@ -779,7 +959,10 @@ async function runSend() {
       const retryResponse = await requestChat({
         ...requestPayload,
         prompt: buildAttachmentRetryPrompt(finalPrompt),
-      });
+      }, registerActiveRequestId(createRequestId(), requestState));
+      if (requestState.stopped || retryResponse?.aborted) {
+        throw createUserAbortError();
+      }
       if (retryResponse?.ok && retryResponse?.reply) {
         response = retryResponse;
       }
@@ -789,14 +972,10 @@ async function runSend() {
     appendMessage({
       role: "assistant",
       text: response.reply,
-      sources: Array.isArray(response.sources) ? response.sources : [],
-      searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
       historyMeta: {
         model: selectedModel.apiModel,
         mode: activeMode,
         metadata: {
-          webSearch: effectiveWebSearch,
-          sourceCount: Array.isArray(response.sources) ? response.sources.length : 0,
         },
       },
       requestMeta:
@@ -809,12 +988,15 @@ async function runSend() {
               url: "",
               scope: "general",
               mode: CHAT_MODES.CHAT,
-              webSearch: effectiveWebSearch,
             }
           : null,
     });
     setStatus("Ready.");
   } catch (error) {
+    if (isUserAbortError(error)) {
+      handleStoppedRequest(requestState);
+      return;
+    }
     removeMessageRow(loadingRow);
     const message = error instanceof Error ? error.message : "Request failed.";
     appendMessage({
@@ -824,13 +1006,13 @@ async function runSend() {
     });
     setStatus("Response failed.");
   } finally {
-    setSending(false);
+    finishActiveRequest(requestState);
   }
 }
 
-function requestChat(payload) {
+function requestChat(payload, requestId = createRequestId()) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_CHAT", ...payload }, (response) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_CHAT", requestId, ...payload }, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -840,9 +1022,9 @@ function requestChat(payload) {
   });
 }
 
-function requestImageGenerate(payload) {
+function requestImageGenerate(payload, requestId = createRequestId()) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_IMAGE_GENERATE", ...payload }, (response) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_IMAGE_GENERATE", requestId, ...payload }, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -854,15 +1036,112 @@ function requestImageGenerate(payload) {
 
 function setSending(next) {
   sending = next;
-  sendBtn.innerHTML = next ? "<span>Sending...</span>" : `${iconHtml("send", "inline-icon-sm")}<span>Send</span>`;
+  const showStop = next && activeRequestState?.stopEnabled === true;
+  sendBtn.classList.toggle("stop-btn", showStop);
+  sendBtn.innerHTML = showStop
+    ? `${iconHtml("stop", "inline-icon-sm")}<span>Stop</span>`
+    : next
+      ? "<span>Sending...</span>"
+      : `${iconHtml("send", "inline-icon-sm")}<span>Send</span>`;
   syncModeUI();
-  syncWebSearchUI();
   syncPinSessionUI();
 }
 
 function setStatus(value) {
   if (!statusNode) return;
   statusNode.textContent = value;
+}
+
+function createRequestId() {
+  return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function beginActiveRequest(state) {
+  activeRequestState = {
+    ...state,
+    stopped: false,
+    requestIds: new Set(),
+    stopEnabled: state?.stopEnabled !== false,
+  };
+  setSending(true);
+  return activeRequestState;
+}
+
+function finishActiveRequest(state) {
+  if (activeRequestState !== state) return;
+  activeRequestState = null;
+  setSending(false);
+}
+
+function registerActiveRequestId(requestId, state = activeRequestState) {
+  if (state?.requestIds && requestId) {
+    state.requestIds.add(requestId);
+  }
+  return requestId;
+}
+
+async function stopActiveRequest() {
+  if (!activeRequestState || activeRequestState.stopped) return;
+  activeRequestState.stopped = true;
+  setStatus("Stopping request...");
+
+  const requestIds = Array.from(activeRequestState.requestIds || []);
+  await Promise.all(requestIds.map((requestId) => abortExtensionRequest(requestId)));
+}
+
+function abortExtensionRequest(requestId) {
+  if (!requestId) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_ABORT_REQUEST", requestId }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve(false);
+        return;
+      }
+      resolve(Boolean(response?.ok));
+    });
+  });
+}
+
+function createUserAbortError() {
+  const error = new Error(USER_ABORT_MESSAGE);
+  error.name = "LoomLessUserAbortError";
+  return error;
+}
+
+function isUserAbortError(error) {
+  return Boolean(error instanceof Error && error.name === "LoomLessUserAbortError");
+}
+
+function handleStoppedRequest(state) {
+  if (state?.loadingRow) {
+    removeMessageRow(state.loadingRow);
+  }
+  if (state?.userRow) {
+    removeHistoryEntryForRow(state.userRow);
+    removeMessageRow(state.userRow);
+  }
+  if (typeof state?.restoreInputValue === "string") {
+    inputNode.value = state.restoreInputValue;
+    autoResizeInput();
+  }
+  if (Array.isArray(state?.restoreAttachments) && state.restoreAttachments.length) {
+    restorePendingAttachments(state.restoreAttachments);
+  }
+  latestUploadContext = "";
+  setStatus(
+    state?.kind === "regenerate"
+      ? "Request stopped. Pick another model and regenerate again."
+      : "Request stopped. Pick another model and send again."
+  );
+}
+
+function restorePendingAttachments(attachments) {
+  pendingImageUploads = attachments.filter((item) => item.kind === "image").map((item) => ({ ...item }));
+  pendingDocumentUploads = attachments.filter((item) => item.kind === "document").map((item) => ({ ...item }));
+  renderPendingUploadPreview();
+  syncWebSearchUI();
 }
 
 function loadOrCreateSessionId() {
@@ -1239,11 +1518,16 @@ async function openSavedSession(sessionId) {
     chatHistory = [];
     latestUploadContext = "";
     clearPendingAttachments();
+    clearImageGenerationHistory();
     closeModelPicker();
     closeUploadMenu();
     closeRegenerateMenu();
-    closeSourcesModal();
     closeImagePreviewModal();
+
+    const nextMode = normalizedRows.some((row) => resolveMode(row?.mode) === CHAT_MODES.CODE)
+      ? CHAT_MODES.CODE
+      : CHAT_MODES.CHAT;
+    setActiveMode(nextMode);
 
     messagesNode.innerHTML = "";
     if (!normalizedRows.length) {
@@ -1400,6 +1684,9 @@ async function handleNewChat() {
     }
   }
 
+  if (activeMode === CHAT_MODES.IMAGE) {
+    setActiveMode(CHAT_MODES.CHAT);
+  }
   startNewChatSession();
 }
 
@@ -1408,9 +1695,9 @@ function startNewChatSession() {
   closeUploadMenu();
   closeRegenerateMenu();
   closeSessionItemMenu();
-  closeSourcesModal();
   closeImagePreviewModal();
   clearPendingAttachments();
+  clearImageGenerationHistory();
 
   chatHistory = [];
   latestUploadContext = "";
@@ -1421,11 +1708,7 @@ function startNewChatSession() {
   isSessionPinned = loadPinnedState(currentSessionId);
 
   messagesNode.innerHTML = "";
-  appendMessage({
-    role: "assistant",
-    text: "Hey, I am LoomLess GPT. Ask anything.",
-    includeInHistory: false,
-  });
+  appendInitialPanelState();
 
   inputNode.value = "";
   autoResizeInput();
@@ -1832,8 +2115,6 @@ function appendMessage({
   role,
   text,
   includeInHistory = true,
-  sources = [],
-  searchQuery = "",
   historyMeta = null,
   requestMeta = null,
 }) {
@@ -1892,10 +2173,6 @@ function appendMessage({
     bubble.appendChild(actionRow);
   }
 
-  if (role === "assistant" && Array.isArray(sources) && sources.length) {
-    bubble.appendChild(createSourcesChip(sources, searchQuery));
-  }
-
   if (role === "assistant" && activeMode === CHAT_MODES.CHAT && requestMeta) {
     bubble.appendChild(createChatModeActionRow({ answerText: text, requestMeta }));
   }
@@ -1919,6 +2196,8 @@ function appendMessage({
     }
     requestPinnedSessionSync();
   }
+
+  return row;
 }
 
 function createChatModeActionRow({ answerText, requestMeta }) {
@@ -2032,78 +2311,6 @@ function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
   requestPinnedSessionSync();
 }
 
-function createSourcesChip(sources, query) {
-  const chip = document.createElement("button");
-  chip.type = "button";
-  chip.className = "sources-chip";
-
-  const stack = document.createElement("span");
-  stack.className = "source-stack";
-  for (let i = 0; i < 3; i += 1) {
-    const dot = document.createElement("span");
-    dot.className = `source-dot dot-${i + 1}`;
-    stack.appendChild(dot);
-  }
-
-  const label = document.createElement("span");
-  const count = sources.length;
-  label.textContent = `${count} web page${count > 1 ? "s" : ""}`;
-
-  chip.append(stack, label);
-  chip.addEventListener("click", () => {
-    openSourcesModal(sources, query);
-  });
-
-  return chip;
-}
-
-function openSourcesModal(sources, query) {
-  if (!Array.isArray(sources) || !sources.length) return;
-  sourcesModalNode.hidden = false;
-  sourcesQueryNode.textContent = query ? `Query: ${query}` : "Web search results";
-  sourcesListNode.innerHTML = "";
-
-  sources.forEach((source, index) => {
-    const item = document.createElement("article");
-    item.className = "source-item";
-
-    const head = document.createElement("div");
-    head.className = "source-item-head";
-
-    const id = document.createElement("span");
-    id.className = "source-id";
-    id.textContent = `[${source.id || index + 1}]`;
-
-    const domain = document.createElement("span");
-    domain.className = "source-domain";
-    domain.textContent = getDomain(source.url);
-
-    head.append(id, domain);
-
-    const link = document.createElement("a");
-    link.className = "source-link";
-    link.href = source.url;
-    link.target = "_blank";
-    link.rel = "noreferrer noopener";
-    link.textContent = source.title || source.url;
-
-    const snippet = document.createElement("p");
-    snippet.className = "source-snippet";
-    snippet.textContent = source.snippet || "";
-
-    item.append(head, link);
-    if (snippet.textContent) {
-      item.appendChild(snippet);
-    }
-
-    sourcesListNode.appendChild(item);
-  });
-}
-
-function closeSourcesModal() {
-  sourcesModalNode.hidden = true;
-}
-
 function createRegenerateMenu() {
   const menu = document.createElement("div");
   menu.className = "regenerate-menu";
@@ -2160,7 +2367,10 @@ async function handleRegenerateSelection(modelApi) {
 
   const model = MODEL_OPTIONS.find((item) => item.apiModel === modelApi);
   const loadingRow = appendLoadingMessage(`Regenerating with ${model?.name || modelApi}`);
-  setSending(true);
+  const requestState = beginActiveRequest({
+    kind: "regenerate",
+    loadingRow,
+  });
 
   try {
     const response = await requestChat({
@@ -2172,8 +2382,11 @@ async function handleRegenerateSelection(modelApi) {
       scope: requestMeta.scope || "general",
       mode: CHAT_MODES.CHAT,
       model: modelApi,
-      webSearch: Boolean(requestMeta.webSearch),
-    });
+    }, registerActiveRequestId(createRequestId(), requestState));
+
+    if (requestState.stopped || response?.aborted) {
+      throw createUserAbortError();
+    }
 
     if (!response?.ok || !response?.reply) {
       throw new Error(response?.error || "Could not regenerate response.");
@@ -2183,12 +2396,14 @@ async function handleRegenerateSelection(modelApi) {
     appendMessage({
       role: "assistant",
       text: response.reply,
-      sources: Array.isArray(response.sources) ? response.sources : [],
-      searchQuery: typeof response.webQuery === "string" ? response.webQuery : "",
       requestMeta,
     });
     setStatus(`Regenerated with ${model?.name || modelApi}.`);
   } catch (error) {
+    if (isUserAbortError(error)) {
+      handleStoppedRequest(requestState);
+      return;
+    }
     removeMessageRow(loadingRow);
     const message = error instanceof Error ? error.message : "Regenerate failed.";
     appendMessage({
@@ -2198,7 +2413,7 @@ async function handleRegenerateSelection(modelApi) {
     });
     setStatus("Regenerate failed.");
   } finally {
-    setSending(false);
+    finishActiveRequest(requestState);
   }
 }
 
@@ -2457,6 +2672,26 @@ function removeMessageRow(row) {
   }
 }
 
+function removeHistoryEntryForRow(row) {
+  if (!(row instanceof HTMLElement)) return;
+  const rawIndex = row.getAttribute("data-history-index");
+  const index = Number(rawIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= chatHistory.length) {
+    return;
+  }
+
+  chatHistory.splice(index, 1);
+
+  let nextIndex = 0;
+  Array.from(messagesNode.querySelectorAll(".msg-row[data-history-index]")).forEach((node) => {
+    if (node === row) return;
+    node.setAttribute("data-history-index", String(nextIndex));
+    nextIndex += 1;
+  });
+
+  requestPinnedSessionSync();
+}
+
 function renderModelCards() {
   modelListNode.innerHTML = "";
   missingIcons.clear();
@@ -2587,24 +2822,37 @@ function syncModeUI() {
         : "Ask anything...";
 
   inputNode.placeholder = modePlaceholder;
+  if (chatPanelNode) {
+    chatPanelNode.classList.toggle("image-mode", isImageMode);
+  }
+  if (chatHeaderNode) {
+    chatHeaderNode.hidden = isImageMode;
+  }
+  if (messagesNode) {
+    messagesNode.hidden = isImageMode;
+  }
+  if (imageModeStageNode) {
+    imageModeStageNode.hidden = !isImageMode;
+  }
+  if (modeTabsWrapNode) {
+    modeTabsWrapNode.hidden = isImageMode;
+  }
+  if (composerActionsNode) {
+    composerActionsNode.hidden = isImageMode;
+  }
   modeTabNodes.forEach((node) => {
     node.disabled = sending;
   });
   inputNode.disabled = sending;
-  sendBtn.disabled = sending;
+  sendBtn.disabled = sending ? activeRequestState?.stopEnabled !== true : false;
   uploadBtnNode.disabled = sending;
   uploadBtnNode.hidden = !isChatMode;
   if (uploadWrapNode) {
     uploadWrapNode.hidden = !isChatMode;
   }
-  modelPickerBtn.disabled = sending;
-  webSearchToggleNode.hidden = !isChatMode;
+  modelPickerBtn.hidden = isImageMode;
+  modelPickerBtn.disabled = sending || isImageMode;
   syncPinSessionUI();
-
-  if (!isChatMode && webSearchEnabled) {
-    webSearchEnabled = false;
-    saveWebSearchEnabled(false);
-  }
   if (!isChatMode) {
     closeUploadMenu();
   }
@@ -2615,8 +2863,8 @@ function syncModeUI() {
   }
 
   if (isImageMode) {
-    modeNoteNode.hidden = false;
-    modeNoteNode.textContent = "Image mode generates images from prompt text using NVIDIA image models.";
+    modeNoteNode.hidden = true;
+    modeNoteNode.textContent = "";
   } else if (activeMode === CHAT_MODES.CODE) {
     modeNoteNode.hidden = false;
     modeNoteNode.textContent =
@@ -2624,6 +2872,11 @@ function syncModeUI() {
   } else {
     modeNoteNode.hidden = true;
     modeNoteNode.textContent = "";
+  }
+  const disclaimerTextNode =
+    modelSpeedDisclaimerNode?.querySelector(":scope > span:last-child") || modelSpeedDisclaimerNode?.children?.[1];
+  if (disclaimerTextNode instanceof HTMLElement) {
+    disclaimerTextNode.innerHTML = isImageMode ? IMAGE_MODE_SPEED_DISCLAIMER : DEFAULT_MODEL_SPEED_DISCLAIMER;
   }
   syncSidebarFeatureButtons();
 }
@@ -2641,36 +2894,6 @@ function setActiveMode(mode) {
   syncModeUI();
   renderModelCards();
   syncActiveModelUI();
-  syncWebSearchUI();
-}
-
-function syncWebSearchUI() {
-  const lockedByMode = activeMode === CHAT_MODES.IMAGE;
-  if (hasPendingAttachments() && webSearchEnabled) {
-    webSearchEnabled = false;
-    saveWebSearchEnabled(false);
-  }
-
-  const lockedByAttachments = hasPendingAttachments();
-  const lockedBySend = sending;
-  const isLocked = lockedByAttachments || lockedBySend || lockedByMode;
-
-  webSearchToggleNode.disabled = isLocked;
-  webSearchToggleNode.setAttribute("aria-pressed", webSearchEnabled ? "true" : "false");
-
-  if (lockedByMode) {
-    webSearchToggleNode.title = "Web search is unavailable in Image mode.";
-    return;
-  }
-  if (lockedByAttachments) {
-    webSearchToggleNode.title = "Web search is disabled while files are attached.";
-    return;
-  }
-  if (lockedBySend) {
-    webSearchToggleNode.title = "Web search is locked while response is generating.";
-    return;
-  }
-  webSearchToggleNode.title = webSearchEnabled ? "Disable Web Search" : "Enable Web Search";
 }
 
 function loadSelectedModel(mode = activeMode) {
@@ -2692,14 +2915,6 @@ function loadChatMode() {
 
 function saveChatMode(mode) {
   localStorage.setItem(STORAGE_CHAT_MODE, resolveMode(mode));
-}
-
-function loadWebSearchEnabled() {
-  return localStorage.getItem(STORAGE_WEB_SEARCH) === "1";
-}
-
-function saveWebSearchEnabled(enabled) {
-  localStorage.setItem(STORAGE_WEB_SEARCH, enabled ? "1" : "0");
 }
 
 function setSelectedModel(model) {
@@ -2819,6 +3034,17 @@ function markdownToHtml(markdownText) {
       continue;
     }
 
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines = [lines[index], lines[index + 1]];
+      index += 2;
+      while (index < lines.length && /^\s*\|.*\|\s*$/.test(lines[index].trim())) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(renderMarkdownTable(tableLines));
+      continue;
+    }
+
     const paragraph = [];
     while (index < lines.length) {
       const current = lines[index].trim();
@@ -2838,8 +3064,46 @@ function isBlockStarter(text) {
     /^(#{1,3})\s+/.test(text) ||
     /^>\s?/.test(text) ||
     /^[-*]\s+/.test(text) ||
-    /^\d+\.\s+/.test(text)
+    /^\d+\.\s+/.test(text) ||
+    /^\s*\|.*\|\s*$/.test(text)
   );
+}
+
+function isMarkdownTableStart(lines, index) {
+  if (index + 1 >= lines.length) return false;
+  const header = String(lines[index] || "").trim();
+  const separator = String(lines[index + 1] || "").trim();
+  return /^\|.*\|$/.test(header) && /^\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?$/.test(separator);
+}
+
+function splitMarkdownTableRow(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function renderMarkdownTable(lines) {
+  if (!Array.isArray(lines) || lines.length < 2) return "";
+  const headerCells = splitMarkdownTableRow(lines[0]);
+  if (!headerCells.length) return "";
+
+  const bodyRows = lines.slice(2).map(splitMarkdownTableRow).filter((row) => row.some((cell) => cell));
+  const headHtml = `<thead><tr>${headerCells.map((cell) => `<th>${formatInlineMarkdown(cell)}</th>`).join("")}</tr></thead>`;
+  const bodyHtml = bodyRows.length
+    ? `<tbody>${bodyRows
+        .map(
+          (row) =>
+            `<tr>${headerCells
+              .map((_, cellIndex) => `<td>${formatInlineMarkdown(row[cellIndex] || "")}</td>`)
+              .join("")}</tr>`
+        )
+        .join("")}</tbody>`
+    : "";
+
+  return `<div class="markdown-table-wrap"><table class="markdown-table">${headHtml}${bodyHtml}</table></div>`;
 }
 
 function formatInlineMarkdown(text) {
@@ -2866,14 +3130,6 @@ function sanitizeUrl(url) {
     return "";
   } catch (_error) {
     return "";
-  }
-}
-
-function getDomain(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (_error) {
-    return "unknown";
   }
 }
 
@@ -2943,10 +3199,7 @@ async function stageImageUploads(files) {
   }
 
   renderPendingUploadPreview();
-  syncWebSearchUI();
-  setStatus(
-    `${getPendingAttachmentCount()} attachment(s) ready. Web search is disabled in attachment mode.`
-  );
+  setStatus(`${getPendingAttachmentCount()} attachment(s) ready.`);
 }
 
 async function stageDocumentUploads(files) {
@@ -3012,15 +3265,12 @@ async function stageDocumentUploads(files) {
   }
 
   renderPendingUploadPreview();
-  syncWebSearchUI();
-  setStatus(
-    `${getPendingAttachmentCount()} attachment(s) ready. Web search is disabled in attachment mode.`
-  );
+  setStatus(`${getPendingAttachmentCount()} attachment(s) ready.`);
 }
 
-function requestImageDescribe(payload) {
+function requestImageDescribe(payload, requestId = createRequestId()) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_DESCRIBE_IMAGE", ...payload }, (response) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_DESCRIBE_IMAGE", requestId, ...payload }, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -3275,14 +3525,12 @@ function clearPendingAttachments() {
   pendingImageUploads = [];
   pendingDocumentUploads = [];
   renderPendingUploadPreview();
-  syncWebSearchUI();
 }
 
 function removePendingAttachment(uploadId) {
   pendingImageUploads = pendingImageUploads.filter((item) => item.id !== uploadId);
   pendingDocumentUploads = pendingDocumentUploads.filter((item) => item.id !== uploadId);
   renderPendingUploadPreview();
-  syncWebSearchUI();
 }
 
 function findPendingAttachmentById(uploadId) {
@@ -3346,10 +3594,6 @@ function hasPendingAttachments() {
   return getPendingAttachmentCount() > 0;
 }
 
-function isWebSearchLocked() {
-  return sending || hasPendingAttachments() || activeMode !== CHAT_MODES.CHAT;
-}
-
 function getDefaultModelOptionForMode(mode = activeMode) {
   const visible = getVisibleModelsForMode(mode);
   if (!visible.length) {
@@ -3367,9 +3611,9 @@ function getDefaultModelOptionForMode(mode = activeMode) {
 function getVisibleModelsForMode(mode = activeMode) {
   const resolvedMode = resolveMode(mode);
   if (resolvedMode === CHAT_MODES.IMAGE) {
-    return MODEL_OPTIONS.filter((model) => IMAGE_MODE_MODELS.has(model.apiModel));
+    return MODEL_OPTIONS.filter((model) => ENABLED_IMAGE_MODE_MODELS.has(model.apiModel));
   }
-  return MODEL_OPTIONS.filter((model) => !IMAGE_MODE_MODELS.has(model.apiModel));
+  return MODEL_OPTIONS.filter((model) => !IMAGE_ONLY_MODELS.has(model.apiModel));
 }
 
 function ensureSelectedModelForMode() {
