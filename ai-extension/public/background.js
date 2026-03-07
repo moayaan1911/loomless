@@ -1,6 +1,6 @@
 const STORAGE_NIM_API_KEY = "loomless_ai_nim_api_key";
 const PRIMARY_NIM_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
-const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
+const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
 const FALLBACK_NIM_MODEL = "minimaxai/minimax-m2.5";
 const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
 const CHAT_MODEL = PRIMARY_NIM_MODEL;

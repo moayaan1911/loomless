@@ -907,7 +907,7 @@ async function runSend() {
             kind: "image",
             fileName: upload.fileName,
             analysis: visionResponse.reply,
-            model: visionResponse.model || "nvidia/nemotron-nano-12b-v2-vl",
+            model: visionResponse.model || "meta/llama-3.2-11b-vision-instruct",
           });
           continue;
         }
