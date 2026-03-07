@@ -10,7 +10,42 @@
     <div class="bg-orb orb-a"></div>
     <div class="bg-orb orb-b"></div>
 
-    <main class="chat-shell">
+    <main id="chat-shell" class="chat-shell">
+      <aside id="chat-sidebar" class="chat-sidebar">
+        <div class="sidebar-top">
+          <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" type="button" title="Collapse sidebar">
+            <span data-ll-icon="sidebarCollapse" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          </button>
+          <h3 class="sidebar-title">
+            <span data-ll-icon="history" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span>Saved Chats</span>
+          </h3>
+        </div>
+
+        <button id="sidebar-new-chat-btn" type="button" class="sidebar-new-chat-btn" title="Start a new chat">
+          <span data-ll-icon="newChat" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span class="sidebar-btn-text">New Chat</span>
+        </button>
+        <button id="sidebar-image-btn" type="button" class="sidebar-image-btn" title="Generate image">
+          <span data-ll-icon="modeImage" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span class="sidebar-btn-text">Generate Image</span>
+        </button>
+
+        <p class="sidebar-hint">
+          <span data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span>Only saved chats stay in cloud. Unsaved chats are temporary.</span>
+        </p>
+
+        <div id="saved-sessions-list" class="saved-sessions-list"></div>
+
+        <div class="sidebar-bottom">
+          <button id="sidebar-settings-btn" type="button" class="sidebar-settings-btn" title="Settings">
+            <span data-ll-icon="settings" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span class="sidebar-btn-text">Settings</span>
+          </button>
+        </div>
+      </aside>
+
       <section class="chat-panel">
         <header class="chat-header">
           <div class="title-wrap">
@@ -22,10 +57,6 @@
           </div>
 
           <div class="header-actions">
-            <button id="new-chat-btn" class="ghost-btn new-chat-btn" title="Start a new chat">
-              <span data-ll-icon="chat" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-              <span>New Chat</span>
-            </button>
             <button id="pin-session-btn" class="ghost-btn pin-session-btn" aria-pressed="false" title="Save this chat">
               <span class="pin-session-icon" data-ll-icon="pin" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span id="pin-session-label">Save</span>
@@ -58,10 +89,6 @@
             <button id="mode-code-btn" type="button" class="mode-tab" data-chat-mode="code" aria-selected="false">
               <span class="mode-tab-icon code" data-ll-icon="modeCode" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Code</span>
-            </button>
-            <button id="mode-image-btn" type="button" class="mode-tab" data-chat-mode="image" aria-selected="false">
-              <span class="mode-tab-icon" data-ll-icon="modeImage" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-              <span>Image</span>
             </button>
           </div>
           <p id="mode-note" class="mode-note" hidden></p>
@@ -174,6 +201,17 @@
             <img id="image-preview-modal-img" class="image-preview-modal-img" alt="Attached image full preview" />
           </div>
         </div>
+      </section>
+
+      <section id="session-item-menu" class="session-item-menu" hidden>
+        <button id="session-menu-edit-btn" type="button" class="session-item-menu-btn">
+          <span data-ll-icon="edit" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span>Edit title</span>
+        </button>
+        <button id="session-menu-delete-btn" type="button" class="session-item-menu-btn danger">
+          <span data-ll-icon="delete" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+          <span>Unsave/Delete</span>
+        </button>
       </section>
     </main>
 

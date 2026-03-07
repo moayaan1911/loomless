@@ -24,6 +24,7 @@ const STORAGE_SUPABASE_KEY = "loomless_ai_supabase_key";
 const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
 const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_CHAT_SESSION_ID = "loomless_ai_chat_active_session_id";
+const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
@@ -32,14 +33,6 @@ const CHAT_MODES = {
   CODE: "code",
   IMAGE: "image",
 };
-const CODE_MODE_MODELS = new Set([
-  "minimaxai/minimax-m2.5",
-  "zai/glm5",
-  "zai/glm4.7",
-  "nvidia/nemotron-3-nano-30b-a3b",
-  "qwen/qwen3.5-397b-a17b",
-  "moonshotai/kimi-k2.5",
-]);
 const IMAGE_MODE_MODELS = new Set([
   "black-forest-labs/flux.1-dev",
   "black-forest-labs/flux.1-schnell",
@@ -245,9 +238,17 @@ const modelPickerBtn = document.getElementById("model-picker-btn");
 const activeModelIconNode = document.getElementById("active-model-icon");
 const modelPickerLabelNode = document.getElementById("model-picker-label");
 const modelPickerPopover = document.getElementById("model-picker-popover");
+const chatShellNode = document.getElementById("chat-shell");
+const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+const sidebarNewChatBtn = document.getElementById("sidebar-new-chat-btn");
+const sidebarImageBtn = document.getElementById("sidebar-image-btn");
+const sidebarSettingsBtn = document.getElementById("sidebar-settings-btn");
+const savedSessionsListNode = document.getElementById("saved-sessions-list");
+const sessionItemMenuNode = document.getElementById("session-item-menu");
+const sessionMenuEditBtn = document.getElementById("session-menu-edit-btn");
+const sessionMenuDeleteBtn = document.getElementById("session-menu-delete-btn");
 const chatPanelNode = document.querySelector(".chat-panel");
 const authGateNode = document.getElementById("auth-gate");
-const newChatBtn = document.getElementById("new-chat-btn");
 const pinSessionBtn = document.getElementById("pin-session-btn");
 const pinSessionLabelNode = document.getElementById("pin-session-label");
 const sessionSaveDisclaimerNode = document.getElementById("session-save-disclaimer");
@@ -298,6 +299,8 @@ let activeMode = loadChatMode();
 let selectedModel = loadSelectedModel(activeMode);
 let currentSessionId = loadOrCreateSessionId();
 let isSessionPinned = loadPinnedState(currentSessionId);
+let sidebarCollapsed = loadSidebarCollapsed();
+let savedSessions = [];
 let supabaseReady = false;
 let authSession = null;
 let profileCompleted = false;
@@ -306,6 +309,8 @@ let pinSyncInFlight = false;
 let pinSyncQueued = false;
 let lastPinnedSnapshotHash = "";
 let supabaseConfigCache = null;
+let savedSessionsLoading = false;
+let activeSessionMenuSessionId = "";
 let regenerateMenuTargetButton = null;
 let regenerateMenuRequestMeta = null;
 let regenerateMenuSourceRow = null;
@@ -323,6 +328,9 @@ syncModeTabs();
 syncModeUI();
 syncWebSearchUI();
 syncPinSessionUI();
+syncSidebarUI();
+syncSidebarFeatureButtons();
+renderSavedSessions();
 renderPendingUploadPreview();
 appendMessage({
   role: "assistant",
@@ -339,8 +347,51 @@ pinSessionBtn?.addEventListener("click", () => {
   handlePinSessionToggle();
 });
 
-newChatBtn?.addEventListener("click", () => {
+sidebarNewChatBtn?.addEventListener("click", () => {
   void handleNewChat();
+});
+
+sidebarImageBtn?.addEventListener("click", () => {
+  setActiveMode(CHAT_MODES.IMAGE);
+  inputNode?.focus();
+});
+
+sidebarToggleBtn?.addEventListener("click", () => {
+  sidebarCollapsed = !sidebarCollapsed;
+  saveSidebarCollapsed(sidebarCollapsed);
+  syncSidebarUI();
+});
+
+sidebarSettingsBtn?.addEventListener("click", () => {
+  setStatus("Settings panel is coming soon.");
+});
+
+savedSessionsListNode?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const menuBtn = target.closest("[data-session-action='menu']");
+  if (menuBtn) {
+    event.stopPropagation();
+    const sessionId = menuBtn.getAttribute("data-session-id");
+    if (!sessionId) return;
+    openSessionItemMenu(menuBtn, sessionId);
+    return;
+  }
+
+  const row = target.closest("[data-session-id]");
+  if (!row) return;
+  const sessionId = row.getAttribute("data-session-id");
+  if (!sessionId) return;
+  void openSavedSession(sessionId);
+});
+
+sessionMenuEditBtn?.addEventListener("click", () => {
+  void handleEditSessionTitle();
+});
+
+sessionMenuDeleteBtn?.addEventListener("click", () => {
+  void handleDeleteSavedSession();
 });
 
 if (chrome?.storage?.onChanged) {
@@ -504,6 +555,14 @@ document.addEventListener("click", (event) => {
       closeRegenerateMenu();
     }
   }
+
+  if (sessionItemMenuNode && !sessionItemMenuNode.hidden) {
+    const clickedSessionMenu =
+      sessionItemMenuNode.contains(target) || Boolean(target instanceof Element && target.closest("[data-session-action='menu']"));
+    if (!clickedSessionMenu) {
+      closeSessionItemMenu();
+    }
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -524,6 +583,9 @@ document.addEventListener("keydown", (event) => {
     }
     if (!regenerateMenuNode.hidden) {
       closeRegenerateMenu();
+    }
+    if (sessionItemMenuNode && !sessionItemMenuNode.hidden) {
+      closeSessionItemMenu();
     }
   }
 });
@@ -843,6 +905,13 @@ async function initializeSupabaseState() {
   }
   syncAuthGateUI();
   syncPinSessionUI();
+  if (supabaseReady && authSession && profileCompleted) {
+    await refreshSavedSessions();
+  } else {
+    savedSessions = [];
+    renderSavedSessions();
+    closeSessionItemMenu();
+  }
 }
 
 function syncAuthGateUI() {
@@ -869,11 +938,19 @@ function syncAuthGateUI() {
 
 function syncPinSessionUI() {
   if (!pinSessionBtn || !pinSessionLabelNode) return;
+  const saveSupportedMode = activeMode !== CHAT_MODES.IMAGE;
+  pinSessionBtn.hidden = !saveSupportedMode;
   pinSessionBtn.setAttribute("aria-pressed", isSessionPinned ? "true" : "false");
   pinSessionLabelNode.textContent = pinActionBusy ? "Working..." : isSessionPinned ? "Saved" : "Save";
-  pinSessionBtn.disabled = sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted;
-  if (newChatBtn) {
-    newChatBtn.disabled = sending || pinActionBusy;
+  pinSessionBtn.disabled =
+    !saveSupportedMode || sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted;
+  if (sidebarNewChatBtn) {
+    sidebarNewChatBtn.disabled = sending || pinActionBusy;
+  }
+  if (!saveSupportedMode) {
+    pinSessionBtn.title = "Save is available only in Chat and Code modes.";
+    syncSessionSaveDisclaimer();
+    return;
   }
   if (!supabaseReady) {
     pinSessionBtn.title = "Supabase config missing in extension storage.";
@@ -898,8 +975,14 @@ function syncPinSessionUI() {
 
 function syncSessionSaveDisclaimer() {
   if (!sessionSaveDisclaimerNode) return;
+  if (activeMode === CHAT_MODES.IMAGE) {
+    sessionSaveDisclaimerNode.hidden = true;
+    return;
+  }
+  sessionSaveDisclaimerNode.hidden = false;
 
-  const textNode = sessionSaveDisclaimerNode.querySelector("span:last-child");
+  const textNode =
+    sessionSaveDisclaimerNode.querySelector(":scope > span:last-child") || sessionSaveDisclaimerNode.children[1];
   if (!(textNode instanceof HTMLElement)) return;
 
   if (isSessionPinned) {
@@ -910,6 +993,391 @@ function syncSessionSaveDisclaimer() {
 
   sessionSaveDisclaimerNode.classList.remove("saved");
   textNode.textContent = "Unsaved chat. Save this chat before New Chat, otherwise it will be lost.";
+}
+
+function loadSidebarCollapsed() {
+  return localStorage.getItem(STORAGE_SIDEBAR_COLLAPSED) === "1";
+}
+
+function saveSidebarCollapsed(collapsed) {
+  localStorage.setItem(STORAGE_SIDEBAR_COLLAPSED, collapsed ? "1" : "0");
+}
+
+function syncSidebarUI() {
+  if (chatShellNode) {
+    chatShellNode.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+  }
+  if (sidebarToggleBtn) {
+    const iconName = sidebarCollapsed ? "sidebarExpand" : "sidebarCollapse";
+    sidebarToggleBtn.innerHTML = iconHtml(iconName, "inline-icon-sm");
+    sidebarToggleBtn.title = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+  }
+}
+
+function syncSidebarFeatureButtons() {
+  if (sidebarImageBtn) {
+    sidebarImageBtn.classList.toggle("active", activeMode === CHAT_MODES.IMAGE);
+    sidebarImageBtn.disabled = sending;
+  }
+}
+
+function renderSavedSessions() {
+  if (!savedSessionsListNode) return;
+  savedSessionsListNode.innerHTML = "";
+
+  if (savedSessionsLoading) {
+    const loading = document.createElement("p");
+    loading.className = "saved-sessions-empty";
+    loading.textContent = "Loading saved chats...";
+    savedSessionsListNode.appendChild(loading);
+    return;
+  }
+
+  if (!supabaseReady || !authSession || !profileCompleted) {
+    const empty = document.createElement("p");
+    empty.className = "saved-sessions-empty";
+    empty.textContent = "Sign in to view saved chats.";
+    savedSessionsListNode.appendChild(empty);
+    return;
+  }
+
+  if (!savedSessions.length) {
+    const empty = document.createElement("p");
+    empty.className = "saved-sessions-empty";
+    empty.textContent = "No saved chats yet. Use Save in the header.";
+    savedSessionsListNode.appendChild(empty);
+    return;
+  }
+
+  savedSessions.forEach((session) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "saved-session-item";
+    item.setAttribute("data-session-id", session.session_id);
+    item.classList.toggle("active", session.session_id === currentSessionId);
+
+    const content = document.createElement("div");
+    content.className = "saved-session-content";
+
+    const title = document.createElement("p");
+    title.className = "saved-session-title";
+    title.textContent = getSessionTitle(session);
+
+    const meta = document.createElement("p");
+    meta.className = "saved-session-meta";
+    meta.textContent = formatSessionMeta(session);
+    content.append(title, meta);
+
+    const menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.className = "saved-session-menu-btn";
+    menuBtn.setAttribute("data-session-action", "menu");
+    menuBtn.setAttribute("data-session-id", session.session_id);
+    menuBtn.title = "Session actions";
+    menuBtn.innerHTML = iconHtml("menuMore", "inline-icon-sm");
+
+    item.append(content, menuBtn);
+    savedSessionsListNode.appendChild(item);
+  });
+}
+
+function getSessionTitle(session) {
+  const raw = String(session?.title || "").replace(/\s+/g, " ").trim();
+  return raw || "LoomLess Chat";
+}
+
+function formatSessionMeta(session) {
+  const count = Number(session?.message_count || 0);
+  const stamp = String(session?.updated_at || session?.last_message_at || session?.created_at || "").trim();
+  const time = stamp ? formatRelativeTime(stamp) : "recent";
+  return `${count} msg${count === 1 ? "" : "s"} · ${time}`;
+}
+
+function formatRelativeTime(value) {
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time) || time <= 0) return "recent";
+  const diff = Date.now() - time;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 2_592_000_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(time).toLocaleDateString();
+}
+
+async function refreshSavedSessions() {
+  if (!supabaseReady || !authSession || !profileCompleted) {
+    savedSessions = [];
+    renderSavedSessions();
+    return;
+  }
+
+  savedSessionsLoading = true;
+  renderSavedSessions();
+
+  try {
+    const config = await getSupabaseConfig();
+    if (!config) {
+      savedSessions = [];
+      return;
+    }
+    const encodedUserId = encodeURIComponent(config.userId);
+    const rows = await supabaseRestRequest(
+      `ai_chat_sessions?user_id=eq.${encodedUserId}&pinned=eq.true&select=session_id,title,pinned,last_model,message_count,created_at,updated_at,last_message_at,metadata&order=updated_at.desc`,
+      {
+        method: "GET",
+      }
+    );
+    savedSessions = Array.isArray(rows) ? rows : [];
+    sortSavedSessions();
+  } catch (error) {
+    savedSessions = [];
+    const message = error instanceof Error ? error.message : "Could not load saved chats.";
+    setStatus(message);
+  } finally {
+    savedSessionsLoading = false;
+    renderSavedSessions();
+  }
+}
+
+function sortSavedSessions() {
+  savedSessions.sort((a, b) => {
+    const aTime = new Date(a?.updated_at || a?.last_message_at || a?.created_at || 0).getTime();
+    const bTime = new Date(b?.updated_at || b?.last_message_at || b?.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function upsertSavedSessionCache(payload) {
+  if (!payload?.session_id) return;
+  const next = {
+    session_id: payload.session_id,
+    title: payload.title || "LoomLess Chat",
+    pinned: true,
+    last_model: payload.last_model || null,
+    message_count: Number(payload.message_count || 0),
+    created_at: payload.created_at || payload.last_message_at || new Date().toISOString(),
+    updated_at: payload.updated_at || payload.last_message_at || new Date().toISOString(),
+    last_message_at: payload.last_message_at || payload.updated_at || new Date().toISOString(),
+    metadata: payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {},
+  };
+
+  const index = savedSessions.findIndex((item) => item.session_id === next.session_id);
+  if (index >= 0) {
+    savedSessions[index] = { ...savedSessions[index], ...next };
+  } else {
+    savedSessions.push(next);
+  }
+  sortSavedSessions();
+}
+
+function openSessionItemMenu(anchorButton, sessionId) {
+  if (!sessionItemMenuNode) return;
+  const exists = savedSessions.some((item) => item.session_id === sessionId);
+  if (!exists) return;
+
+  activeSessionMenuSessionId = sessionId;
+  const rect = anchorButton.getBoundingClientRect();
+  const menuWidth = 220;
+  const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
+  const top = Math.min(window.innerHeight - 120, Math.max(12, rect.bottom + 6));
+  sessionItemMenuNode.style.left = `${left}px`;
+  sessionItemMenuNode.style.top = `${top}px`;
+  sessionItemMenuNode.hidden = false;
+}
+
+function closeSessionItemMenu() {
+  if (!sessionItemMenuNode) return;
+  sessionItemMenuNode.hidden = true;
+  activeSessionMenuSessionId = "";
+}
+
+async function openSavedSession(sessionId) {
+  if (!sessionId || sending || pinActionBusy || savedSessionsLoading) return;
+  closeSessionItemMenu();
+
+  if (sessionId === currentSessionId) {
+    return;
+  }
+
+  if (hasUnsavedSessionContent()) {
+    const wantsSave = window.confirm(
+      "Current chat is unsaved and can be lost.\n\nPress OK to save first, or Cancel to continue without saving."
+    );
+    if (wantsSave) {
+      await handlePinSessionToggle();
+      if (!isSessionPinned) {
+        setStatus("Could not save current chat. Session switch cancelled.");
+        return;
+      }
+    }
+  }
+
+  setStatus("Opening saved chat...");
+
+  try {
+    const config = await getSupabaseConfig();
+    if (!config) {
+      setStatus("Supabase config missing.");
+      return;
+    }
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const encodedUserId = encodeURIComponent(config.userId);
+    const rows = await supabaseRestRequest(
+      `ai_chat_messages?session_id=eq.${encodedSessionId}&user_id=eq.${encodedUserId}&select=role,content,model,mode,created_at,message_index,metadata&order=message_index.asc`,
+      {
+        method: "GET",
+      }
+    );
+
+    const normalizedRows = Array.isArray(rows) ? rows : [];
+    currentSessionId = sessionId;
+    localStorage.setItem(STORAGE_CHAT_SESSION_ID, currentSessionId);
+    isSessionPinned = true;
+    savePinnedState(currentSessionId, true);
+    lastPinnedSnapshotHash = "";
+
+    chatHistory = [];
+    latestUploadContext = "";
+    clearPendingAttachments();
+    closeModelPicker();
+    closeUploadMenu();
+    closeRegenerateMenu();
+    closeSourcesModal();
+    closeImagePreviewModal();
+
+    messagesNode.innerHTML = "";
+    if (!normalizedRows.length) {
+      appendMessage({
+        role: "assistant",
+        text: "Saved chat is empty. Ask anything.",
+        includeInHistory: false,
+      });
+      syncPinSessionUI();
+      renderSavedSessions();
+      setStatus("Saved chat loaded.");
+      return;
+    }
+
+    normalizedRows.forEach((row) => {
+      const role = normalizeMessageRole(row?.role);
+      const content = String(row?.content || "");
+      appendMessage({
+        role,
+        text: content,
+        includeInHistory: false,
+      });
+      chatHistory.push({
+        role,
+        content,
+        model: typeof row?.model === "string" ? row.model : null,
+        mode: typeof row?.mode === "string" ? row.mode : CHAT_MODES.CHAT,
+        createdAt: typeof row?.created_at === "string" ? row.created_at : new Date().toISOString(),
+        metadata: row?.metadata && typeof row.metadata === "object" ? row.metadata : {},
+      });
+    });
+
+    if (chatHistory.length > 0) {
+      const persisted = getChatHistoryForPersistence();
+      lastPinnedSnapshotHash = buildPinnedSnapshotHash(persisted);
+    }
+
+    syncPinSessionUI();
+    renderSavedSessions();
+    setStatus("Saved chat loaded.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not open saved chat.";
+    setStatus(message);
+  }
+}
+
+function normalizeMessageRole(role) {
+  if (role === "assistant") return "assistant";
+  if (role === "system") return "assistant";
+  return "user";
+}
+
+async function handleEditSessionTitle() {
+  const sessionId = activeSessionMenuSessionId;
+  closeSessionItemMenu();
+  if (!sessionId) return;
+
+  const existing = savedSessions.find((item) => item.session_id === sessionId);
+  if (!existing) return;
+  const currentTitle = getSessionTitle(existing);
+  const nextTitleRaw = window.prompt("Edit saved chat title:", currentTitle);
+  if (nextTitleRaw === null) return;
+
+  const nextTitle = String(nextTitleRaw).replace(/\s+/g, " ").trim();
+  if (!nextTitle) {
+    setStatus("Title cannot be empty.");
+    return;
+  }
+  if (nextTitle.length > 120) {
+    setStatus("Title must be 120 characters or less.");
+    return;
+  }
+
+  try {
+    const config = await getSupabaseConfig();
+    if (!config) throw new Error("Supabase config missing.");
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const encodedUserId = encodeURIComponent(config.userId);
+    const nowIso = new Date().toISOString();
+
+    await supabaseRestRequest(
+      `ai_chat_sessions?session_id=eq.${encodedSessionId}&user_id=eq.${encodedUserId}`,
+      {
+        method: "PATCH",
+        body: {
+          title: nextTitle,
+          updated_at: nowIso,
+        },
+        prefer: "return=minimal",
+      }
+    );
+
+    upsertSavedSessionCache({
+      ...existing,
+      title: nextTitle,
+      updated_at: nowIso,
+    });
+    renderSavedSessions();
+    setStatus("Saved chat title updated.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not update title.";
+    setStatus(message);
+  }
+}
+
+async function handleDeleteSavedSession() {
+  const sessionId = activeSessionMenuSessionId;
+  closeSessionItemMenu();
+  if (!sessionId) return;
+
+  const existing = savedSessions.find((item) => item.session_id === sessionId);
+  if (!existing) return;
+
+  const title = getSessionTitle(existing);
+  const firstConfirm = window.confirm(`Unsave "${title}"?`);
+  if (!firstConfirm) return;
+  const secondConfirm = window.confirm("This will permanently delete this saved chat from cloud. Continue?");
+  if (!secondConfirm) return;
+
+  try {
+    await deleteSavedSessionFromSupabaseById(sessionId);
+    savedSessions = savedSessions.filter((item) => item.session_id !== sessionId);
+    if (sessionId === currentSessionId) {
+      isSessionPinned = false;
+      savePinnedState(currentSessionId, false);
+      lastPinnedSnapshotHash = "";
+      syncPinSessionUI();
+    }
+    renderSavedSessions();
+    setStatus("Saved chat deleted.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not delete saved chat.";
+    setStatus(message);
+  }
 }
 
 function hasUnsavedSessionContent() {
@@ -939,6 +1407,7 @@ function startNewChatSession() {
   closeModelPicker();
   closeUploadMenu();
   closeRegenerateMenu();
+  closeSessionItemMenu();
   closeSourcesModal();
   closeImagePreviewModal();
   clearPendingAttachments();
@@ -961,11 +1430,16 @@ function startNewChatSession() {
   inputNode.value = "";
   autoResizeInput();
   syncPinSessionUI();
+  renderSavedSessions();
   setStatus("Started a new chat.");
 }
 
 async function handlePinSessionToggle() {
   if (sending || pinActionBusy) return;
+  if (activeMode === CHAT_MODES.IMAGE) {
+    setStatus("Save is disabled in Image mode.");
+    return;
+  }
   if (!authSession || !profileCompleted || !supabaseReady) {
     let refreshed = null;
     try {
@@ -1000,12 +1474,14 @@ async function handlePinSessionToggle() {
       await upsertPinnedSessionToSupabase({ skipIfUnchanged: false });
       isSessionPinned = true;
       savePinnedState(currentSessionId, true);
+      await refreshSavedSessions();
       setStatus("Chat saved to Supabase.");
     } else {
       await deletePinnedSessionFromSupabase();
       isSessionPinned = false;
       savePinnedState(currentSessionId, false);
       lastPinnedSnapshotHash = "";
+      await refreshSavedSessions();
       setStatus("Chat unsaved.");
     }
   } catch (error) {
@@ -1025,16 +1501,18 @@ function buildSessionTitleFromHistory(messages) {
 }
 
 function getChatHistoryForPersistence() {
-  return chatHistory.map((item, index) => ({
-    role: item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user",
-    content: String(item.content || ""),
-    model: typeof item.model === "string" && item.model.trim() ? item.model.trim() : null,
-    mode: typeof item.mode === "string" && item.mode.trim() ? item.mode.trim() : null,
-    createdAt:
-      typeof item.createdAt === "string" && item.createdAt.trim() ? item.createdAt : new Date().toISOString(),
-    messageIndex: index,
-    metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
-  }));
+  return chatHistory
+    .filter((item) => resolveMode(item?.mode) !== CHAT_MODES.IMAGE)
+    .map((item, index) => ({
+      role: item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user",
+      content: String(item.content || ""),
+      model: typeof item.model === "string" && item.model.trim() ? item.model.trim() : null,
+      mode: typeof item.mode === "string" && item.mode.trim() ? item.mode.trim() : null,
+      createdAt:
+        typeof item.createdAt === "string" && item.createdAt.trim() ? item.createdAt : new Date().toISOString(),
+      messageIndex: index,
+      metadata: item.metadata && typeof item.metadata === "object" ? item.metadata : {},
+    }));
 }
 
 function buildPinnedSnapshotHash(messages) {
@@ -1093,6 +1571,8 @@ async function upsertPinnedSessionToSupabase({ skipIfUnchanged = true } = {}) {
     },
   };
 
+  upsertSavedSessionCache(sessionPayload);
+
   await supabaseRestRequest("ai_chat_sessions?on_conflict=user_id,session_id", {
     method: "POST",
     body: [sessionPayload],
@@ -1130,14 +1610,21 @@ async function upsertPinnedSessionToSupabase({ skipIfUnchanged = true } = {}) {
   }
 
   lastPinnedSnapshotHash = snapshotHash;
+  renderSavedSessions();
 }
 
 async function deletePinnedSessionFromSupabase() {
+  await deleteSavedSessionFromSupabaseById(currentSessionId);
+  savedSessions = savedSessions.filter((item) => item.session_id !== currentSessionId);
+  renderSavedSessions();
+}
+
+async function deleteSavedSessionFromSupabaseById(sessionId) {
   const config = await getSupabaseConfig();
   if (!config) {
     throw new Error("Supabase config missing.");
   }
-  const encodedSessionId = encodeURIComponent(currentSessionId);
+  const encodedSessionId = encodeURIComponent(sessionId);
   const encodedUserId = encodeURIComponent(config.userId);
   await supabaseRestRequest(
     `ai_chat_sessions?session_id=eq.${encodedSessionId}&user_id=eq.${encodedUserId}`,
@@ -2138,6 +2625,7 @@ function syncModeUI() {
     modeNoteNode.hidden = true;
     modeNoteNode.textContent = "";
   }
+  syncSidebarFeatureButtons();
 }
 
 function setActiveMode(mode) {
@@ -2880,9 +3368,6 @@ function getVisibleModelsForMode(mode = activeMode) {
   const resolvedMode = resolveMode(mode);
   if (resolvedMode === CHAT_MODES.IMAGE) {
     return MODEL_OPTIONS.filter((model) => IMAGE_MODE_MODELS.has(model.apiModel));
-  }
-  if (resolvedMode === CHAT_MODES.CODE) {
-    return MODEL_OPTIONS.filter((model) => CODE_MODE_MODELS.has(model.apiModel));
   }
   return MODEL_OPTIONS.filter((model) => !IMAGE_MODE_MODELS.has(model.apiModel));
 }

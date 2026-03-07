@@ -518,9 +518,9 @@
       right: "74px",
       top: "50%",
       transform: "translateY(-50%)",
-      width: "390px",
-      maxWidth: "min(390px, calc(100vw - 110px))",
-      maxHeight: "80vh",
+      width: "360px",
+      maxWidth: "min(360px, calc(100vw - 110px))",
+      maxHeight: "76vh",
       background: "rgba(7, 14, 30, 0.97)",
       border: "1px solid rgba(118, 166, 255, 0.45)",
       borderRadius: "16px",
@@ -612,9 +612,11 @@
     Object.assign(messages.style, {
       margin: "0",
       padding: "10px 12px 12px",
-      overflowY: "auto",
-      minHeight: "220px",
-      maxHeight: "42vh",
+      overflowY: "scroll",
+      scrollbarWidth: "thin",
+      scrollbarColor: "#9fb1cc rgba(255, 255, 255, 0.08)",
+      minHeight: "180px",
+      maxHeight: "34vh",
       display: "grid",
       gap: "8px",
       alignContent: "start",
@@ -633,7 +635,9 @@
     input.placeholder = "Ask anything about this page...";
     Object.assign(input.style, {
       width: "100%",
-      minHeight: "62px",
+      minHeight: "56px",
+      maxHeight: "140px",
+      overflowY: "auto",
       resize: "vertical",
       borderRadius: "10px",
       border: "1px solid rgba(118, 166, 255, 0.35)",
@@ -836,9 +840,9 @@
       right: "74px",
       top: "50%",
       transform: "translateY(-50%)",
-      width: "370px",
-      maxWidth: "min(370px, calc(100vw - 110px))",
-      maxHeight: "78vh",
+      width: "350px",
+      maxWidth: "min(350px, calc(100vw - 110px))",
+      maxHeight: "76vh",
       background: "rgba(7, 14, 30, 0.96)",
       border: "1px solid rgba(118, 166, 255, 0.45)",
       borderRadius: "16px",
@@ -943,6 +947,7 @@
       ["friendly", "Friendly"],
       ["casual", "Casual"],
       ["confident", "Confident"],
+      ["roast", "Roast"],
       ["persuasive", "Persuasive"],
     ].forEach(([value, label]) => {
       const option = document.createElement("option");
@@ -975,7 +980,9 @@
       "Example: Write an email to recruiter about interview reschedule. Keep it polite and concise.";
     Object.assign(promptInput.style, {
       width: "100%",
-      minHeight: "86px",
+      minHeight: "76px",
+      maxHeight: "140px",
+      overflowY: "auto",
       resize: "vertical",
       borderRadius: "10px",
       border: "1px solid rgba(118, 166, 255, 0.35)",
@@ -1034,12 +1041,14 @@
     Object.assign(output.style, {
       margin: "0",
       padding: "10px 12px 14px",
-      overflowY: "auto",
+      overflowY: "scroll",
+      scrollbarWidth: "thin",
+      scrollbarColor: "#9fb1cc rgba(255, 255, 255, 0.08)",
       fontSize: "13px",
       lineHeight: "1.5",
       color: "#edf3ff",
-      minHeight: "130px",
-      maxHeight: "40vh",
+      minHeight: "110px",
+      maxHeight: "32vh",
       fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
     });
     output.textContent = "Your generated draft will appear here.";
@@ -1176,9 +1185,9 @@
       right: "74px",
       top: "50%",
       transform: "translateY(-50%)",
-      width: "360px",
-      maxWidth: "min(360px, calc(100vw - 110px))",
-      maxHeight: "86vh",
+      width: "332px",
+      maxWidth: "min(332px, calc(100vw - 110px))",
+      maxHeight: "74vh",
       background: "rgba(7, 14, 30, 0.96)",
       border: "1px solid rgba(118, 166, 255, 0.45)",
       borderRadius: "16px",
@@ -1265,13 +1274,19 @@
     Object.assign(content.style, {
       margin: "0",
       padding: "10px 12px 14px",
-      overflowY: "auto",
+      overflowY: "scroll",
+      scrollbarWidth: "thin",
+      scrollbarColor: "#9fb1cc rgba(255, 255, 255, 0.08)",
       fontSize: "13px",
       lineHeight: "1.5",
       color: "#edf3ff",
       minHeight: "120px",
-      maxHeight: "66vh",
+      maxHeight: "46vh",
       fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+    });
+
+    content.addEventListener("mouseenter", () => {
+      content.style.overflowY = "auto";
     });
 
     panel.append(header, status, content);

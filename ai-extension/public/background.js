@@ -26,14 +26,6 @@ const IMAGE_GEN_ENDPOINTS = {
   "stabilityai/stable-diffusion-3.5-large":
     "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large",
 };
-const CODE_CHAT_ALLOWED_MODELS = new Set([
-  "minimaxai/minimax-m2.5",
-  "zai/glm5",
-  "zai/glm4.7",
-  "nvidia/nemotron-3-nano-30b-a3b",
-  "qwen/qwen3.5-397b-a17b",
-  "moonshotai/kimi-k2.5",
-]);
 const CHAT_ALLOWED_MODELS = new Set([
   "minimaxai/minimax-m2.5",
   "qwen/qwen3.5-397b-a17b",
@@ -323,15 +315,15 @@ async function generateImage(message, sendResponse) {
     }
 
     const selectedModel = resolveImageModel(model);
-    const imageDataUrl = await callImageGenerationWithFallback(nimApiKey, {
+    const imageResult = await callImageGenerationWithFallback(nimApiKey, {
       prompt: cleanPrompt,
       model: selectedModel,
     });
 
     sendResponse({
       ok: true,
-      imageDataUrl,
-      model: selectedModel,
+      imageDataUrl: imageResult.imageDataUrl,
+      model: imageResult.modelUsed || selectedModel,
     });
   } catch (error) {
     sendResponse({
@@ -587,14 +579,89 @@ async function callVisionModel(apiKey, payload) {
 }
 
 async function callImageGenerationWithFallback(apiKey, payload) {
+  const requestedModel = resolveImageModel(payload?.model);
+  const cleanPayload = {
+    prompt: String(payload?.prompt || "").trim(),
+    model: requestedModel,
+  };
+
+  let primaryError = null;
   try {
-    return await callModelSpecificImageEndpoint(apiKey, payload);
+    const imageDataUrl = await callModelSpecificImageEndpoint(apiKey, cleanPayload);
+    return {
+      imageDataUrl,
+      modelUsed: cleanPayload.model,
+    };
   } catch (error) {
-    if (!shouldRetryImageWithFallback(error)) {
-      throw error;
-    }
-    return callOpenAiImageEndpoint(apiKey, payload);
+    primaryError = error;
   }
+
+  const directFallbackModel = pickDirectImageFallbackModel(cleanPayload.model, primaryError);
+  if (directFallbackModel && directFallbackModel !== cleanPayload.model) {
+    try {
+      const imageDataUrl = await callModelSpecificImageEndpoint(apiKey, {
+        ...cleanPayload,
+        model: directFallbackModel,
+      });
+      return {
+        imageDataUrl,
+        modelUsed: directFallbackModel,
+      };
+    } catch (_fallbackModelError) {
+      // Keep trying with OpenAI-compatible endpoint below.
+    }
+  }
+
+  if (shouldRetryImageWithFallback(primaryError)) {
+    try {
+      const imageDataUrl = await callOpenAiImageEndpoint(apiKey, cleanPayload);
+      return {
+        imageDataUrl,
+        modelUsed: cleanPayload.model,
+      };
+    } catch (openAiError) {
+      if (cleanPayload.model !== IMAGE_GEN_MODEL) {
+        try {
+          const imageDataUrl = await callModelSpecificImageEndpoint(apiKey, {
+            ...cleanPayload,
+            model: IMAGE_GEN_MODEL,
+          });
+          return {
+            imageDataUrl,
+            modelUsed: IMAGE_GEN_MODEL,
+          };
+        } catch (_finalFallbackError) {
+          throw openAiError;
+        }
+      }
+      throw openAiError;
+    }
+  }
+
+  throw primaryError;
+}
+
+function pickDirectImageFallbackModel(model, error) {
+  const activeModel = resolveImageModel(model);
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+  const needsInputImage =
+    message.includes("field required") ||
+    message.includes("missing") ||
+    message.includes("body.image") ||
+    message.includes("match_input_image");
+
+  if (activeModel === "black-forest-labs/flux.1-kontext-dev" && needsInputImage) {
+    return "black-forest-labs/flux.1-dev";
+  }
+
+  if (
+    activeModel === "stabilityai/stable-diffusion-3.5-large" &&
+    (message.includes("status 404") || message.includes("not found") || message.includes("unsupported"))
+  ) {
+    return "black-forest-labs/flux.1-dev";
+  }
+
+  return "";
 }
 
 async function callModelSpecificImageEndpoint(apiKey, payload) {
@@ -859,20 +926,22 @@ function buildSummaryPrompt({ title, url, text }) {
     "You are an expert summarizer.",
     "Return ONLY concise markdown summary.",
     "Hard rules:",
-    "1) Keep total output <= 80 words.",
-    "2) Do not include analysis, thinking, preamble, or explanations.",
-    "3) Use exactly this output format and nothing else:",
+    "1) Do not include analysis, thinking, preamble, or explanations.",
+    "2) Use exactly this output format and nothing else:",
     "### TL;DR",
-    "<one short sentence>",
+    "<one or two short lines>",
     "",
     "### Key Points",
     "- <short point 1>",
     "- <short point 2>",
     "- <short point 3>",
     "- <short point 4>",
-    "4) Every bullet must be one line.",
-    "5) Put exactly one relevant emoji at the start of TL;DR line and each bullet.",
-    "6) Do not repeat the same emoji across lines.",
+    "- <short point 5>",
+    "- <short point 6>",
+    "... up to 10 points total",
+    "3) Return between 6 and 10 bullet points in Key Points.",
+    "4) Every bullet must be one line and concise.",
+    "5) Use relevant emojis if useful, but keep the summary readable.",
     "",
     `Page title: ${cleanTitle}`,
     cleanUrl ? `Page URL: ${cleanUrl}` : "",
@@ -909,7 +978,7 @@ async function callNimWithFallback(apiKey, prompt) {
 async function callModel(apiKey, prompt, model) {
   return callModelWithConfig(apiKey, prompt, model, {
     temperature: 0,
-    maxTokens: 180,
+    maxTokens: 3000,
     systemPrompt:
       "You summarize text faithfully. Keep the response short and structured markdown only.",
     responseMode: "summary",
@@ -1047,6 +1116,7 @@ function formatStrictShortSummary(text) {
 
   let tldr = "";
   const bullets = [];
+  const sentenceCandidates = [];
 
   for (const line of lines) {
     const lower = line.toLowerCase();
@@ -1067,9 +1137,14 @@ function formatStrictShortSummary(text) {
         .replace(/^[-*•]\s+/, "")
         .replace(/^\d+\.\s+/, "")
         .trim();
-      if (cleaned && bullets.length < 4) {
+      if (cleaned && bullets.length < 10) {
         bullets.push(cleaned);
       }
+      continue;
+    }
+
+    if (isLikelySentence(line) && !isMetaLine(lower)) {
+      sentenceCandidates.push(line);
     }
   }
 
@@ -1077,12 +1152,28 @@ function formatStrictShortSummary(text) {
     tldr = "Quick page summary generated.";
   }
 
-  const finalBullets = bullets.length
-    ? bullets.slice(0, 4)
-    : ["Key points extracted from this page."];
+  const dedupe = new Set();
+  const finalBullets = [];
+  const allCandidates = [...bullets, ...sentenceCandidates]
+    .map((item) => stripLeadingDecoration(item))
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
 
-  while (finalBullets.length < 4) {
-    finalBullets.push("More details available in the full page content.");
+  for (const candidate of allCandidates) {
+    const key = candidate.toLowerCase();
+    if (key === stripLeadingDecoration(tldr).toLowerCase()) continue;
+    if (dedupe.has(key)) continue;
+    dedupe.add(key);
+    finalBullets.push(candidate);
+    if (finalBullets.length >= 10) break;
+  }
+
+  while (finalBullets.length < 6) {
+    finalBullets.push(
+      finalBullets.length % 2 === 0
+        ? "More context and examples are present in the page details."
+        : "Additional key details can be explored directly on the page."
+    );
   }
 
   const formatted = [
@@ -1169,6 +1260,12 @@ function getToneRules(tone) {
       return ["Use simple conversational language.", "Keep it relaxed but still clear."];
     case "confident":
       return ["Use direct, assertive phrasing.", "Avoid hedging words unless needed."];
+    case "roast":
+      return [
+        "Write a witty roast with sharp humor and punchy phrasing.",
+        "Roast the content or behavior from context, not protected traits.",
+        "No slurs, hate speech, threats, or dehumanizing language.",
+      ];
     case "persuasive":
       return ["Use clear benefits and a strong call-to-action.", "Sound convincing, not pushy."];
     default:
@@ -1405,9 +1502,6 @@ function resolveChatModel(model, mode = CHAT_MODES.CHAT) {
   if (typeof model !== "string") return CHAT_MODEL;
   const clean = model.trim();
   if (!clean) return CHAT_MODEL;
-  if (mode === CHAT_MODES.CODE && !CODE_CHAT_ALLOWED_MODELS.has(clean)) {
-    return CHAT_MODEL;
-  }
   return CHAT_ALLOWED_MODELS.has(clean) ? clean : CHAT_MODEL;
 }
 
