@@ -4,6 +4,7 @@ const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
 const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
 const OTP_LENGTH = 8;
+const PROFILE_NAME_LIMIT = 200;
 
 const iconApi =
   globalThis.LoomLessIconMap && typeof globalThis.LoomLessIconMap.mount === "function"
@@ -575,8 +576,8 @@ function sanitizeName(rawValue) {
   if (!value) {
     return { ok: false, error: "Name is required." };
   }
-  if (value.length < 2 || value.length > 60) {
-    return { ok: false, error: "Name must be between 2 and 60 characters." };
+  if (value.length < 2 || value.length > PROFILE_NAME_LIMIT) {
+    return { ok: false, error: `Name must be between 2 and ${PROFILE_NAME_LIMIT} characters.` };
   }
   if (!/^[A-Za-z][A-Za-z .'-]*$/.test(value)) {
     return { ok: false, error: "Name can only contain letters, spaces, apostrophe, dot, and hyphen." };

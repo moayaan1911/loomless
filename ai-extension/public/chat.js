@@ -27,11 +27,13 @@ const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
 const STORAGE_SIDEBAR_MODE = "loomless_ai_chat_sidebar_mode";
 const STORAGE_LOCAL_SESSIONS = "loomless_ai_chat_local_sessions_v1";
 const STORAGE_LOCAL_SECTION_EXPANDED = "loomless_ai_chat_local_section_expanded";
+const STORAGE_SAVED_SECTION_EXPANDED = "loomless_ai_chat_saved_section_expanded";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_WRITER_MODEL_API = "meta/llama-3.2-3b-instruct";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
 const MAX_LOCAL_SESSIONS = 12;
+const MAX_SAVED_SESSIONS = 10;
 const CHAT_MODES = {
   CHAT: "chat",
   WRITER: "writer",
@@ -310,6 +312,7 @@ const sidebarHoverZoneNode = document.getElementById("sidebar-hover-zone");
 const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
 const sidebarNewChatBtn = document.getElementById("sidebar-new-chat-btn");
 const sidebarImageBtn = document.getElementById("sidebar-image-btn");
+const sidebarUsageBtn = document.getElementById("sidebar-usage-btn");
 const sidebarSettingsBtn = document.getElementById("sidebar-settings-btn");
 const savedSessionsListNode = document.getElementById("saved-sessions-list");
 const sessionItemMenuNode = document.getElementById("session-item-menu");
@@ -346,6 +349,11 @@ const imagePreviewModalNode = document.getElementById("image-preview-modal");
 const imagePreviewBackdropNode = document.getElementById("image-preview-backdrop");
 const imagePreviewCloseBtnNode = document.getElementById("image-preview-close-btn");
 const imagePreviewModalImgNode = document.getElementById("image-preview-modal-img");
+const usageModalNode = document.getElementById("usage-modal");
+const usageModalBackdropNode = document.getElementById("usage-modal-backdrop");
+const usageCloseBtnNode = document.getElementById("usage-close-btn");
+const usageWindowCopyNode = document.getElementById("usage-window-copy");
+const usageSummaryGridNode = document.getElementById("usage-summary-grid");
 const settingsModalNode = document.getElementById("settings-modal");
 const settingsModalBackdropNode = document.getElementById("settings-modal-backdrop");
 const settingsCloseBtnNode = document.getElementById("settings-close-btn");
@@ -374,6 +382,16 @@ const INPUT_MIN_HEIGHT = 42;
 const INPUT_MAX_HEIGHT = 140;
 const APP_NAME = "LoomLess GPT";
 const APP_URL = "loomless.fun";
+const USAGE_WINDOW_HOURS = 5;
+const USAGE_FEATURES = {
+  summarize: "summarize",
+  writeToggle: "write_toggle",
+  chatToggle: "chat_toggle",
+  chatMode: "chat_mode",
+  codeMode: "code_mode",
+  writerMode: "writer_mode",
+  imageWindow: "image_window",
+};
 const IMAGE_MODE_MODEL_COUNT = IMAGE_MODE_MODEL_ORDER.length;
 const DEFAULT_MODEL_SPEED_DISCLAIMER =
   "<strong><em>Responses can take longer on some models. Keep this tab open while waiting. Use Default Model for faster responses.</em></strong>";
@@ -394,6 +412,7 @@ let isSessionPinned = loadPinnedState(currentSessionId);
 let sidebarCollapsed = loadSidebarCollapsed();
 let sidebarModePreference = loadSidebarModePreference();
 let localSectionExpanded = loadLocalSectionExpanded();
+let savedSectionExpanded = loadSavedSectionExpanded();
 let localSessions = loadLocalSessions();
 let savedSessions = [];
 let supabaseReady = false;
@@ -415,6 +434,11 @@ let initialSessionHydrated = false;
 const regenerateMenuNode = createRegenerateMenu();
 const USER_ABORT_MESSAGE = "Request stopped by user.";
 const SETTINGS_MEMORY_LIMIT = 800;
+const SETTINGS_PROFILE_NAME_LIMIT = 200;
+const SETTINGS_PROFILE_EDIT_LIMIT = 5;
+const SETTINGS_PROFILE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const SETTINGS_PROFILE_EDIT_HISTORY_KEY = "profile_identity_edit_timestamps";
+const SETTINGS_PROFILE_EDIT_HISTORY_MAX = 12;
 const SETTINGS_DEFAULT_AGE = "18+";
 const SETTINGS_CONTACT_EMAIL = "ayaangames@gmail.com";
 let settingsDraft = {
@@ -468,6 +492,10 @@ sidebarImageBtn?.addEventListener("click", () => {
   inputNode?.focus();
 });
 
+sidebarUsageBtn?.addEventListener("click", () => {
+  void openUsageModal();
+});
+
 sidebarToggleBtn?.addEventListener("click", () => {
   if (sidebarModePreference === "auto") return;
   sidebarCollapsed = !sidebarCollapsed;
@@ -484,16 +512,20 @@ savedSessionsListNode?.addEventListener("click", (event) => {
   if (!(target instanceof Element)) return;
 
   const sectionToggleBtn = target.closest("[data-session-section-toggle]");
-  if (sectionToggleBtn) {
-    event.stopPropagation();
-    const section = sectionToggleBtn.getAttribute("data-session-section-toggle");
-    if (section === "local") {
-      localSectionExpanded = !localSectionExpanded;
-      saveLocalSectionExpanded(localSectionExpanded);
-      renderSavedSessions();
+    if (sectionToggleBtn) {
+      event.stopPropagation();
+      const section = sectionToggleBtn.getAttribute("data-session-section-toggle");
+      if (section === "local") {
+        localSectionExpanded = !localSectionExpanded;
+        saveLocalSectionExpanded(localSectionExpanded);
+        renderSavedSessions();
+      } else if (section === "saved") {
+        savedSectionExpanded = !savedSectionExpanded;
+        saveSavedSectionExpanded(savedSectionExpanded);
+        renderSavedSessions();
+      }
+      return;
     }
-    return;
-  }
 
   const menuBtn = target.closest("[data-session-action='menu']");
   if (menuBtn) {
@@ -654,6 +686,8 @@ modelPickerBtn.addEventListener("click", (event) => {
 
 imagePreviewCloseBtnNode.addEventListener("click", closeImagePreviewModal);
 imagePreviewBackdropNode.addEventListener("click", closeImagePreviewModal);
+usageCloseBtnNode?.addEventListener("click", closeUsageModal);
+usageModalBackdropNode?.addEventListener("click", closeUsageModal);
 settingsCloseBtnNode?.addEventListener("click", closeSettingsModal);
 settingsSaveBtnNode?.addEventListener("click", () => {
   void handleSettingsSave();
@@ -661,7 +695,7 @@ settingsSaveBtnNode?.addEventListener("click", () => {
 settingsModalBackdropNode?.addEventListener("click", closeSettingsModal);
 
 settingsNameInputNode?.addEventListener("input", () => {
-  settingsDraft.name = String(settingsNameInputNode.value || "").replace(/\s+/g, " ").trim();
+  settingsDraft.name = normalizeSettingsProfileNameValue(settingsNameInputNode.value || "");
   syncSettingsModalUI();
 });
 
@@ -736,6 +770,10 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (usageModalNode && !usageModalNode.hidden) {
+      closeUsageModal();
+      return;
+    }
     if (settingsModalNode && !settingsModalNode.hidden) {
       closeSettingsModal();
       return;
@@ -954,6 +992,7 @@ async function runSend() {
     setSending(true);
 
     try {
+      await trackUsageFeature(USAGE_FEATURES.imageWindow);
       const generation = createImageGenerationBatch(prompt);
       imageGenerationHistory = [generation, ...imageGenerationHistory].slice(0, 8);
       renderImageModeStage();
@@ -1061,6 +1100,7 @@ async function runSend() {
   }
 
   try {
+    await trackUsageFeature(getUsageFeatureForMode(activeMode));
     if (attachmentsForSend.length) {
       const analyses = [];
       for (let index = 0; index < attachmentsForSend.length; index += 1) {
@@ -1584,11 +1624,12 @@ function syncAuthGateUI() {
 function syncPinSessionUI() {
   if (!pinSessionBtn || !pinSessionLabelNode) return;
   const saveSupportedMode = activeMode !== CHAT_MODES.IMAGE;
+  const savedLimitReached = !isSessionPinned && savedSessions.length >= MAX_SAVED_SESSIONS;
   pinSessionBtn.hidden = !saveSupportedMode;
   pinSessionBtn.setAttribute("aria-pressed", isSessionPinned ? "true" : "false");
   pinSessionLabelNode.textContent = pinActionBusy ? "Working..." : isSessionPinned ? "Saved" : "Save";
   pinSessionBtn.disabled =
-    !saveSupportedMode || sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted;
+    !saveSupportedMode || sending || pinActionBusy || !supabaseReady || !authSession || !profileCompleted || savedLimitReached;
   if (sidebarNewChatBtn) {
     sidebarNewChatBtn.disabled = sending || pinActionBusy;
   }
@@ -1609,6 +1650,11 @@ function syncPinSessionUI() {
   }
   if (!profileCompleted) {
     pinSessionBtn.title = "Complete setup from extension popup to enable cloud save.";
+    syncSessionSaveDisclaimer();
+    return;
+  }
+  if (savedLimitReached) {
+    pinSessionBtn.title = `You can only save ${MAX_SAVED_SESSIONS} chats per account.`;
     syncSessionSaveDisclaimer();
     return;
   }
@@ -1637,6 +1683,10 @@ function syncSessionSaveDisclaimer() {
   }
 
   sessionSaveDisclaimerNode.classList.remove("saved");
+  if (savedSessions.length >= MAX_SAVED_SESSIONS) {
+    textNode.textContent = `Saved chat limit reached. You can only save ${MAX_SAVED_SESSIONS} chats per account.`;
+    return;
+  }
   textNode.textContent = "Unsaved chat. It stays only on this device unless you save it.";
 }
 
@@ -1668,6 +1718,14 @@ function saveLocalSectionExpanded(expanded) {
   localStorage.setItem(STORAGE_LOCAL_SECTION_EXPANDED, expanded ? "1" : "0");
 }
 
+function loadSavedSectionExpanded() {
+  return localStorage.getItem(STORAGE_SAVED_SECTION_EXPANDED) !== "0";
+}
+
+function saveSavedSectionExpanded(expanded) {
+  localStorage.setItem(STORAGE_SAVED_SECTION_EXPANDED, expanded ? "1" : "0");
+}
+
 function syncSidebarUI() {
   if (chatShellNode) {
     const isAutoMode = sidebarModePreference === "auto";
@@ -1692,12 +1750,197 @@ function syncSidebarFeatureButtons() {
   }
 }
 
+async function requestUsageSummary() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_GET_USAGE_SUMMARY" }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
+async function trackUsageFeature(feature) {
+  if (!feature) return;
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "LOOMLESS_AI_TRACK_USAGE", feature }, () => {
+      resolve();
+    });
+  });
+}
+
+function getUsageFeatureForMode(mode) {
+  if (mode === CHAT_MODES.CODE) return USAGE_FEATURES.codeMode;
+  if (mode === CHAT_MODES.WRITER) return USAGE_FEATURES.writerMode;
+  if (mode === CHAT_MODES.IMAGE) return USAGE_FEATURES.imageWindow;
+  return USAGE_FEATURES.chatMode;
+}
+
+function buildSavedChatsUsageFeature() {
+  const used = savedSessions.length;
+  const remaining = Math.max(0, MAX_SAVED_SESSIONS - used);
+  return {
+    key: "saved_chats",
+    label: "Saved Chats",
+    used,
+    limit: MAX_SAVED_SESSIONS,
+    remaining,
+    percent: MAX_SAVED_SESSIONS > 0 ? Math.min(100, Math.round((used / MAX_SAVED_SESSIONS) * 100)) : 0,
+    windowLabel: "account cap",
+    note:
+      authSession && profileCompleted && supabaseReady
+        ? "Cloud-saved chats are capped at 10 per account. Delete one saved chat to save another."
+        : "Sign in and complete setup to use cloud-saved chats. Saved chats are capped at 10 per account.",
+  };
+}
+
+function renderUsageSummaryCards(features = []) {
+  if (!usageSummaryGridNode) return;
+  usageSummaryGridNode.innerHTML = "";
+
+  if (!Array.isArray(features) || !features.length) {
+    const emptyCard = document.createElement("article");
+    emptyCard.className = "usage-card usage-card-loading";
+    const title = document.createElement("p");
+    title.className = "usage-card-title";
+    title.textContent = "No usage data yet";
+    const note = document.createElement("p");
+    note.className = "usage-card-note";
+    note.textContent = "Use any LoomLess AI feature and the rolling-window counts will appear here.";
+    emptyCard.append(title, note);
+    usageSummaryGridNode.appendChild(emptyCard);
+    return;
+  }
+
+  features.forEach((feature) => {
+    const card = document.createElement("article");
+    card.className = "usage-card";
+
+    const top = document.createElement("div");
+    top.className = "usage-card-top";
+
+    const title = document.createElement("p");
+    title.className = "usage-card-title";
+    title.textContent = String(feature?.label || "Feature");
+
+    const windowChip = document.createElement("span");
+    windowChip.className = "usage-card-window";
+    windowChip.textContent = String(feature?.windowLabel || `${USAGE_WINDOW_HOURS}h window`);
+    top.append(title, windowChip);
+
+    const stats = document.createElement("div");
+    stats.className = "usage-card-stats";
+
+    [
+      { label: "Used", value: String(feature?.used ?? 0) },
+      { label: "Limit", value: String(feature?.limit ?? 0) },
+      { label: "Left", value: String(feature?.remaining ?? 0) },
+    ].forEach((item) => {
+      const stat = document.createElement("div");
+      stat.className = "usage-stat";
+      const statLabel = document.createElement("span");
+      statLabel.className = "usage-stat-label";
+      statLabel.textContent = item.label;
+      const statValue = document.createElement("strong");
+      statValue.className = "usage-stat-value";
+      statValue.textContent = item.value;
+      stat.append(statLabel, statValue);
+      stats.appendChild(stat);
+    });
+
+    const progressTrack = document.createElement("div");
+    progressTrack.className = "usage-progress-track";
+    const progressFill = document.createElement("div");
+    progressFill.className = "usage-progress-fill";
+    progressFill.style.width = `${Math.max(0, Math.min(100, Number(feature?.percent || 0)))}%`;
+    progressTrack.appendChild(progressFill);
+
+    const progressCopy = document.createElement("div");
+    progressCopy.className = "usage-progress-copy";
+    const usedCopy = document.createElement("span");
+    usedCopy.textContent = `${feature?.used ?? 0} used`;
+    const remainingCopy = document.createElement("span");
+    remainingCopy.textContent = `${feature?.remaining ?? 0} remaining`;
+    progressCopy.append(usedCopy, remainingCopy);
+
+    const note = document.createElement("p");
+    note.className = "usage-card-note";
+    note.textContent = String(feature?.note || "");
+
+    card.append(top, stats, progressTrack, progressCopy, note);
+    usageSummaryGridNode.appendChild(card);
+  });
+}
+
+function renderUsagePlaceholderCard(titleText, noteText) {
+  if (!usageSummaryGridNode) return;
+  usageSummaryGridNode.innerHTML = "";
+  const card = document.createElement("article");
+  card.className = "usage-card usage-card-loading";
+  const title = document.createElement("p");
+  title.className = "usage-card-title";
+  title.textContent = titleText;
+  const note = document.createElement("p");
+  note.className = "usage-card-note";
+  note.textContent = noteText;
+  card.append(title, note);
+  usageSummaryGridNode.appendChild(card);
+}
+
+async function loadUsageSummary() {
+  renderUsagePlaceholderCard("Loading usage...", "Checking your current rolling window.");
+
+  try {
+    const response = await requestUsageSummary();
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not load usage summary.");
+    }
+
+    if (usageWindowCopyNode) {
+      usageWindowCopyNode.textContent = `Rolling ${response.windowHours || USAGE_WINDOW_HOURS}-hour window`;
+    }
+    const features = Array.isArray(response.features) ? response.features.slice() : [];
+    features.push(buildSavedChatsUsageFeature());
+    renderUsageSummaryCards(features);
+  } catch (error) {
+    if (usageWindowCopyNode) {
+      usageWindowCopyNode.textContent = `Rolling ${USAGE_WINDOW_HOURS}-hour window`;
+    }
+    renderUsagePlaceholderCard(
+      "Usage unavailable",
+      error instanceof Error ? error.message : "Could not load usage summary."
+    );
+  }
+}
+
+async function openUsageModal() {
+  closeModelPicker();
+  closeUploadMenu();
+  closeRegenerateMenu();
+  closeSessionItemMenu();
+  closeImagePreviewModal();
+  closeSettingsModal();
+  if (usageModalNode) {
+    usageModalNode.hidden = false;
+  }
+  await loadUsageSummary();
+}
+
+function closeUsageModal() {
+  if (usageModalNode) {
+    usageModalNode.hidden = true;
+  }
+}
+
 function openSettingsModal() {
   closeModelPicker();
   closeUploadMenu();
   closeRegenerateMenu();
   closeSessionItemMenu();
   closeImagePreviewModal();
+  closeUsageModal();
   ensureSettingsDraftDefaults();
   syncSettingsModalUI();
   if (settingsModalNode) {
@@ -1715,7 +1958,7 @@ function closeSettingsModal() {
 
 function ensureSettingsDraftDefaults() {
   if (!settingsDraft.name) {
-    settingsDraft.name = deriveSettingsName();
+    settingsDraft.name = normalizeSettingsProfileNameValue(deriveSettingsName());
   }
   if (!settingsDraft.age) {
     settingsDraft.age = SETTINGS_DEFAULT_AGE;
@@ -1766,6 +2009,54 @@ function deriveSettingsLocation() {
     .join(" / ");
 }
 
+function normalizeSettingsProfileNameValue(rawValue) {
+  return String(rawValue || "").replace(/\s+/g, " ").trim().slice(0, SETTINGS_PROFILE_NAME_LIMIT);
+}
+
+function sanitizeSettingsProfileName(rawValue) {
+  const value = normalizeSettingsProfileNameValue(rawValue);
+  if (!value) {
+    return { ok: false, error: "Name is required." };
+  }
+  if (value.length < 2 || value.length > SETTINGS_PROFILE_NAME_LIMIT) {
+    return {
+      ok: false,
+      error: `Name must be between 2 and ${SETTINGS_PROFILE_NAME_LIMIT} characters.`,
+    };
+  }
+  if (!/^[A-Za-z][A-Za-z .'-]*$/.test(value)) {
+    return { ok: false, error: "Name can only contain letters, spaces, apostrophe, dot, and hyphen." };
+  }
+  return { ok: true, value };
+}
+
+function getSettingsProfileEditTimestamps(metadata) {
+  if (!metadata || typeof metadata !== "object") return [];
+  const rawValues = Array.isArray(metadata[SETTINGS_PROFILE_EDIT_HISTORY_KEY])
+    ? metadata[SETTINGS_PROFILE_EDIT_HISTORY_KEY]
+    : [];
+
+  return rawValues
+    .map((value) => Date.parse(String(value || "")))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+}
+
+function pruneSettingsProfileEditTimestamps(timestamps, nowMs = Date.now()) {
+  const cutoff = nowMs - SETTINGS_PROFILE_EDIT_WINDOW_MS;
+  return timestamps.filter((timestamp) => timestamp >= cutoff);
+}
+
+function formatSettingsProfileEditRetry(msRemaining) {
+  const totalMinutes = Math.max(1, Math.ceil(msRemaining / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+}
+
 function getSettingsContactEmail() {
   const authEmail = String(authSession?.email || "").trim().toLowerCase();
   return authEmail || SETTINGS_CONTACT_EMAIL;
@@ -1773,7 +2064,7 @@ function getSettingsContactEmail() {
 
 function getSettingsSnapshot() {
   return JSON.stringify({
-    name: String(settingsDraft.name || "").trim(),
+    name: normalizeSettingsProfileNameValue(settingsDraft.name || ""),
     age: String(settingsDraft.age || SETTINGS_DEFAULT_AGE).trim(),
     location: String(settingsDraft.location || "").trim(),
     memory: String(settingsDraft.memory || ""),
@@ -1845,7 +2136,7 @@ async function hydrateSettingsProfileFromSupabase() {
     const profileRow = rows[0];
     const metadata = profileRow?.metadata && typeof profileRow.metadata === "object" ? profileRow.metadata : {};
 
-    settingsDraft.name = String(profileRow?.full_name || settingsDraft.name || deriveSettingsName()).trim();
+    settingsDraft.name = normalizeSettingsProfileNameValue(profileRow?.full_name || settingsDraft.name || deriveSettingsName());
     settingsDraft.age = String(profileRow?.age || settingsDraft.age || SETTINGS_DEFAULT_AGE).trim();
     settingsDraft.gender = metadata.gender === "female" ? "female" : "male";
     settingsDraft.location = extractProfileLocationEstimate(profileRow) || deriveSettingsLocation();
@@ -1876,6 +2167,14 @@ async function handleSettingsSave() {
 
   settingsSaveBtnNode.disabled = true;
   try {
+    const sanitizedName = sanitizeSettingsProfileName(settingsDraft.name || deriveSettingsName());
+    if (!sanitizedName.ok) {
+      throw new Error(sanitizedName.error);
+    }
+    const nextGender = settingsDraft.gender === "female" ? "female" : "male";
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+
     const config = await getSupabaseConfig();
     if (!config) {
       throw new Error("Supabase config missing.");
@@ -1883,7 +2182,7 @@ async function handleSettingsSave() {
 
     const encodedUserId = encodeURIComponent(config.userId);
     const existingRows = await supabaseRestRequest(
-      `ai_user_profiles?select=age,metadata&user_id=eq.${encodedUserId}&limit=1`,
+      `ai_user_profiles?select=full_name,age,metadata&user_id=eq.${encodedUserId}&limit=1`,
       {
         method: "GET",
         prefer: "return=representation",
@@ -1893,25 +2192,46 @@ async function handleSettingsSave() {
     const existingRow = Array.isArray(existingRows) && existingRows.length ? existingRows[0] : null;
     const existingMetadata =
       existingRow?.metadata && typeof existingRow.metadata === "object" ? { ...existingRow.metadata } : {};
+    const existingName = normalizeSettingsProfileNameValue(existingRow?.full_name || deriveSettingsName());
+    const existingGender = existingMetadata.gender === "female" ? "female" : "male";
+    const recentProfileEdits = pruneSettingsProfileEditTimestamps(
+      getSettingsProfileEditTimestamps(existingMetadata),
+      nowMs
+    );
+    const isIdentityEdit = sanitizedName.value !== existingName || nextGender !== existingGender;
+
+    if (isIdentityEdit && recentProfileEdits.length >= SETTINGS_PROFILE_EDIT_LIMIT) {
+      const retryAt = recentProfileEdits[0] + SETTINGS_PROFILE_EDIT_WINDOW_MS;
+      throw new Error(
+        `Name and gender can only be changed ${SETTINGS_PROFILE_EDIT_LIMIT} times every 24 hours. Try again in ${formatSettingsProfileEditRetry(retryAt - nowMs)}.`
+      );
+    }
+
+    const nextProfileEditHistory = isIdentityEdit
+      ? [...recentProfileEdits, nowMs].slice(-SETTINGS_PROFILE_EDIT_HISTORY_MAX)
+      : recentProfileEdits.slice(-SETTINGS_PROFILE_EDIT_HISTORY_MAX);
 
     await supabaseRestRequest("ai_user_profiles?on_conflict=user_id", {
       method: "POST",
       body: [
         {
           user_id: config.userId,
-          full_name: String(settingsDraft.name || "").trim() || deriveSettingsName(),
+          full_name: sanitizedName.value,
           age: Number.parseInt(String(existingRow?.age || settingsDraft.age || SETTINGS_DEFAULT_AGE), 10) || 18,
           metadata: {
             ...existingMetadata,
-            gender: settingsDraft.gender === "female" ? "female" : "male",
+            gender: nextGender,
             updated_from: "loomless-ai-settings",
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
+            [SETTINGS_PROFILE_EDIT_HISTORY_KEY]: nextProfileEditHistory.map((timestamp) => new Date(timestamp).toISOString()),
           },
         },
       ],
       prefer: "resolution=merge-duplicates,return=representation",
     });
 
+    settingsDraft.name = sanitizedName.value;
+    settingsDraft.gender = nextGender;
     settingsSavedSnapshot = getSettingsSnapshot();
     settingsProfileHydrated = true;
     syncSettingsModalUI();
@@ -1930,7 +2250,7 @@ async function handleSettingsSave() {
 }
 
 function syncSettingsModalUI() {
-  const displayName = String(settingsDraft.name || deriveSettingsName()).trim() || "LoomLess User";
+  const displayName = normalizeSettingsProfileNameValue(settingsDraft.name || deriveSettingsName()) || "LoomLess User";
   const email = getSettingsContactEmail();
 
   if (settingsProfileNameNode) {
@@ -1951,6 +2271,9 @@ function syncSettingsModalUI() {
   if (settingsMemoryInputNode && settingsMemoryInputNode.value !== settingsDraft.memory) {
     settingsMemoryInputNode.value = settingsDraft.memory;
   }
+  if (settingsMemoryInputNode) {
+    settingsMemoryInputNode.disabled = true;
+  }
 
   syncSettingsChoiceButtons();
   syncSettingsMemoryCounter();
@@ -1969,6 +2292,10 @@ function syncSettingsChoiceButtons() {
 
 function syncSettingsMemoryCounter() {
   if (!settingsMemoryCounterNode) return;
+  if (settingsMemoryInputNode?.disabled) {
+    settingsMemoryCounterNode.textContent = "Coming soon";
+    return;
+  }
   const count = String(settingsDraft.memory || "").length;
   settingsMemoryCounterNode.textContent = `${count} / ${SETTINGS_MEMORY_LIMIT}`;
 }
@@ -2002,20 +2329,26 @@ function renderSavedSessions() {
   }
 
   if (canShowSavedSessions) {
-    savedSessionsListNode.appendChild(createSessionSectionTitle("Saved"));
-
-    if (savedSessionsLoading) {
-      savedSessionsListNode.appendChild(createSessionEmptyState("Loading saved chats..."));
-      return;
+    const savedSectionNode = createSessionSection({
+      label: "Saved",
+      count: savedSessions.length,
+      collapsible: true,
+      expanded: savedSectionExpanded,
+      bodyClassName: "session-section-body-scrollable",
+    });
+    const bodyNode = savedSectionNode.querySelector(".session-section-body");
+    if (bodyNode && savedSectionExpanded) {
+      if (savedSessionsLoading) {
+        bodyNode.appendChild(createSessionEmptyState("Loading saved chats..."));
+      } else if (!savedSessions.length) {
+        bodyNode.appendChild(createSessionEmptyState("No saved chats yet. Use Save in the header."));
+      } else {
+        savedSessions.forEach((session) => {
+          bodyNode.appendChild(createSessionListItem(session, { kind: "saved" }));
+        });
+      }
     }
-
-    if (!savedSessions.length) {
-      savedSessionsListNode.appendChild(createSessionEmptyState("No saved chats yet. Use Save in the header."));
-    } else {
-      savedSessions.forEach((session) => {
-        savedSessionsListNode.appendChild(createSessionListItem(session, { kind: "saved" }));
-      });
-    }
+    savedSessionsListNode.appendChild(savedSectionNode);
     return;
   }
 
@@ -2033,7 +2366,7 @@ function createSessionSectionTitle(label) {
   return title;
 }
 
-function createSessionSection({ label, count = 0, collapsible = false, expanded = true }) {
+function createSessionSection({ label, count = 0, collapsible = false, expanded = true, bodyClassName = "" }) {
   const section = document.createElement("section");
   section.className = "session-section";
 
@@ -2057,6 +2390,9 @@ function createSessionSection({ label, count = 0, collapsible = false, expanded 
 
   const body = document.createElement("div");
   body.className = "session-section-body";
+  if (bodyClassName) {
+    body.classList.add(bodyClassName);
+  }
   body.hidden = collapsible ? !expanded : false;
   section.appendChild(body);
 
@@ -2641,6 +2977,11 @@ async function handlePinSessionToggle() {
     setStatus("Complete setup first from extension popup.");
     return;
   }
+  if (!isSessionPinned && savedSessions.length >= MAX_SAVED_SESSIONS) {
+    setStatus(`Saved chat limit reached. You can only save ${MAX_SAVED_SESSIONS} chats per account.`);
+    syncPinSessionUI();
+    return;
+  }
 
   pinActionBusy = true;
   syncPinSessionUI();
@@ -2749,8 +3090,6 @@ async function upsertPinnedSessionToSupabase({ skipIfUnchanged = true } = {}) {
     },
   };
 
-  upsertSavedSessionCache(sessionPayload);
-
   await supabaseRestRequest("ai_chat_sessions?on_conflict=user_id,session_id", {
     method: "POST",
     body: [sessionPayload],
@@ -2787,6 +3126,7 @@ async function upsertPinnedSessionToSupabase({ skipIfUnchanged = true } = {}) {
     });
   }
 
+  upsertSavedSessionCache(sessionPayload);
   lastPinnedSnapshotHash = snapshotHash;
   renderSavedSessions();
 }
@@ -3351,6 +3691,7 @@ async function handleRegenerateSelection(modelApi) {
   });
 
   try {
+    await trackUsageFeature(USAGE_FEATURES.chatMode);
     const response = await requestChat({
       prompt: requestMeta.prompt,
       history: Array.isArray(requestMeta.history) ? requestMeta.history : [],
@@ -4140,14 +4481,7 @@ function appendLoadingMessage(label = "Thinking") {
 
   const bubble = document.createElement("article");
   bubble.className = "msg-bubble loading";
-  bubble.innerHTML = `
-    <span class="loading-text">${escapeHtml(label)}</span>
-    <span class="loading-dots" aria-hidden="true">
-      <span class="loading-dot"></span>
-      <span class="loading-dot"></span>
-      <span class="loading-dot"></span>
-    </span>
-  `;
+  bubble.innerHTML = buildLoadingMessageMarkup(label);
 
   row.appendChild(bubble);
   messagesNode.appendChild(row);
@@ -4155,11 +4489,53 @@ function appendLoadingMessage(label = "Thinking") {
   return row;
 }
 
+function buildLoadingMessageMarkup(label) {
+  return `
+    <span class="loading-signal" aria-hidden="true">
+      <span class="loading-signal-ring"></span>
+      <span class="loading-signal-core"></span>
+    </span>
+    <span class="loading-copy">
+      <span class="loading-text">${escapeHtml(label)}</span>
+      <span class="loading-subtext">${escapeHtml(getLoadingSubtext(label))}</span>
+      <span class="loading-progress" aria-hidden="true">
+        <span class="loading-progress-bar"></span>
+      </span>
+    </span>
+    <span class="loading-dots" aria-hidden="true">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </span>
+  `;
+}
+
+function getLoadingSubtext(label) {
+  const lower = String(label || "").toLowerCase();
+  if (lower.includes("code")) {
+    return "Still generating. Larger code outputs can take a bit.";
+  }
+  if (lower.includes("writing")) {
+    return "Still writing. Long-form drafts can take a moment.";
+  }
+  if (lower.includes("analyzing")) {
+    return "Still processing your files and preparing context.";
+  }
+  if (lower.includes("regenerating")) {
+    return "Still working on a fresh response with the selected model.";
+  }
+  return "Still working. Keep this tab open while the model responds.";
+}
+
 function updateLoadingMessage(row, label) {
   if (!row) return;
   const textNode = row.querySelector(".loading-text");
+  const subtextNode = row.querySelector(".loading-subtext");
   if (textNode) {
     textNode.textContent = label;
+  }
+  if (subtextNode) {
+    subtextNode.textContent = getLoadingSubtext(label);
   }
 }
 

@@ -61,6 +61,46 @@ const NIM_CHAT_TIMEOUT_MS = 180000;
 const NIM_VISION_TIMEOUT_MS = 150000;
 const NIM_IMAGE_TIMEOUT_MS = 240000;
 const USER_ABORT_MESSAGE = "Request stopped by user.";
+const USAGE_STORAGE_KEY = "loomless_ai_usage_events_v1";
+const USAGE_WINDOW_MS = 5 * 60 * 60 * 1000;
+const USAGE_WINDOW_HOURS = 5;
+const USAGE_FEATURES = {
+  summarize: {
+    label: "Summarize",
+    limit: 300,
+    note: "Page and transcript summaries.",
+  },
+  write_toggle: {
+    label: "Write Toggle",
+    limit: 100,
+    note: "Quick writing drafts from the floating action.",
+  },
+  chat_toggle: {
+    label: "Chat Toggle",
+    limit: 120,
+    note: "Floating page chat requests.",
+  },
+  chat_mode: {
+    label: "Chat Mode",
+    limit: 180,
+    note: "LoomLess GPT chat-mode messages and regenerates.",
+  },
+  code_mode: {
+    label: "Code Mode",
+    limit: 90,
+    note: "LoomLess GPT code-mode requests.",
+  },
+  writer_mode: {
+    label: "Writer Mode",
+    limit: 80,
+    note: "LoomLess GPT writer-mode requests.",
+  },
+  image_window: {
+    label: "Image Window",
+    limit: 20,
+    note: "20 image requests per 5h. Each request generates 2 outputs, so up to 40 images.",
+  },
+};
 const activeRequestControllers = new Map();
 const canceledRequestIds = new Set();
 
@@ -72,6 +112,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "LOOMLESS_AI_SUMMARIZE") {
     summarizePage(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "LOOMLESS_AI_TRACK_USAGE") {
+    trackUsageEvent(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "LOOMLESS_AI_GET_USAGE_SUMMARY") {
+    sendUsageSummary(sendResponse);
     return true;
   }
   if (message?.type === "LOOMLESS_AI_WRITE") {
@@ -1438,7 +1486,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
         isWriterMode
           ? "- WRITER mode: produce polished, human-sounding long-form writing unless user explicitly asks for short copy."
           : isCodeMode
-            ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
+            ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags. For websites, landing pages, or UI builds, prefer a single self-contained file that previews directly. Do not split HTML and CSS into separate files unless the user explicitly asks. Use inline CSS or Tailwind utility classes when appropriate, and make layouts responsive by default."
             : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
         isWriterMode ? "- Write like a strong human editor. Use natural rhythm, varied sentence length, and specific wording." : "",
         isWriterMode ? "- Never use em dashes." : "",
@@ -1586,7 +1634,7 @@ function buildGeneralSystemPrompt(mode) {
     return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is WRITER mode. Write polished, natural, human-sounding prose. Never use em dashes. Never add preambles, apologies, analysis, or self-reference. If the user asks for long-form writing, deliver the full finished draft. Use markdown structure only when it improves readability. Preserve tables as valid markdown tables and preserve useful links as markdown links.";
   }
   if (mode === CHAT_MODES.CODE) {
-    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is CODE mode. Prioritize complete outputs. Wrap code/markup/config in fenced markdown code blocks with explicit language tags. Avoid partial stubs unless user asks.";
+    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is CODE mode. Prioritize complete outputs. Wrap code/markup/config in fenced markdown code blocks with explicit language tags. Avoid partial stubs unless user asks. For websites, landing pages, UI mockups, and previews, prefer a single self-contained file so it can render directly in preview. Do not split HTML and CSS into separate files unless the user explicitly asks. Use inline CSS or Tailwind utility classes when appropriate, and make the result responsive by default.";
   }
   return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is general chat mode. Reply directly and clearly, and never describe yourself as a page-specific assistant. Only provide identity line when the latest user message explicitly asks identity.";
 }
@@ -1596,9 +1644,137 @@ function buildPageAssistantSystemPrompt(mode) {
     return "You are LoomLess AI in WRITER mode. Use provided context when relevant and write polished, human-sounding copy. Never use em dashes. Do not add AI-style preambles or commentary. Deliver complete drafts when the user requests writing.";
   }
   if (mode === CHAT_MODES.CODE) {
-    return "You are LoomLess AI in CODE mode. Use provided context when relevant. Return code/markup/config in fenced markdown code blocks with explicit language tags and prefer complete outputs.";
+    return "You are LoomLess AI in CODE mode. Use provided context when relevant. Return code/markup/config in fenced markdown code blocks with explicit language tags and prefer complete outputs. For websites, landing pages, UI mockups, and previews, prefer a single self-contained file so it can render directly in preview. Do not split HTML and CSS into separate files unless the user explicitly asks. Use inline CSS or Tailwind utility classes when appropriate, and make the result responsive by default.";
   }
   return "You are LoomLess AI in page-assistant mode. Reply directly and clearly. Keep responses concise by default. Use page context only when provided. Never claim to be a different model than the current one.";
+}
+
+async function trackUsageEvent(message, sendResponse) {
+  try {
+    const feature = normalizeUsageFeature(message?.feature);
+    if (!feature) {
+      sendResponse({ ok: false, error: "Unknown usage feature." });
+      return;
+    }
+
+    const nowMs = Date.now();
+    const { store } = await getPrunedUsageStore(nowMs);
+    const nextTimestamps = Array.isArray(store[feature]) ? store[feature].slice() : [];
+    nextTimestamps.push(nowMs);
+    store[feature] = nextTimestamps.slice(-Math.max(USAGE_FEATURES[feature].limit + 24, 80));
+    await setUsageStore(store);
+    sendResponse({ ok: true });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not track usage.",
+    });
+  }
+}
+
+async function sendUsageSummary(sendResponse) {
+  try {
+    const summary = await buildUsageSummary();
+    sendResponse({
+      ok: true,
+      ...summary,
+    });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not load usage summary.",
+    });
+  }
+}
+
+function normalizeUsageFeature(feature) {
+  const key = typeof feature === "string" ? feature.trim() : "";
+  return Object.prototype.hasOwnProperty.call(USAGE_FEATURES, key) ? key : "";
+}
+
+function normalizeUsageStore(rawValue) {
+  const store = {};
+  Object.keys(USAGE_FEATURES).forEach((feature) => {
+    const rawTimestamps =
+      rawValue && typeof rawValue === "object" && Array.isArray(rawValue[feature]) ? rawValue[feature] : [];
+    store[feature] = rawTimestamps
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((left, right) => left - right);
+  });
+  return store;
+}
+
+function pruneUsageStore(store, nowMs = Date.now()) {
+  const cutoff = nowMs - USAGE_WINDOW_MS;
+  let changed = false;
+  const nextStore = {};
+
+  Object.keys(USAGE_FEATURES).forEach((feature) => {
+    const source = Array.isArray(store?.[feature]) ? store[feature] : [];
+    const pruned = source.filter((value) => value >= cutoff);
+    nextStore[feature] = pruned;
+    if (pruned.length !== source.length) {
+      changed = true;
+    }
+  });
+
+  return {
+    store: nextStore,
+    changed,
+  };
+}
+
+function getUsageStore() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([USAGE_STORAGE_KEY], (result) => {
+      if (chrome.runtime.lastError) {
+        resolve({});
+        return;
+      }
+      resolve(result?.[USAGE_STORAGE_KEY] || {});
+    });
+  });
+}
+
+function setUsageStore(store) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [USAGE_STORAGE_KEY]: store }, () => {
+      resolve();
+    });
+  });
+}
+
+async function getPrunedUsageStore(nowMs = Date.now()) {
+  const current = normalizeUsageStore(await getUsageStore());
+  const pruned = pruneUsageStore(current, nowMs);
+  if (pruned.changed) {
+    await setUsageStore(pruned.store);
+  }
+  return pruned;
+}
+
+async function buildUsageSummary(nowMs = Date.now()) {
+  const { store } = await getPrunedUsageStore(nowMs);
+  const features = Object.entries(USAGE_FEATURES).map(([key, config]) => {
+    const used = Array.isArray(store[key]) ? store[key].length : 0;
+    const remaining = Math.max(0, config.limit - used);
+    return {
+      key,
+      label: config.label,
+      limit: config.limit,
+      used,
+      remaining,
+      note: config.note,
+      percent: config.limit > 0 ? Math.min(100, Math.round((used / config.limit) * 100)) : 0,
+    };
+  });
+
+  return {
+    windowHours: USAGE_WINDOW_HOURS,
+    updatedAt: new Date(nowMs).toISOString(),
+    features,
+  };
 }
 
 function getStorageValue(key) {

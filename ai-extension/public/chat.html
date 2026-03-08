@@ -32,6 +32,18 @@
           <span class="sidebar-btn-text">Generate Image</span>
         </button>
 
+        <div class="sidebar-gold-links">
+          <a class="sidebar-gold-link" href="https://pizbot.com" target="_blank" rel="noreferrer noopener" title="Pizbot.com">
+            <span class="sidebar-gold-link-icon" data-ll-icon="sparkle" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span class="sidebar-gold-link-copy">Also Checkout Pizbot</span>
+          </a>
+
+          <a class="sidebar-gold-link" href="https://moayaan.com" target="_blank" rel="noreferrer noopener" title="moayaan.com">
+            <span class="sidebar-gold-link-icon" data-ll-icon="rocket" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span class="sidebar-gold-link-copy">Connect with Dev</span>
+          </a>
+        </div>
+
         <p class="sidebar-hint">
           <span data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
           <span>Saved chats sync to cloud. Unsaved chats stay only on this device.</span>
@@ -40,6 +52,10 @@
         <div id="saved-sessions-list" class="saved-sessions-list"></div>
 
         <div class="sidebar-bottom">
+          <button id="sidebar-usage-btn" type="button" class="sidebar-settings-btn sidebar-usage-btn" title="Usage and limits">
+            <span data-ll-icon="info" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            <span class="sidebar-btn-text">Usage & Limits</span>
+          </button>
           <button id="sidebar-settings-btn" type="button" class="sidebar-settings-btn" title="Settings">
             <span data-ll-icon="settings" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
             <span class="sidebar-btn-text">Settings</span>
@@ -191,6 +207,35 @@
         </div>
       </section>
 
+      <section id="usage-modal" class="sources-modal usage-modal" hidden>
+        <div id="usage-modal-backdrop" class="sources-backdrop"></div>
+        <div class="sources-dialog usage-dialog" role="dialog" aria-modal="true" aria-labelledby="usage-title">
+          <header class="sources-header usage-modal-header">
+            <div class="usage-header-copy">
+              <h3 id="usage-title">Usage & Limits</h3>
+              <p id="usage-window-copy" class="usage-window-copy">Rolling 5-hour window</p>
+            </div>
+            <button id="usage-close-btn" type="button" class="ghost-btn settings-close-icon-btn" aria-label="Close usage and limits">
+              <span data-ll-icon="remove" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+            </button>
+          </header>
+
+          <div class="usage-body">
+            <div class="usage-intro-card">
+              <p class="usage-intro-title">Free usage overview</p>
+              <p class="usage-intro-copy">Each card shows your current usage, the feature limit, and how much is left in the active rolling window.</p>
+            </div>
+
+            <div id="usage-summary-grid" class="usage-summary-grid">
+              <article class="usage-card usage-card-loading">
+                <p class="usage-card-title">Loading usage...</p>
+                <p class="usage-card-note">Checking your current window.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="settings-modal" class="sources-modal settings-modal" hidden>
         <div id="settings-modal-backdrop" class="sources-backdrop"></div>
         <div class="sources-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -307,7 +352,8 @@
                       <span data-ll-icon="user" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
                       <span>Name</span>
                     </span>
-                    <input id="settings-name-input" class="settings-input" type="text" maxlength="60" placeholder="Your display name" />
+                    <input id="settings-name-input" class="settings-input" type="text" maxlength="200" placeholder="Your display name" />
+                    <p class="settings-field-help">Up to 200 characters. Name and gender can be changed 5 times every 24 hours.</p>
                   </label>
                 </div>
 
@@ -351,17 +397,19 @@
                     <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
                     <h4>Memory</h4>
                   </div>
+                  <p class="settings-memory-coming-soon">Coming soon. Memory preferences are not available yet.</p>
 
                   <label class="settings-field">
                     <textarea
                       id="settings-memory-input"
-                      class="settings-textarea"
+                      class="settings-textarea settings-textarea-disabled"
                       maxlength="800"
-                      placeholder="Add preferences, tone, work style, or anything worth remembering..."
+                      placeholder="Coming soon"
+                      disabled
                     ></textarea>
                   </label>
                   <div class="settings-counter-row">
-                    <span id="settings-memory-counter" class="settings-counter">0 / 800</span>
+                    <span id="settings-memory-counter" class="settings-counter">Coming soon</span>
                   </div>
                 </div>
               </section>

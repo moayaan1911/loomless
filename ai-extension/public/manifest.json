@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LoomLess AI",
   "version": "0.3.0",
-  "description": "AI assistant from LoomLess with in-page floating controls.",
+  "description": "Minimalist AI companion extension",
   "background": {
     "service_worker": "background.js"
   },

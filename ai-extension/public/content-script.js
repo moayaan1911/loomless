@@ -349,6 +349,7 @@
     });
 
     try {
+      await trackUsage("summarize");
       const response = await requestSummary({
         text: summaryPayload.text,
         title: document.title,
@@ -388,6 +389,14 @@
           return;
         }
         resolve(response);
+      });
+    });
+  }
+
+  function trackUsage(feature) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: "LOOMLESS_AI_TRACK_USAGE", feature }, () => {
+        resolve();
       });
     });
   }
@@ -478,6 +487,7 @@
     });
 
     try {
+      await trackUsage("chat_toggle");
       const response = await requestChat({
         prompt,
         history: historyForRequest,
@@ -780,6 +790,7 @@
     });
 
     try {
+      await trackUsage("write_toggle");
       const response = await requestWrite({
         tone: toneSelect?.value || "professional",
         format: formatSelect?.value || "general",
