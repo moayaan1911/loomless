@@ -188,6 +188,15 @@ body {
   border: 1px solid rgba(8, 14, 28, 0.96);
 }
 
+.session-section-title {
+  margin: 4px 2px 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8ea9d8;
+}
+
 .saved-session-item {
   width: 100%;
   border: 1px solid rgba(123, 172, 255, 0.26);
@@ -268,6 +277,7 @@ body {
 .chat-shell.sidebar-collapsed .sidebar-title span:last-child,
 .chat-shell.sidebar-collapsed .sidebar-btn-text,
 .chat-shell.sidebar-collapsed .sidebar-hint,
+.chat-shell.sidebar-collapsed .session-section-title,
 .chat-shell.sidebar-collapsed .saved-session-content {
   display: none;
 }
@@ -1642,6 +1652,7 @@ body {
   .chat-shell .sidebar-title span:last-child,
   .chat-shell .sidebar-btn-text,
   .chat-shell .sidebar-hint,
+  .chat-shell .session-section-title,
   .chat-shell .saved-session-content {
     display: none;
   }

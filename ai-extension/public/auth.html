@@ -11,24 +11,24 @@
 
     <main class="shell">
       <header class="hero">
-        <img src="./icon.png" alt="LoomLess AI" class="logo" />
-        <div>
-          <p class="eyebrow">LoomLess AI Access</p>
-        </div>
+        <h1 class="title-with-icon hero-title">
+          <img src="./icon.png" alt="LoomLess AI" class="hero-title-icon" />
+          <span>Sign in to LoomLess AI</span>
+        </h1>
       </header>
 
       <section id="stage-login" class="card stage">
-        <h2 class="title-with-icon">
-          <span data-ll-icon="verify" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
-          <span>Verify your email</span>
-        </h2>
         <form id="login-form" class="form">
           <div id="email-step" class="email-step">
-            <label for="login-email" class="label label-with-icon">
-              <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-              <span>Email address</span>
-            </label>
-            <input id="login-email" class="input" type="email" maxlength="254" autocomplete="email" required />
+            <input
+              id="login-email"
+              class="input"
+              type="email"
+              maxlength="254"
+              autocomplete="email"
+              placeholder="Email address"
+              required
+            />
 
             <button id="send-code-btn" class="btn primary" type="button">
               <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
@@ -107,7 +107,9 @@
         </button>
       </section>
 
-      <p id="status" class="status" aria-live="polite"></p>
+      <div class="status-wrap" data-empty="true">
+        <p id="status" class="status" aria-live="polite"></p>
+      </div>
     </main>
 
     <script src="./icon-map.js"></script>

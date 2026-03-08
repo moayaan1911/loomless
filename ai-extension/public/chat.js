@@ -24,9 +24,11 @@ const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
 const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_CHAT_SESSION_ID = "loomless_ai_chat_active_session_id";
 const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
+const STORAGE_LOCAL_SESSIONS = "loomless_ai_chat_local_sessions_v1";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
+const MAX_LOCAL_SESSIONS = 12;
 const CHAT_MODES = {
   CHAT: "chat",
   CODE: "code",
@@ -311,6 +313,7 @@ let selectedModel = loadSelectedModel(activeMode);
 let currentSessionId = loadOrCreateSessionId();
 let isSessionPinned = loadPinnedState(currentSessionId);
 let sidebarCollapsed = loadSidebarCollapsed();
+let localSessions = loadLocalSessions();
 let savedSessions = [];
 let supabaseReady = false;
 let authSession = null;
@@ -326,6 +329,7 @@ let regenerateMenuTargetButton = null;
 let regenerateMenuRequestMeta = null;
 let regenerateMenuSourceRow = null;
 let activeRequestState = null;
+let initialSessionHydrated = false;
 const regenerateMenuNode = createRegenerateMenu();
 const USER_ABORT_MESSAGE = "Request stopped by user.";
 
@@ -396,6 +400,11 @@ savedSessionsListNode?.addEventListener("click", (event) => {
   if (!row) return;
   const sessionId = row.getAttribute("data-session-id");
   if (!sessionId) return;
+  const sessionKind = row.getAttribute("data-session-kind");
+  if (sessionKind === "local") {
+    openLocalSession(sessionId);
+    return;
+  }
   void openSavedSession(sessionId);
 });
 
@@ -1156,6 +1165,159 @@ function createSessionId() {
   return `session_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function loadLocalSessions() {
+  let parsed = [];
+  try {
+    parsed = JSON.parse(localStorage.getItem(STORAGE_LOCAL_SESSIONS) || "[]");
+  } catch (_error) {
+    parsed = [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  const normalized = parsed.map(normalizeLocalSessionRecord).filter(Boolean);
+  normalized.sort(compareSessionRecency);
+  return normalized.slice(0, MAX_LOCAL_SESSIONS);
+}
+
+function saveLocalSessions() {
+  if (!localSessions.length) {
+    localStorage.removeItem(STORAGE_LOCAL_SESSIONS);
+    return;
+  }
+  localStorage.setItem(STORAGE_LOCAL_SESSIONS, JSON.stringify(localSessions.slice(0, MAX_LOCAL_SESSIONS)));
+}
+
+function normalizeLocalSessionRecord(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const sessionId = String(raw.session_id || "").trim();
+  if (!sessionId) return null;
+
+  const messages = Array.isArray(raw.messages) ? raw.messages.map(normalizeLocalSessionMessage).filter(Boolean) : [];
+  const createdAt = normalizeIsoTimestamp(raw.created_at) || messages[0]?.createdAt || new Date().toISOString();
+  const updatedAt =
+    normalizeIsoTimestamp(raw.updated_at) ||
+    normalizeIsoTimestamp(raw.last_message_at) ||
+    messages[messages.length - 1]?.createdAt ||
+    createdAt;
+  const messageCount = Number.isFinite(Number(raw.message_count)) ? Number(raw.message_count) : messages.length;
+
+  return {
+    session_id: sessionId,
+    title:
+      String(raw.title || "").replace(/\s+/g, " ").trim() ||
+      buildSessionTitleFromHistory(messages.map((item) => ({ role: item.role, content: item.content }))),
+    last_model: typeof raw.last_model === "string" && raw.last_model.trim() ? raw.last_model.trim() : null,
+    message_count: Math.max(messageCount, messages.length),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    last_message_at: normalizeIsoTimestamp(raw.last_message_at) || updatedAt,
+    mode: resolveMode(raw.mode),
+    messages,
+  };
+}
+
+function normalizeLocalSessionMessage(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const content = String(raw.content || "");
+  if (!content.trim()) return null;
+
+  return {
+    role: normalizeMessageRole(raw.role),
+    content,
+    model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
+    mode: resolveMode(raw.mode),
+    createdAt: normalizeIsoTimestamp(raw.createdAt || raw.created_at) || new Date().toISOString(),
+    metadata: raw.metadata && typeof raw.metadata === "object" ? raw.metadata : {},
+  };
+}
+
+function normalizeIsoTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw).getTime();
+  if (!Number.isFinite(parsed) || parsed <= 0) return "";
+  return new Date(parsed).toISOString();
+}
+
+function compareSessionRecency(a, b) {
+  const aTime = new Date(a?.updated_at || a?.last_message_at || a?.created_at || 0).getTime();
+  const bTime = new Date(b?.updated_at || b?.last_message_at || b?.created_at || 0).getTime();
+  return bTime - aTime;
+}
+
+function sortLocalSessions() {
+  localSessions.sort(compareSessionRecency);
+}
+
+function findLocalSessionById(sessionId) {
+  return localSessions.find((item) => item.session_id === sessionId) || null;
+}
+
+function upsertLocalSessionCache(payload, { render = true } = {}) {
+  if (!payload?.session_id) return;
+  const normalized = normalizeLocalSessionRecord(payload);
+  if (!normalized) return;
+
+  const index = localSessions.findIndex((item) => item.session_id === normalized.session_id);
+  if (index >= 0) {
+    localSessions[index] = { ...localSessions[index], ...normalized };
+  } else {
+    localSessions.push(normalized);
+  }
+
+  sortLocalSessions();
+  localSessions = localSessions.slice(0, MAX_LOCAL_SESSIONS);
+  saveLocalSessions();
+  if (render) {
+    renderSavedSessions();
+  }
+}
+
+function removeLocalSessionById(sessionId, { render = true } = {}) {
+  const next = localSessions.filter((item) => item.session_id !== sessionId);
+  if (next.length === localSessions.length) return;
+  localSessions = next;
+  saveLocalSessions();
+  if (render) {
+    renderSavedSessions();
+  }
+}
+
+function persistCurrentLocalSession({ render = true } = {}) {
+  if (isSessionPinned || resolveMode(activeMode) === CHAT_MODES.IMAGE) {
+    removeLocalSessionById(currentSessionId, { render });
+    return;
+  }
+
+  const messages = getChatHistoryForPersistence();
+  if (!messages.length) {
+    removeLocalSessionById(currentSessionId, { render });
+    return;
+  }
+
+  const existing = findLocalSessionById(currentSessionId);
+  const nowIso = new Date().toISOString();
+
+  upsertLocalSessionCache(
+    {
+      session_id: currentSessionId,
+      title: buildSessionTitleFromHistory(messages),
+      last_model: selectedModel?.apiModel || existing?.last_model || null,
+      message_count: messages.length,
+      created_at: existing?.created_at || messages[0]?.createdAt || nowIso,
+      updated_at: nowIso,
+      last_message_at: nowIso,
+      mode: resolveMode(activeMode),
+      messages,
+    },
+    { render }
+  );
+}
+
 function getPinnedStorageKey(sessionId) {
   return `loomless_ai_chat_pinned_${sessionId}`;
 }
@@ -1191,6 +1353,35 @@ async function initializeSupabaseState() {
     renderSavedSessions();
     closeSessionItemMenu();
   }
+  await restoreInitialSessionIfNeeded();
+}
+
+async function restoreInitialSessionIfNeeded() {
+  if (initialSessionHydrated) return;
+
+  const localSession = !isSessionPinned ? findLocalSessionById(currentSessionId) : null;
+  if (localSession) {
+    initialSessionHydrated = true;
+    openLocalSession(currentSessionId, {
+      forceReload: true,
+      skipPersistCurrent: true,
+    });
+    return;
+  }
+
+  if (isSessionPinned) {
+    if (!supabaseReady || !authSession || !profileCompleted) {
+      return;
+    }
+    initialSessionHydrated = true;
+    await openSavedSession(currentSessionId, {
+      forceReload: true,
+      skipPersistCurrent: true,
+    });
+    return;
+  }
+
+  initialSessionHydrated = true;
 }
 
 function syncAuthGateUI() {
@@ -1266,12 +1457,12 @@ function syncSessionSaveDisclaimer() {
 
   if (isSessionPinned) {
     sessionSaveDisclaimerNode.classList.add("saved");
-    textNode.textContent = "Saved chat. You can start a New Chat safely.";
+    textNode.textContent = "Saved chat. This one syncs to your account.";
     return;
   }
 
   sessionSaveDisclaimerNode.classList.remove("saved");
-  textNode.textContent = "Unsaved chat. Save this chat before New Chat, otherwise it will be lost.";
+  textNode.textContent = "Unsaved chat. It stays only on this device unless you save it.";
 }
 
 function loadSidebarCollapsed() {
@@ -1304,49 +1495,77 @@ function renderSavedSessions() {
   if (!savedSessionsListNode) return;
   savedSessionsListNode.innerHTML = "";
 
-  if (savedSessionsLoading) {
-    const loading = document.createElement("p");
-    loading.className = "saved-sessions-empty";
-    loading.textContent = "Loading saved chats...";
-    savedSessionsListNode.appendChild(loading);
+  const hasLocalSessions = localSessions.length > 0;
+  const canShowSavedSessions = supabaseReady && authSession && profileCompleted;
+
+  if (hasLocalSessions) {
+    savedSessionsListNode.appendChild(createSessionSectionTitle("Local"));
+    localSessions.forEach((session) => {
+      savedSessionsListNode.appendChild(createSessionListItem(session, { kind: "local" }));
+    });
+  }
+
+  if (canShowSavedSessions) {
+    savedSessionsListNode.appendChild(createSessionSectionTitle("Saved"));
+
+    if (savedSessionsLoading) {
+      savedSessionsListNode.appendChild(createSessionEmptyState("Loading saved chats..."));
+      return;
+    }
+
+    if (!savedSessions.length) {
+      savedSessionsListNode.appendChild(createSessionEmptyState("No saved chats yet. Use Save in the header."));
+    } else {
+      savedSessions.forEach((session) => {
+        savedSessionsListNode.appendChild(createSessionListItem(session, { kind: "saved" }));
+      });
+    }
     return;
   }
 
-  if (!supabaseReady || !authSession || !profileCompleted) {
-    const empty = document.createElement("p");
-    empty.className = "saved-sessions-empty";
-    empty.textContent = "Sign in to view saved chats.";
-    savedSessionsListNode.appendChild(empty);
-    return;
+  if (!hasLocalSessions) {
+    savedSessionsListNode.appendChild(createSessionEmptyState("No chats yet. Start a new chat."));
   }
 
-  if (!savedSessions.length) {
-    const empty = document.createElement("p");
-    empty.className = "saved-sessions-empty";
-    empty.textContent = "No saved chats yet. Use Save in the header.";
-    savedSessionsListNode.appendChild(empty);
-    return;
-  }
+  savedSessionsListNode.appendChild(createSessionEmptyState("Saved chats sync after sign-in."));
+}
 
-  savedSessions.forEach((session) => {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "saved-session-item";
-    item.setAttribute("data-session-id", session.session_id);
-    item.classList.toggle("active", session.session_id === currentSessionId);
+function createSessionSectionTitle(label) {
+  const title = document.createElement("p");
+  title.className = "session-section-title";
+  title.textContent = label;
+  return title;
+}
 
-    const content = document.createElement("div");
-    content.className = "saved-session-content";
+function createSessionEmptyState(text) {
+  const empty = document.createElement("p");
+  empty.className = "saved-sessions-empty";
+  empty.textContent = text;
+  return empty;
+}
 
-    const title = document.createElement("p");
-    title.className = "saved-session-title";
-    title.textContent = getSessionTitle(session);
+function createSessionListItem(session, { kind }) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = "saved-session-item";
+  item.setAttribute("data-session-id", session.session_id);
+  item.setAttribute("data-session-kind", kind);
+  item.classList.toggle("active", session.session_id === currentSessionId);
 
-    const meta = document.createElement("p");
-    meta.className = "saved-session-meta";
-    meta.textContent = formatSessionMeta(session);
-    content.append(title, meta);
+  const content = document.createElement("div");
+  content.className = "saved-session-content";
 
+  const title = document.createElement("p");
+  title.className = "saved-session-title";
+  title.textContent = getSessionTitle(session);
+
+  const meta = document.createElement("p");
+  meta.className = "saved-session-meta";
+  meta.textContent = kind === "local" ? formatLocalSessionMeta(session) : formatSessionMeta(session);
+  content.append(title, meta);
+  item.appendChild(content);
+
+  if (kind === "saved") {
     const menuBtn = document.createElement("button");
     menuBtn.type = "button";
     menuBtn.className = "saved-session-menu-btn";
@@ -1354,10 +1573,10 @@ function renderSavedSessions() {
     menuBtn.setAttribute("data-session-id", session.session_id);
     menuBtn.title = "Session actions";
     menuBtn.innerHTML = iconHtml("menuMore", "inline-icon-sm");
+    item.appendChild(menuBtn);
+  }
 
-    item.append(content, menuBtn);
-    savedSessionsListNode.appendChild(item);
-  });
+  return item;
 }
 
 function getSessionTitle(session) {
@@ -1370,6 +1589,13 @@ function formatSessionMeta(session) {
   const stamp = String(session?.updated_at || session?.last_message_at || session?.created_at || "").trim();
   const time = stamp ? formatRelativeTime(stamp) : "recent";
   return `${count} msg${count === 1 ? "" : "s"} · ${time}`;
+}
+
+function formatLocalSessionMeta(session) {
+  const count = Number(session?.message_count || 0);
+  const stamp = String(session?.updated_at || session?.last_message_at || session?.created_at || "").trim();
+  const time = stamp ? formatRelativeTime(stamp) : "recent";
+  return `Local · ${count} msg${count === 1 ? "" : "s"} · ${time}`;
 }
 
 function formatRelativeTime(value) {
@@ -1470,25 +1696,104 @@ function closeSessionItemMenu() {
   activeSessionMenuSessionId = "";
 }
 
-async function openSavedSession(sessionId) {
-  if (!sessionId || sending || pinActionBusy || savedSessionsLoading) return;
-  closeSessionItemMenu();
+function resolveSessionModeFromMessages(messages) {
+  return Array.isArray(messages) && messages.some((item) => resolveMode(item?.mode) === CHAT_MODES.CODE)
+    ? CHAT_MODES.CODE
+    : CHAT_MODES.CHAT;
+}
 
-  if (sessionId === currentSessionId) {
+function clearSessionViewState() {
+  latestUploadContext = "";
+  clearPendingAttachments();
+  clearImageGenerationHistory();
+  closeModelPicker();
+  closeUploadMenu();
+  closeRegenerateMenu();
+  closeImagePreviewModal();
+}
+
+function hydrateMessagesIntoView(messages) {
+  chatHistory = [];
+  messagesNode.innerHTML = "";
+
+  if (!Array.isArray(messages) || !messages.length) {
+    appendInitialPanelState();
     return;
   }
 
-  if (hasUnsavedSessionContent()) {
-    const wantsSave = window.confirm(
-      "Current chat is unsaved and can be lost.\n\nPress OK to save first, or Cancel to continue without saving."
-    );
-    if (wantsSave) {
-      await handlePinSessionToggle();
-      if (!isSessionPinned) {
-        setStatus("Could not save current chat. Session switch cancelled.");
-        return;
-      }
-    }
+  messages.forEach((item) => {
+    appendMessage({
+      role: normalizeMessageRole(item?.role),
+      text: String(item?.content || ""),
+      includeInHistory: false,
+    });
+    chatHistory.push({
+      role: normalizeMessageRole(item?.role),
+      content: String(item?.content || ""),
+      model: typeof item?.model === "string" ? item.model : null,
+      mode: typeof item?.mode === "string" ? item.mode : CHAT_MODES.CHAT,
+      createdAt:
+        typeof item?.createdAt === "string"
+          ? item.createdAt
+          : typeof item?.created_at === "string"
+            ? item.created_at
+            : new Date().toISOString(),
+      metadata: item?.metadata && typeof item.metadata === "object" ? item.metadata : {},
+    });
+  });
+}
+
+function applyLoadedSession({ sessionId, pinned, messages, statusText = "Chat loaded." }) {
+  currentSessionId = sessionId;
+  localStorage.setItem(STORAGE_CHAT_SESSION_ID, currentSessionId);
+  isSessionPinned = pinned === true;
+  savePinnedState(currentSessionId, isSessionPinned);
+  lastPinnedSnapshotHash = "";
+
+  clearSessionViewState();
+  setActiveMode(resolveSessionModeFromMessages(messages));
+  hydrateMessagesIntoView(messages);
+
+  if (isSessionPinned && chatHistory.length > 0) {
+    lastPinnedSnapshotHash = buildPinnedSnapshotHash(getChatHistoryForPersistence());
+  }
+
+  inputNode.value = "";
+  autoResizeInput();
+  syncPinSessionUI();
+  renderSavedSessions();
+  setStatus(statusText);
+}
+
+function openLocalSession(sessionId, { forceReload = false, skipPersistCurrent = false } = {}) {
+  if (!sessionId || sending || pinActionBusy) return;
+  closeSessionItemMenu();
+  const existing = findLocalSessionById(sessionId);
+  if (!existing) return;
+  if (sessionId === currentSessionId && !forceReload) return;
+
+  if (!skipPersistCurrent) {
+    persistCurrentLocalSession({ render: false });
+  }
+
+  applyLoadedSession({
+    sessionId,
+    pinned: false,
+    messages: existing.messages,
+    statusText: "Local chat loaded.",
+  });
+}
+
+async function openSavedSession(sessionId, { forceReload = false, skipPersistCurrent = false } = {}) {
+  if (!sessionId || sending || pinActionBusy || savedSessionsLoading) return;
+  closeSessionItemMenu();
+
+  if (sessionId === currentSessionId && !forceReload) {
+    return;
+  }
+
+  if (!skipPersistCurrent) {
+    persistCurrentLocalSession({ render: false });
   }
 
   setStatus("Opening saved chat...");
@@ -1509,65 +1814,12 @@ async function openSavedSession(sessionId) {
     );
 
     const normalizedRows = Array.isArray(rows) ? rows : [];
-    currentSessionId = sessionId;
-    localStorage.setItem(STORAGE_CHAT_SESSION_ID, currentSessionId);
-    isSessionPinned = true;
-    savePinnedState(currentSessionId, true);
-    lastPinnedSnapshotHash = "";
-
-    chatHistory = [];
-    latestUploadContext = "";
-    clearPendingAttachments();
-    clearImageGenerationHistory();
-    closeModelPicker();
-    closeUploadMenu();
-    closeRegenerateMenu();
-    closeImagePreviewModal();
-
-    const nextMode = normalizedRows.some((row) => resolveMode(row?.mode) === CHAT_MODES.CODE)
-      ? CHAT_MODES.CODE
-      : CHAT_MODES.CHAT;
-    setActiveMode(nextMode);
-
-    messagesNode.innerHTML = "";
-    if (!normalizedRows.length) {
-      appendMessage({
-        role: "assistant",
-        text: "Saved chat is empty. Ask anything.",
-        includeInHistory: false,
-      });
-      syncPinSessionUI();
-      renderSavedSessions();
-      setStatus("Saved chat loaded.");
-      return;
-    }
-
-    normalizedRows.forEach((row) => {
-      const role = normalizeMessageRole(row?.role);
-      const content = String(row?.content || "");
-      appendMessage({
-        role,
-        text: content,
-        includeInHistory: false,
-      });
-      chatHistory.push({
-        role,
-        content,
-        model: typeof row?.model === "string" ? row.model : null,
-        mode: typeof row?.mode === "string" ? row.mode : CHAT_MODES.CHAT,
-        createdAt: typeof row?.created_at === "string" ? row.created_at : new Date().toISOString(),
-        metadata: row?.metadata && typeof row.metadata === "object" ? row.metadata : {},
-      });
+    applyLoadedSession({
+      sessionId,
+      pinned: true,
+      messages: normalizedRows,
+      statusText: "Saved chat loaded.",
     });
-
-    if (chatHistory.length > 0) {
-      const persisted = getChatHistoryForPersistence();
-      lastPinnedSnapshotHash = buildPinnedSnapshotHash(persisted);
-    }
-
-    syncPinSessionUI();
-    renderSavedSessions();
-    setStatus("Saved chat loaded.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not open saved chat.";
     setStatus(message);
@@ -1654,6 +1906,7 @@ async function handleDeleteSavedSession() {
       isSessionPinned = false;
       savePinnedState(currentSessionId, false);
       lastPinnedSnapshotHash = "";
+      persistCurrentLocalSession({ render: false });
       syncPinSessionUI();
     }
     renderSavedSessions();
@@ -1664,25 +1917,8 @@ async function handleDeleteSavedSession() {
   }
 }
 
-function hasUnsavedSessionContent() {
-  return !isSessionPinned && chatHistory.length > 0;
-}
-
 async function handleNewChat() {
   if (sending || pinActionBusy) return;
-
-  if (hasUnsavedSessionContent()) {
-    const wantsSave = window.confirm(
-      "This chat is not saved and will be lost.\n\nPress OK to save first, or Cancel to continue without saving."
-    );
-    if (wantsSave) {
-      await handlePinSessionToggle();
-      if (!isSessionPinned) {
-        setStatus("Could not save this chat. New chat cancelled.");
-        return;
-      }
-    }
-  }
 
   if (activeMode === CHAT_MODES.IMAGE) {
     setActiveMode(CHAT_MODES.CHAT);
@@ -1691,6 +1927,7 @@ async function handleNewChat() {
 }
 
 function startNewChatSession() {
+  persistCurrentLocalSession({ render: false });
   closeModelPicker();
   closeUploadMenu();
   closeRegenerateMenu();
@@ -1757,6 +1994,7 @@ async function handlePinSessionToggle() {
       await upsertPinnedSessionToSupabase({ skipIfUnchanged: false });
       isSessionPinned = true;
       savePinnedState(currentSessionId, true);
+      removeLocalSessionById(currentSessionId, { render: false });
       await refreshSavedSessions();
       setStatus("Chat saved to Supabase.");
     } else {
@@ -1764,6 +2002,7 @@ async function handlePinSessionToggle() {
       isSessionPinned = false;
       savePinnedState(currentSessionId, false);
       lastPinnedSnapshotHash = "";
+      persistCurrentLocalSession({ render: false });
       await refreshSavedSessions();
       setStatus("Chat unsaved.");
     }
@@ -2195,6 +2434,7 @@ function appendMessage({
       chatHistory = chatHistory.slice(-16);
     }
     requestPinnedSessionSync();
+    persistCurrentLocalSession();
   }
 
   return row;
@@ -2309,6 +2549,7 @@ function appendGeneratedImageMessage({ prompt, imageDataUrl, model }) {
     chatHistory = chatHistory.slice(-16);
   }
   requestPinnedSessionSync();
+  persistCurrentLocalSession();
 }
 
 function createRegenerateMenu() {
@@ -2690,6 +2931,7 @@ function removeHistoryEntryForRow(row) {
   });
 
   requestPinnedSessionSync();
+  persistCurrentLocalSession();
 }
 
 function renderModelCards() {

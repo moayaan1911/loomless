@@ -12,6 +12,7 @@ const iconApi =
 const loginStageNode = document.getElementById("stage-login");
 const profileStageNode = document.getElementById("stage-profile");
 const successStageNode = document.getElementById("stage-success");
+const statusWrapNode = document.querySelector(".status-wrap");
 const statusNode = document.getElementById("status");
 
 const loginFormNode = document.getElementById("login-form");
@@ -224,7 +225,7 @@ async function continueWithSession(session, { loggedInMessage = "Signed in succe
   if (!session) {
     resetLoginFlow();
     showStage("login");
-    setStatus("Sign in to continue.", "");
+    setStatus("", "");
     return;
   }
 
@@ -529,6 +530,9 @@ function showStage(stage) {
 function setStatus(text, tone = "") {
   statusNode.textContent = text || "";
   statusNode.classList.remove("ok", "error");
+  if (statusWrapNode) {
+    statusWrapNode.setAttribute("data-empty", text ? "false" : "true");
+  }
   if (tone === "ok") {
     statusNode.classList.add("ok");
   } else if (tone === "error") {
