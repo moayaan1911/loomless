@@ -91,6 +91,10 @@
               <span class="mode-tab-icon code" data-ll-icon="modeCode" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Code</span>
             </button>
+            <button id="mode-writer-btn" type="button" class="mode-tab" data-chat-mode="writer" aria-selected="false">
+              <span class="mode-tab-icon writer" data-ll-icon="edit" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              <span>Writer</span>
+            </button>
           </div>
           <p id="mode-note" class="mode-note" hidden></p>
           <div id="upload-preview-list" class="upload-preview-list" hidden></div>
@@ -135,7 +139,7 @@
           </div>
           <p class="model-speed-disclaimer">
             <span class="model-speed-icon" data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-            <span><strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait. If results are slow, switch to the default model.</em></strong></span>
+            <span><strong><em>Responses can take longer on some models. Keep this tab open while waiting. Use Default Model for faster responses.</em></strong></span>
           </p>
           <input id="image-upload-input" type="file" accept="image/png,image/jpeg,image/jpg" multiple hidden />
           <input id="pdf-upload-input" type="file" accept=".pdf,application/pdf" multiple hidden />
@@ -182,6 +186,185 @@
           </header>
           <div class="image-preview-body">
             <img id="image-preview-modal-img" class="image-preview-modal-img" alt="Attached image full preview" />
+          </div>
+        </div>
+      </section>
+
+      <section id="settings-modal" class="sources-modal settings-modal" hidden>
+        <div id="settings-modal-backdrop" class="sources-backdrop"></div>
+        <div class="sources-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <header class="sources-header settings-modal-header">
+            <div class="settings-header-copy">
+              <h3 id="settings-title">Settings</h3>
+            </div>
+            <div class="settings-header-actions">
+              <button id="settings-save-btn" type="button" class="primary-btn settings-save-btn">
+                <span data-ll-icon="success" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                <span>Save</span>
+              </button>
+              <button id="settings-close-btn" type="button" class="ghost-btn settings-close-icon-btn" aria-label="Close settings">
+                <span data-ll-icon="remove" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+              </button>
+            </div>
+          </header>
+
+          <div class="settings-body">
+            <aside class="settings-profile-panel">
+              <section class="settings-card settings-profile-rail">
+                <div class="settings-profile-top">
+                  <div class="settings-profile-avatar">
+                    <span data-ll-icon="user" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
+                  </div>
+                  <div>
+                    <p class="settings-section-eyebrow">Profile</p>
+                    <h4 id="settings-profile-name">LoomLess User</h4>
+                    <p id="settings-profile-contact" class="settings-profile-meta">ayaangames@gmail.com</p>
+                  </div>
+                </div>
+
+                <div class="settings-rail-meta">
+                  <div class="settings-rail-stat">
+                    <span class="settings-rail-stat-icon" data-ll-icon="age" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <div class="settings-rail-stat-copy">
+                      <span class="settings-rail-stat-label">Age</span>
+                      <strong id="settings-age-value" class="settings-rail-stat-value">18+</strong>
+                    </div>
+                  </div>
+                  <div class="settings-rail-stat">
+                    <span class="settings-rail-stat-icon" data-ll-icon="info" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <div class="settings-rail-stat-copy">
+                      <span class="settings-rail-stat-label">Location</span>
+                      <strong id="settings-location-value" class="settings-rail-stat-value">This device</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-rail-section">
+                  <div class="settings-rail-heading">
+                    <span data-ll-icon="rocket" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Check Out</span>
+                  </div>
+
+                  <div class="settings-contact-links settings-links-inline">
+                    <a class="settings-contact-chip" href="https://pizbot.com" target="_blank" rel="noreferrer noopener">
+                      <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>pizbot.com</span>
+                    </a>
+                    <a class="settings-contact-chip" href="https://loomless.fun" target="_blank" rel="noreferrer noopener">
+                      <span data-ll-icon="rocket" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>loomless.fun</span>
+                    </a>
+                  </div>
+                </div>
+
+                <div class="settings-rail-section">
+                  <div class="settings-rail-heading">
+                    <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Contact</span>
+                  </div>
+
+                  <div class="settings-contact-links">
+                    <a class="settings-contact-chip settings-contact-btn" href="mailto:ayaangames@gmail.com">
+                      <span data-ll-icon="email" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Contact</span>
+                    </a>
+                  </div>
+                </div>
+
+                <div class="settings-rail-section settings-rail-section-danger">
+                  <div class="settings-rail-heading">
+                    <span data-ll-icon="warning" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Access</span>
+                  </div>
+
+                  <div class="settings-action-row">
+                    <button id="settings-logout-btn" type="button" class="ghost-btn settings-action-btn">
+                      <span data-ll-icon="power" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Log Out</span>
+                    </button>
+                    <button id="settings-delete-account-btn" type="button" class="settings-delete-btn">
+                      <span data-ll-icon="delete" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Delete Account</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </aside>
+
+            <div class="settings-main-panel">
+              <section class="settings-card settings-form-shell">
+                <div class="settings-form-intro">
+                  <div class="settings-section-head">
+                    <span data-ll-icon="edit" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <h4>About You</h4>
+                  </div>
+                </div>
+
+                <div class="settings-form-group">
+                  <label class="settings-field">
+                    <span class="settings-field-label">
+                      <span data-ll-icon="user" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Name</span>
+                    </span>
+                    <input id="settings-name-input" class="settings-input" type="text" maxlength="60" placeholder="Your display name" />
+                  </label>
+                </div>
+
+                <div class="settings-form-group">
+                  <div class="settings-field-label">
+                    <span data-ll-icon="userPlus" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <span>Gender</span>
+                  </div>
+                  <div class="settings-choice-row">
+                    <button id="settings-gender-male-btn" type="button" class="settings-choice-btn active" data-settings-gender="male">
+                      <span class="settings-choice-symbol" aria-hidden="true">♂</span>
+                      <span>Male</span>
+                    </button>
+                    <button id="settings-gender-female-btn" type="button" class="settings-choice-btn" data-settings-gender="female">
+                      <span class="settings-choice-symbol" aria-hidden="true">♀</span>
+                      <span>Female</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="settings-form-group">
+                  <div class="settings-section-head">
+                    <span data-ll-icon="sidebarExpand" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <h4>Sidebar Mode</h4>
+                  </div>
+
+                  <div class="settings-choice-row">
+                    <button id="settings-sidebar-manual-btn" type="button" class="settings-choice-btn active" data-settings-sidebar="manual">
+                      <span data-ll-icon="sidebarCollapse" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Manual</span>
+                    </button>
+                    <button id="settings-sidebar-auto-btn" type="button" class="settings-choice-btn" data-settings-sidebar="auto">
+                      <span data-ll-icon="sidebarExpand" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                      <span>Auto Sidebar</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="settings-form-group settings-form-group-memory">
+                  <div class="settings-section-head">
+                    <span data-ll-icon="sparkle" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
+                    <h4>Memory</h4>
+                  </div>
+
+                  <label class="settings-field">
+                    <textarea
+                      id="settings-memory-input"
+                      class="settings-textarea"
+                      maxlength="800"
+                      placeholder="Add preferences, tone, work style, or anything worth remembering..."
+                    ></textarea>
+                  </label>
+                  <div class="settings-counter-row">
+                    <span id="settings-memory-counter" class="settings-counter">0 / 800</span>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
       </section>

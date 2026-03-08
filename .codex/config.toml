@@ -1,0 +1,6 @@
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=yucnbindmwshdkfewydh"
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]

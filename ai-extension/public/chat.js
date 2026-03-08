@@ -27,10 +27,12 @@ const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
 const STORAGE_LOCAL_SESSIONS = "loomless_ai_chat_local_sessions_v1";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
+const DEFAULT_WRITER_MODEL_API = "meta/llama-3.2-3b-instruct";
 const DEFAULT_IMAGE_MODEL_API = "black-forest-labs/flux.1-dev";
 const MAX_LOCAL_SESSIONS = 12;
 const CHAT_MODES = {
   CHAT: "chat",
+  WRITER: "writer",
   CODE: "code",
   IMAGE: "image",
 };
@@ -166,6 +168,54 @@ const MODEL_OPTIONS = [
   },
   {
     provider: "Meta",
+    name: "llama-4-scout-17b-16e-instruct",
+    apiModel: "meta/llama-4-scout-17b-16e-instruct",
+    desc: "Multimodal multilingual MoE model with strong reasoning, rich context handling, and efficient inference.",
+    icon: "meta.png",
+    badges: ["New"],
+  },
+  {
+    provider: "Meta",
+    name: "llama-3.3-70b-instruct",
+    apiModel: "meta/llama-3.3-70b-instruct",
+    desc: "Advanced large instruct model for reasoning, coding, structured output, and general-purpose chat.",
+    icon: "meta.png",
+    badges: ["New"],
+  },
+  {
+    provider: "Meta",
+    name: "llama-3.2-3b-instruct",
+    apiModel: "meta/llama-3.2-3b-instruct",
+    desc: "Smaller Llama 3.2 model tuned for fast text generation, lightweight reasoning, and chat tasks.",
+    icon: "meta.png",
+    badges: ["New", "Fast"],
+  },
+  {
+    provider: "Meta",
+    name: "llama-3.2-11b-vision-instruct",
+    apiModel: "meta/llama-3.2-11b-vision-instruct",
+    desc: "Vision-language instruct model that also works well for strong text reasoning and multimodal workflows.",
+    icon: "meta.png",
+    badges: ["New"],
+  },
+  {
+    provider: "Meta",
+    name: "llama-3.2-90b-vision-instruct",
+    apiModel: "meta/llama-3.2-90b-vision-instruct",
+    desc: "High-capacity vision-language model for deeper multimodal reasoning and stronger long-form responses.",
+    icon: "meta.png",
+    badges: ["New"],
+  },
+  {
+    provider: "Meta",
+    name: "llama-3.2-1b-instruct",
+    apiModel: "meta/llama-3.2-1b-instruct",
+    desc: "Ultra-lightweight Llama 3.2 model for low-latency text generation and simple chat workflows.",
+    icon: "meta.png",
+    badges: ["New", "Fast"],
+  },
+  {
+    provider: "Meta",
     name: "llama-3.1-70b-instruct",
     apiModel: "meta/llama-3.1-70b-instruct",
     desc: "High-quality model for complex conversations with strong reasoning and context handling.",
@@ -231,6 +281,12 @@ const SHORT_MODEL_DESCRIPTIONS = {
   "stabilityai/stable-diffusion-3-medium": "Stable Diffusion 3 medium model for text-to-image outputs.",
   "mistralai/devstral-2-123b-instruct-2512": "Code-first instruct model for developer-heavy tasks.",
   "mistralai/mistral-large-3-675b-instruct-2512": "Premium large model for high-quality long-form output.",
+  "meta/llama-4-scout-17b-16e-instruct": "Meta MoE model for rich reasoning, chat, and multilingual tasks.",
+  "meta/llama-3.3-70b-instruct": "Large Meta model for strong reasoning and high-quality responses.",
+  "meta/llama-3.2-3b-instruct": "Fast lightweight Llama 3.2 model for everyday chat and coding.",
+  "meta/llama-3.2-11b-vision-instruct": "Meta vision-language model that also works well for text tasks.",
+  "meta/llama-3.2-90b-vision-instruct": "High-capacity Meta vision-language model for deeper reasoning.",
+  "meta/llama-3.2-1b-instruct": "Ultra-fast tiny Llama 3.2 model for simple low-latency tasks.",
   "meta/llama-3.1-70b-instruct": "Powerful Llama model for detailed and accurate chat.",
   "meta/llama-3.1-8b-instruct": "Fast Llama model for quick and lightweight conversations.",
   "meta/llama3-70b-instruct": "Large conversational model for nuanced responses.",
@@ -285,6 +341,24 @@ const imagePreviewModalNode = document.getElementById("image-preview-modal");
 const imagePreviewBackdropNode = document.getElementById("image-preview-backdrop");
 const imagePreviewCloseBtnNode = document.getElementById("image-preview-close-btn");
 const imagePreviewModalImgNode = document.getElementById("image-preview-modal-img");
+const settingsModalNode = document.getElementById("settings-modal");
+const settingsModalBackdropNode = document.getElementById("settings-modal-backdrop");
+const settingsCloseBtnNode = document.getElementById("settings-close-btn");
+const settingsSaveBtnNode = document.getElementById("settings-save-btn");
+const settingsProfileNameNode = document.getElementById("settings-profile-name");
+const settingsProfileContactNode = document.getElementById("settings-profile-contact");
+const settingsAgeValueNode = document.getElementById("settings-age-value");
+const settingsLocationValueNode = document.getElementById("settings-location-value");
+const settingsContactValueNode = document.getElementById("settings-contact-value");
+const settingsSidebarModeValueNode = document.getElementById("settings-sidebar-mode-value");
+const settingsContactChipEmailNode = document.getElementById("settings-contact-chip-email");
+const settingsNameInputNode = document.getElementById("settings-name-input");
+const settingsMemoryInputNode = document.getElementById("settings-memory-input");
+const settingsMemoryCounterNode = document.getElementById("settings-memory-counter");
+const settingsGenderButtons = Array.from(document.querySelectorAll("[data-settings-gender]"));
+const settingsSidebarButtons = Array.from(document.querySelectorAll("[data-settings-sidebar]"));
+const settingsLogoutBtnNode = document.getElementById("settings-logout-btn");
+const settingsDeleteAccountBtnNode = document.getElementById("settings-delete-account-btn");
 const modeTabNodes = Array.from(document.querySelectorAll("[data-chat-mode]"));
 const modeTabsWrapNode = document.querySelector(".mode-tabs");
 const modeNoteNode = document.getElementById("mode-note");
@@ -297,7 +371,7 @@ const APP_NAME = "LoomLess GPT";
 const APP_URL = "loomless.fun";
 const IMAGE_MODE_MODEL_COUNT = IMAGE_MODE_MODEL_ORDER.length;
 const DEFAULT_MODEL_SPEED_DISCLAIMER =
-  "<strong><em>Open-weight model inference can be slower (especially for image tasks). Please keep this tab open and wait. If results are slow, switch to the default model.</em></strong>";
+  "<strong><em>Responses can take longer on some models. Keep this tab open while waiting. Use Default Model for faster responses.</em></strong>";
 const IMAGE_MODE_SPEED_DISCLAIMER =
   `<strong><em>Open-weight image model inference can be slow. Keep this tab open while all ${IMAGE_MODE_MODEL_COUNT} models finish generating.</em></strong>`;
 
@@ -332,6 +406,19 @@ let activeRequestState = null;
 let initialSessionHydrated = false;
 const regenerateMenuNode = createRegenerateMenu();
 const USER_ABORT_MESSAGE = "Request stopped by user.";
+const SETTINGS_MEMORY_LIMIT = 800;
+const SETTINGS_DEFAULT_AGE = "18+";
+const SETTINGS_CONTACT_EMAIL = "ayaangames@gmail.com";
+let settingsDraft = {
+  name: "",
+  age: SETTINGS_DEFAULT_AGE,
+  location: "",
+  memory: "",
+  gender: "male",
+  sidebarMode: "manual",
+};
+let settingsSavedSnapshot = "";
+let settingsProfileHydrated = false;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.mjs";
 iconApi?.mount?.(document);
@@ -380,7 +467,7 @@ sidebarToggleBtn?.addEventListener("click", () => {
 });
 
 sidebarSettingsBtn?.addEventListener("click", () => {
-  setStatus("Settings panel is coming soon.");
+  openSettingsModal();
 });
 
 savedSessionsListNode?.addEventListener("click", (event) => {
@@ -422,6 +509,8 @@ if (chrome?.storage?.onChanged) {
     if (!(STORAGE_AUTH_SESSION in changes) && !(STORAGE_PROFILE_COMPLETED in changes)) return;
     if (STORAGE_AUTH_SESSION in changes) {
       authSession = normalizeAuthSession(changes[STORAGE_AUTH_SESSION].newValue);
+      settingsProfileHydrated = false;
+      settingsSavedSnapshot = "";
     }
     if (STORAGE_PROFILE_COMPLETED in changes) {
       profileCompleted = changes[STORAGE_PROFILE_COMPLETED].newValue === true;
@@ -543,6 +632,51 @@ modelPickerBtn.addEventListener("click", (event) => {
 
 imagePreviewCloseBtnNode.addEventListener("click", closeImagePreviewModal);
 imagePreviewBackdropNode.addEventListener("click", closeImagePreviewModal);
+settingsCloseBtnNode?.addEventListener("click", closeSettingsModal);
+settingsSaveBtnNode?.addEventListener("click", () => {
+  void handleSettingsSave();
+});
+settingsModalBackdropNode?.addEventListener("click", closeSettingsModal);
+
+settingsNameInputNode?.addEventListener("input", () => {
+  settingsDraft.name = String(settingsNameInputNode.value || "").replace(/\s+/g, " ").trim();
+  syncSettingsModalUI();
+});
+
+settingsMemoryInputNode?.addEventListener("input", () => {
+  settingsDraft.memory = String(settingsMemoryInputNode.value || "").slice(0, SETTINGS_MEMORY_LIMIT);
+  if (settingsMemoryInputNode.value !== settingsDraft.memory) {
+    settingsMemoryInputNode.value = settingsDraft.memory;
+  }
+  syncSettingsMemoryCounter();
+});
+
+settingsGenderButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextGender = button.getAttribute("data-settings-gender");
+    if (!nextGender) return;
+    settingsDraft.gender = nextGender;
+    syncSettingsModalUI();
+  });
+});
+
+settingsSidebarButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextMode = button.getAttribute("data-settings-sidebar");
+    if (!nextMode) return;
+    settingsDraft.sidebarMode = nextMode;
+    syncSettingsChoiceButtons();
+    syncSettingsModalUI();
+  });
+});
+
+settingsLogoutBtnNode?.addEventListener("click", () => {
+  setStatus("Settings UI only. Logout wiring comes next.");
+});
+
+settingsDeleteAccountBtnNode?.addEventListener("click", () => {
+  setStatus("Settings UI only. Delete account wiring comes next.");
+});
 
 document.addEventListener("click", (event) => {
   const target = event.target;
@@ -580,6 +714,10 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (settingsModalNode && !settingsModalNode.hidden) {
+      closeSettingsModal();
+      return;
+    }
     if (!imagePreviewModalNode.hidden) {
       closeImagePreviewModal();
       return;
@@ -614,9 +752,20 @@ function appendInitialPanelState() {
   }
   appendMessage({
     role: "assistant",
-    text: "Hey, I am LoomLess GPT. Ask anything.",
+    text: getInitialAssistantMessage(activeMode),
     includeInHistory: false,
+    showAssistantActions: false,
   });
+}
+
+function getInitialAssistantMessage(mode) {
+  if (mode === CHAT_MODES.CODE) {
+    return "Hey, I am LoomLess GPT. Ask for code, scripts, components, or full builds.";
+  }
+  if (mode === CHAT_MODES.WRITER) {
+    return "Hey, I am LoomLess GPT. Ask me to write blogs, emails, captions, scripts, or long-form content.";
+  }
+  return "Hey, I am LoomLess GPT. Ask anything.";
 }
 
 function clearImageGenerationHistory() {
@@ -869,6 +1018,8 @@ async function runSend() {
   });
   const loadingLabel = attachmentsForSend.length
     ? `Analyzing ${attachmentsForSend.length} file${attachmentsForSend.length > 1 ? "s" : ""}`
+    : activeMode === CHAT_MODES.WRITER
+      ? "Writing"
     : activeMode === CHAT_MODES.CODE
       ? "Generating code"
       : "Thinking";
@@ -1491,6 +1642,280 @@ function syncSidebarFeatureButtons() {
   }
 }
 
+function openSettingsModal() {
+  closeModelPicker();
+  closeUploadMenu();
+  closeRegenerateMenu();
+  closeSessionItemMenu();
+  closeImagePreviewModal();
+  ensureSettingsDraftDefaults();
+  syncSettingsModalUI();
+  if (settingsModalNode) {
+    settingsModalNode.hidden = false;
+  }
+  void hydrateSettingsProfileFromSupabase();
+  settingsNameInputNode?.focus();
+}
+
+function closeSettingsModal() {
+  if (settingsModalNode) {
+    settingsModalNode.hidden = true;
+  }
+}
+
+function ensureSettingsDraftDefaults() {
+  if (!settingsDraft.name) {
+    settingsDraft.name = deriveSettingsName();
+  }
+  if (!settingsDraft.age) {
+    settingsDraft.age = SETTINGS_DEFAULT_AGE;
+  }
+  if (!settingsDraft.location) {
+    settingsDraft.location = deriveSettingsLocation();
+  }
+  if (!settingsDraft.memory) {
+    settingsDraft.memory = "";
+  }
+  if (settingsDraft.gender !== "female") {
+    settingsDraft.gender = "male";
+  }
+  if (settingsDraft.sidebarMode !== "auto") {
+    settingsDraft.sidebarMode = "manual";
+  }
+  if (!settingsSavedSnapshot) {
+    settingsSavedSnapshot = getSettingsSnapshot();
+  }
+}
+
+function deriveSettingsName() {
+  const email = String(authSession?.email || "").trim();
+  if (!email.includes("@")) {
+    return "LoomLess User";
+  }
+  const localPart = email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!localPart) {
+    return "LoomLess User";
+  }
+  return localPart
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function deriveSettingsLocation() {
+  const timeZone = String(Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
+  if (!timeZone) {
+    return "This device";
+  }
+  return timeZone
+    .split("/")
+    .map((part) => part.replace(/_/g, " "))
+    .join(" / ");
+}
+
+function getSettingsContactEmail() {
+  const authEmail = String(authSession?.email || "").trim().toLowerCase();
+  return authEmail || SETTINGS_CONTACT_EMAIL;
+}
+
+function getSettingsSnapshot() {
+  return JSON.stringify({
+    name: String(settingsDraft.name || "").trim(),
+    age: String(settingsDraft.age || SETTINGS_DEFAULT_AGE).trim(),
+    location: String(settingsDraft.location || "").trim(),
+    memory: String(settingsDraft.memory || ""),
+    gender: settingsDraft.gender === "female" ? "female" : "male",
+    sidebarMode: settingsDraft.sidebarMode === "auto" ? "auto" : "manual",
+  });
+}
+
+function extractProfileLocationEstimate(profileRow) {
+  if (!profileRow || typeof profileRow !== "object") {
+    return "";
+  }
+
+  const directCandidates = [
+    profileRow.location_estimate,
+    profileRow.location,
+    profileRow.city,
+    profileRow.region,
+    profileRow.country,
+    profileRow.timezone,
+  ];
+
+  for (const candidate of directCandidates) {
+    const clean = String(candidate || "").trim();
+    if (clean) return clean;
+  }
+
+  const metadata = profileRow.metadata && typeof profileRow.metadata === "object" ? profileRow.metadata : {};
+  const metadataCandidates = [
+    metadata.location_estimate,
+    metadata.location,
+    metadata.location_text,
+    metadata.locationLabel,
+    metadata.ip_location,
+    metadata.ipLocation,
+    metadata.city && metadata.country ? `${metadata.city}, ${metadata.country}` : "",
+    metadata.city && metadata.region ? `${metadata.city}, ${metadata.region}` : "",
+    metadata.city,
+    metadata.region,
+    metadata.country,
+    metadata.timezone,
+  ];
+
+  for (const candidate of metadataCandidates) {
+    const clean = String(candidate || "").trim();
+    if (clean) return clean;
+  }
+
+  return "";
+}
+
+async function hydrateSettingsProfileFromSupabase() {
+  if (settingsProfileHydrated) return;
+  if (!authSession || !profileCompleted) return;
+
+  try {
+    const config = await getSupabaseConfig();
+    if (!config) return;
+    const encodedUserId = encodeURIComponent(config.userId);
+    const rows = await supabaseRestRequest(
+      `ai_user_profiles?select=*&user_id=eq.${encodedUserId}&limit=1`,
+      {
+        method: "GET",
+        prefer: "return=representation",
+      }
+    );
+
+    if (!Array.isArray(rows) || !rows.length) return;
+    const profileRow = rows[0];
+    const metadata = profileRow?.metadata && typeof profileRow.metadata === "object" ? profileRow.metadata : {};
+
+    settingsDraft.name = String(profileRow?.full_name || settingsDraft.name || deriveSettingsName()).trim();
+    settingsDraft.age = String(profileRow?.age || settingsDraft.age || SETTINGS_DEFAULT_AGE).trim();
+    settingsDraft.gender = metadata.gender === "female" ? "female" : "male";
+    settingsDraft.location = extractProfileLocationEstimate(profileRow) || deriveSettingsLocation();
+    settingsSavedSnapshot = getSettingsSnapshot();
+    settingsProfileHydrated = true;
+    syncSettingsModalUI();
+  } catch (_error) {
+    settingsProfileHydrated = false;
+  }
+}
+
+async function handleSettingsSave() {
+  if (!settingsSaveBtnNode || settingsSaveBtnNode.disabled) return;
+  if (!authSession || !profileCompleted) {
+    closeSettingsModal();
+    return;
+  }
+
+  settingsSaveBtnNode.disabled = true;
+  try {
+    const config = await getSupabaseConfig();
+    if (!config) {
+      throw new Error("Supabase config missing.");
+    }
+
+    const encodedUserId = encodeURIComponent(config.userId);
+    const existingRows = await supabaseRestRequest(
+      `ai_user_profiles?select=age,metadata&user_id=eq.${encodedUserId}&limit=1`,
+      {
+        method: "GET",
+        prefer: "return=representation",
+      }
+    ).catch(() => []);
+
+    const existingRow = Array.isArray(existingRows) && existingRows.length ? existingRows[0] : null;
+    const existingMetadata =
+      existingRow?.metadata && typeof existingRow.metadata === "object" ? { ...existingRow.metadata } : {};
+
+    await supabaseRestRequest("ai_user_profiles?on_conflict=user_id", {
+      method: "POST",
+      body: [
+        {
+          user_id: config.userId,
+          full_name: String(settingsDraft.name || "").trim() || deriveSettingsName(),
+          age: Number.parseInt(String(existingRow?.age || settingsDraft.age || SETTINGS_DEFAULT_AGE), 10) || 18,
+          metadata: {
+            ...existingMetadata,
+            gender: settingsDraft.gender === "female" ? "female" : "male",
+            updated_from: "loomless-ai-settings",
+            updated_at: new Date().toISOString(),
+          },
+        },
+      ],
+      prefer: "resolution=merge-duplicates,return=representation",
+    });
+
+    settingsSavedSnapshot = getSettingsSnapshot();
+    settingsProfileHydrated = true;
+    syncSettingsModalUI();
+    setStatus("Settings saved.");
+    window.setTimeout(() => {
+      closeSettingsModal();
+    }, 550);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "Could not save settings.");
+    syncSettingsModalUI();
+  }
+}
+
+function syncSettingsModalUI() {
+  const displayName = String(settingsDraft.name || deriveSettingsName()).trim() || "LoomLess User";
+  const email = getSettingsContactEmail();
+
+  if (settingsProfileNameNode) {
+    settingsProfileNameNode.textContent = displayName;
+  }
+  if (settingsProfileContactNode) {
+    settingsProfileContactNode.textContent = email;
+  }
+  if (settingsAgeValueNode) {
+    settingsAgeValueNode.textContent = settingsDraft.age || SETTINGS_DEFAULT_AGE;
+  }
+  if (settingsLocationValueNode) {
+    settingsLocationValueNode.textContent = settingsDraft.location || deriveSettingsLocation();
+  }
+  if (settingsNameInputNode && settingsNameInputNode.value !== settingsDraft.name) {
+    settingsNameInputNode.value = settingsDraft.name;
+  }
+  if (settingsMemoryInputNode && settingsMemoryInputNode.value !== settingsDraft.memory) {
+    settingsMemoryInputNode.value = settingsDraft.memory;
+  }
+
+  syncSettingsChoiceButtons();
+  syncSettingsMemoryCounter();
+  syncSettingsSaveButton();
+}
+
+function syncSettingsChoiceButtons() {
+  settingsGenderButtons.forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-settings-gender") === settingsDraft.gender);
+  });
+
+  settingsSidebarButtons.forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-settings-sidebar") === settingsDraft.sidebarMode);
+  });
+}
+
+function syncSettingsMemoryCounter() {
+  if (!settingsMemoryCounterNode) return;
+  const count = String(settingsDraft.memory || "").length;
+  settingsMemoryCounterNode.textContent = `${count} / ${SETTINGS_MEMORY_LIMIT}`;
+}
+
+function syncSettingsSaveButton() {
+  if (!settingsSaveBtnNode) return;
+  settingsSaveBtnNode.disabled = getSettingsSnapshot() === settingsSavedSnapshot;
+}
+
 function renderSavedSessions() {
   if (!savedSessionsListNode) return;
   savedSessionsListNode.innerHTML = "";
@@ -1710,6 +2135,37 @@ function clearSessionViewState() {
   closeUploadMenu();
   closeRegenerateMenu();
   closeImagePreviewModal();
+  closeSettingsModal();
+}
+
+function buildHydratedRequestMeta(messages, messageIndex, messageMode, metadata) {
+  if (messageMode !== CHAT_MODES.CHAT) return null;
+  if (metadata?.requestMeta && typeof metadata.requestMeta === "object") {
+    return metadata.requestMeta;
+  }
+
+  let userIndex = -1;
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    if (normalizeMessageRole(messages[index]?.role) === "user") {
+      userIndex = index;
+      break;
+    }
+  }
+
+  if (userIndex === -1) return null;
+
+  return {
+    prompt: String(messages[userIndex]?.content || ""),
+    history: messages.slice(Math.max(0, userIndex - 8), userIndex).map((item) => ({
+      role: normalizeMessageRole(item?.role),
+      content: String(item?.content || ""),
+    })),
+    context: "",
+    title: "",
+    url: "",
+    scope: "general",
+    mode: CHAT_MODES.CHAT,
+  };
 }
 
 function hydrateMessagesIntoView(messages) {
@@ -1721,24 +2177,40 @@ function hydrateMessagesIntoView(messages) {
     return;
   }
 
-  messages.forEach((item) => {
+  messages.forEach((item, index) => {
+    const role = normalizeMessageRole(item?.role);
+    const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
+    const messageMode = typeof item?.mode === "string" ? item.mode : CHAT_MODES.CHAT;
     appendMessage({
-      role: normalizeMessageRole(item?.role),
+      role,
       text: String(item?.content || ""),
       includeInHistory: false,
+      showAssistantActions: role === "assistant",
+      historyMeta: {
+        model: typeof item?.model === "string" ? item.model : null,
+        mode: messageMode,
+        createdAt:
+          typeof item?.createdAt === "string"
+            ? item.createdAt
+            : typeof item?.created_at === "string"
+              ? item.created_at
+              : new Date().toISOString(),
+        metadata,
+      },
+      requestMeta: role === "assistant" ? buildHydratedRequestMeta(messages, index, messageMode, metadata) : null,
     });
     chatHistory.push({
-      role: normalizeMessageRole(item?.role),
+      role,
       content: String(item?.content || ""),
       model: typeof item?.model === "string" ? item.model : null,
-      mode: typeof item?.mode === "string" ? item.mode : CHAT_MODES.CHAT,
+      mode: messageMode,
       createdAt:
         typeof item?.createdAt === "string"
           ? item.createdAt
           : typeof item?.created_at === "string"
             ? item.created_at
             : new Date().toISOString(),
-      metadata: item?.metadata && typeof item.metadata === "object" ? item.metadata : {},
+      metadata,
     });
   });
 }
@@ -2356,7 +2828,10 @@ function appendMessage({
   includeInHistory = true,
   historyMeta = null,
   requestMeta = null,
+  showAssistantActions = includeInHistory,
 }) {
+  const messageMode = historyMeta?.mode || activeMode;
+  const shouldRenderAssistantActions = role === "assistant" && showAssistantActions;
   const row = document.createElement("div");
   row.className = `msg-row ${role}`;
 
@@ -2364,7 +2839,7 @@ function appendMessage({
   bubble.className = "msg-bubble";
   bubble.innerHTML = markdownToHtml(text);
 
-  if (role === "assistant" && hasFencedCodeBlocks(text)) {
+  if (shouldRenderAssistantActions && hasFencedCodeBlocks(text)) {
     const actionRow = document.createElement("div");
     actionRow.className = "msg-action-row";
 
@@ -2383,7 +2858,7 @@ function appendMessage({
     });
     actionRow.appendChild(copyBtn);
 
-    if (activeMode === CHAT_MODES.CODE) {
+    if (messageMode === CHAT_MODES.CODE) {
       const downloadPayload = buildDownloadPayload(text);
       if (downloadPayload) {
         const downloadBtn = document.createElement("button");
@@ -2412,8 +2887,12 @@ function appendMessage({
     bubble.appendChild(actionRow);
   }
 
-  if (role === "assistant" && activeMode === CHAT_MODES.CHAT && requestMeta) {
+  if (shouldRenderAssistantActions && messageMode === CHAT_MODES.CHAT) {
     bubble.appendChild(createChatModeActionRow({ answerText: text, requestMeta }));
+  }
+
+  if (shouldRenderAssistantActions && messageMode === CHAT_MODES.WRITER) {
+    bubble.appendChild(createWriterModeActionRow({ answerText: text }));
   }
 
   row.appendChild(bubble);
@@ -2421,6 +2900,12 @@ function appendMessage({
   messagesNode.scrollTop = messagesNode.scrollHeight;
 
   if (includeInHistory) {
+    const persistedMetadata =
+      historyMeta?.metadata && typeof historyMeta.metadata === "object" ? { ...historyMeta.metadata } : {};
+    if (role === "assistant" && requestMeta && messageMode === CHAT_MODES.CHAT) {
+      persistedMetadata.requestMeta = requestMeta;
+    }
+
     row.setAttribute("data-history-index", String(chatHistory.length));
     chatHistory.push({
       role,
@@ -2428,7 +2913,7 @@ function appendMessage({
       model: historyMeta?.model || null,
       mode: historyMeta?.mode || activeMode,
       createdAt: historyMeta?.createdAt || new Date().toISOString(),
-      metadata: historyMeta?.metadata || {},
+      metadata: persistedMetadata,
     });
     if (chatHistory.length > 16) {
       chatHistory = chatHistory.slice(-16);
@@ -2478,16 +2963,84 @@ function createChatModeActionRow({ answerText, requestMeta }) {
     }
   });
 
-  const regenerateBtn = document.createElement("button");
-  regenerateBtn.type = "button";
-  regenerateBtn.className = "msg-regenerate-btn";
-  regenerateBtn.innerHTML = labelWithIcon("regenerate", "Regenerate");
-  regenerateBtn.addEventListener("click", (event) => {
-    event.stopPropagation();
-    openRegenerateMenu(regenerateBtn, requestMeta);
+  actionRow.append(copyBtn, downloadBtn);
+
+  if (requestMeta) {
+    const regenerateBtn = document.createElement("button");
+    regenerateBtn.type = "button";
+    regenerateBtn.className = "msg-regenerate-btn";
+    regenerateBtn.innerHTML = labelWithIcon("regenerate", "Regenerate");
+    regenerateBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openRegenerateMenu(regenerateBtn, requestMeta);
+    });
+    actionRow.appendChild(regenerateBtn);
+  }
+
+  return actionRow;
+}
+
+function createWriterModeActionRow({ answerText }) {
+  const actionRow = document.createElement("div");
+  actionRow.className = "msg-action-row chat-mode-action-row";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "msg-copy-btn";
+  copyBtn.innerHTML = labelWithIcon("copy", "Copy");
+  copyBtn.addEventListener("click", async () => {
+    const copied = await copyTextToClipboard(answerText);
+    copyBtn.innerHTML = copied ? labelWithIcon("check", "Copied") : "<span>Copy Failed</span>";
+    setTimeout(() => {
+      copyBtn.innerHTML = labelWithIcon("copy", "Copy");
+    }, 1300);
   });
 
-  actionRow.append(copyBtn, downloadBtn, regenerateBtn);
+  const pdfBtn = document.createElement("button");
+  pdfBtn.type = "button";
+  pdfBtn.className = "msg-download-btn";
+  pdfBtn.innerHTML = labelWithIcon("download", "PDF");
+  pdfBtn.addEventListener("click", async () => {
+    pdfBtn.disabled = true;
+    try {
+      await downloadWriterDocumentPdf(answerText);
+      setStatus("Writer document exported as PDF.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not export PDF.";
+      appendMessage({
+        role: "assistant",
+        text: `Writer PDF export failed.\n\n${message}`,
+        includeInHistory: false,
+      });
+      setStatus("Writer PDF export failed.");
+    } finally {
+      pdfBtn.disabled = false;
+    }
+  });
+
+  const docxBtn = document.createElement("button");
+  docxBtn.type = "button";
+  docxBtn.className = "msg-docx-btn";
+  docxBtn.innerHTML = labelWithIcon("download", "DOCX");
+  docxBtn.addEventListener("click", async () => {
+    docxBtn.disabled = true;
+    try {
+      await downloadWriterDocumentDocx(answerText);
+      setStatus("Writer document exported as DOCX.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not export DOCX.";
+      appendMessage({
+        role: "assistant",
+        text: `Writer DOCX export failed.\n\n${message}`,
+        includeInHistory: false,
+      });
+      setStatus("Writer DOCX export failed.");
+    } finally {
+      docxBtn.disabled = false;
+    }
+  });
+
+  actionRow.append(copyBtn, pdfBtn, docxBtn);
   return actionRow;
 }
 
@@ -2767,6 +3320,220 @@ async function downloadChatTranscriptPdf() {
   doc.save(`loomless-chat-${Date.now()}.pdf`);
 }
 
+async function downloadWriterDocumentPdf(rawText) {
+  const content = String(rawText || "").trim();
+  if (!content) {
+    throw new Error("No writer document available to export.");
+  }
+
+  const jsPdfCtor = window.jspdf?.jsPDF;
+  if (typeof jsPdfCtor !== "function") {
+    throw new Error("PDF engine is not loaded.");
+  }
+
+  const doc = new jsPdfCtor({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 42;
+  const contentWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  const logoDataUrl = await loadAssetAsDataUrl("./icon.png").catch(() => "");
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, "PNG", margin, y - 6, 24, 24);
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(18, 31, 58);
+  doc.text("LoomLess Writer", margin + 32, y + 12);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(92, 118, 170);
+  doc.text(APP_URL, margin + 32, y + 27);
+  doc.text(`Exported: ${new Date().toLocaleString()}`, pageWidth - margin, y + 27, { align: "right" });
+  y += 44;
+
+  const blocks = parseMarkdownDocumentBlocks(content);
+  for (const block of blocks) {
+    if (block.type === "blank") {
+      y += 8;
+      continue;
+    }
+
+    if (block.type === "table") {
+      const tableLines = flattenTableForPdf(block);
+      for (const line of tableLines) {
+        doc.setFont("courier", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(44, 58, 84);
+        const lines = doc.splitTextToSize(sanitizePdfText(line), contentWidth);
+        for (const entry of lines) {
+          y = ensurePdfRoom(doc, y, pageHeight, margin, 12);
+          doc.text(entry, margin, y);
+          y += 12;
+        }
+      }
+      y += 6;
+      continue;
+    }
+
+    const flattenedLines = flattenWriterBlockForPdf(block);
+    const fontName = block.type === "code" ? "courier" : "helvetica";
+    const fontStyle = block.type === "heading" ? "bold" : "normal";
+    const fontSize = block.type === "heading" ? Math.max(13, 18 - block.level * 2) : block.type === "code" ? 9 : 10;
+    const lineHeight = block.type === "heading" ? fontSize + 3 : block.type === "code" ? 12 : 14;
+
+    doc.setFont(fontName, fontStyle);
+    doc.setFontSize(fontSize);
+    doc.setTextColor(block.type === "heading" ? 18 : 32, block.type === "heading" ? 31 : 45, block.type === "heading" ? 58 : 72);
+
+    for (const line of flattenedLines) {
+      const rendered = doc.splitTextToSize(sanitizePdfText(line), contentWidth);
+      for (const entry of rendered) {
+        y = ensurePdfRoom(doc, y, pageHeight, margin, lineHeight);
+        doc.text(entry, margin, y);
+        y += lineHeight;
+      }
+    }
+    y += block.type === "heading" ? 6 : 4;
+  }
+
+  doc.save(`${buildWriterFileBaseName(content)}.pdf`);
+}
+
+async function downloadWriterDocumentDocx(rawText) {
+  const content = String(rawText || "").trim();
+  if (!content) {
+    throw new Error("No writer document available to export.");
+  }
+  if (!window.JSZip || typeof window.JSZip !== "function") {
+    throw new Error("DOCX engine is not loaded.");
+  }
+
+  const zip = new window.JSZip();
+  const blocks = parseMarkdownDocumentBlocks(content);
+  const hyperlinkMap = new Map();
+  let nextRelationshipId = 2;
+
+  const getHyperlinkId = (url) => {
+    const safeUrl = sanitizeUrl(url);
+    if (!safeUrl) return "";
+    if (hyperlinkMap.has(safeUrl)) return hyperlinkMap.get(safeUrl);
+    const relationshipId = `rId${nextRelationshipId}`;
+    nextRelationshipId += 1;
+    hyperlinkMap.set(safeUrl, relationshipId);
+    return relationshipId;
+  };
+
+  const bodyXml = blocks
+    .map((block) => buildDocxBlockXml(block, getHyperlinkId))
+    .filter(Boolean)
+    .join("");
+
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`
+  );
+
+  zip.folder("_rels")?.file(
+    ".rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`
+  );
+
+  const wordFolder = zip.folder("word");
+  wordFolder?.file(
+    "document.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+ xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+ xmlns:v="urn:schemas-microsoft-com:vml"
+ xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+ xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+ xmlns:w10="urn:schemas-microsoft-com:office:word"
+ xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+ xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+ xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+ xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+ xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+ xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+ mc:Ignorable="w14 wp14">
+  <w:body>
+    ${bodyXml || buildDocxParagraphXml(" ")}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`
+  );
+
+  wordFolder?.file(
+    "styles.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+    <w:rPr>
+      <w:rFonts w:ascii="Aptos" w:hAnsi="Aptos" w:eastAsia="Aptos" w:cs="Aptos"/>
+      <w:sz w:val="22"/>
+      <w:szCs w:val="22"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:rPr><w:b/><w:sz w:val="34"/><w:szCs w:val="34"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:rPr><w:b/><w:sz w:val="30"/><w:szCs w:val="30"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>
+  </w:style>
+</w:styles>`
+  );
+
+  const relationshipXml = [
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`,
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`,
+    `  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
+    ...Array.from(hyperlinkMap.entries()).map(
+      ([url, relationshipId]) =>
+        `  <Relationship Id="${xmlEscapeAttribute(relationshipId)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEscapeAttribute(url)}" TargetMode="External"/>`
+    ),
+    `</Relationships>`,
+  ].join("\n");
+  wordFolder?.folder("_rels")?.file("document.xml.rels", relationshipXml);
+
+  const blob = await zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  triggerBlobDownload(blob, `${buildWriterFileBaseName(content)}.docx`);
+}
+
 function getTranscriptEntriesForExport() {
   return chatHistory
     .map((item) => {
@@ -2838,6 +3605,311 @@ function stripInlineMarkdownForPdf(text) {
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1");
+}
+
+function parseMarkdownDocumentBlocks(rawText) {
+  const source = String(rawText || "").replace(/\r/g, "");
+  if (!source.trim()) return [];
+
+  const lines = source.split("\n");
+  const blocks = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const currentLine = String(lines[index] || "");
+    const trimmed = currentLine.trim();
+
+    if (!trimmed) {
+      blocks.push({ type: "blank" });
+      index += 1;
+      continue;
+    }
+
+    if (/^```/.test(trimmed)) {
+      const lang = trimmed.replace(/^```/, "").trim().toLowerCase();
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !/^```/.test(String(lines[index] || "").trim())) {
+        codeLines.push(String(lines[index] || ""));
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      blocks.push({
+        type: "code",
+        lang,
+        text: codeLines.join("\n").trim(),
+      });
+      continue;
+    }
+
+    const headingMatch = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+    if (headingMatch) {
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length,
+        text: headingMatch[2].trim(),
+      });
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(trimmed)) {
+      const quoteLines = [];
+      while (index < lines.length && /^>\s?/.test(String(lines[index] || "").trim())) {
+        quoteLines.push(String(lines[index] || "").trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push({
+        type: "quote",
+        text: quoteLines.join(" "),
+      });
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items = [];
+      while (index < lines.length && /^[-*]\s+/.test(String(lines[index] || "").trim())) {
+        items.push(String(lines[index] || "").trim().replace(/^[-*]\s+/, ""));
+        index += 1;
+      }
+      blocks.push({
+        type: "list",
+        ordered: false,
+        items,
+      });
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items = [];
+      while (index < lines.length && /^\d+\.\s+/.test(String(lines[index] || "").trim())) {
+        items.push(String(lines[index] || "").trim().replace(/^\d+\.\s+/, ""));
+        index += 1;
+      }
+      blocks.push({
+        type: "list",
+        ordered: true,
+        items,
+      });
+      continue;
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines = [String(lines[index] || ""), String(lines[index + 1] || "")];
+      index += 2;
+      while (index < lines.length && /^\s*\|.*\|\s*$/.test(String(lines[index] || "").trim())) {
+        tableLines.push(String(lines[index] || ""));
+        index += 1;
+      }
+      blocks.push({
+        type: "table",
+        headers: splitMarkdownTableRow(tableLines[0]),
+        rows: tableLines.slice(2).map(splitMarkdownTableRow),
+      });
+      continue;
+    }
+
+    const paragraphLines = [];
+    while (index < lines.length) {
+      const line = String(lines[index] || "");
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed) break;
+      if (paragraphLines.length > 0 && isBlockStarter(lineTrimmed)) break;
+      paragraphLines.push(lineTrimmed);
+      index += 1;
+    }
+    blocks.push({
+      type: "paragraph",
+      text: paragraphLines.join(" "),
+    });
+  }
+
+  return blocks;
+}
+
+function flattenTableForPdf(block) {
+  const headers = Array.isArray(block?.headers) ? block.headers : [];
+  const rows = Array.isArray(block?.rows) ? block.rows : [];
+  const lines = [];
+  if (headers.length) {
+    lines.push(headers.map((item) => stripInlineMarkdownForPdf(item)).join(" | "));
+    lines.push(headers.map(() => "---").join(" | "));
+  }
+  rows.forEach((row) => {
+    lines.push(headers.map((_, index) => stripInlineMarkdownForPdf(row[index] || "")).join(" | "));
+  });
+  return lines;
+}
+
+function flattenWriterBlockForPdf(block) {
+  if (!block || typeof block !== "object") return [];
+  if (block.type === "heading") return [stripInlineMarkdownForPdf(block.text)];
+  if (block.type === "code") return String(block.text || "").split("\n");
+  if (block.type === "list") {
+    return (Array.isArray(block.items) ? block.items : []).map((item, index) =>
+      block.ordered ? `${index + 1}. ${stripInlineMarkdownForPdf(item)}` : `- ${stripInlineMarkdownForPdf(item)}`
+    );
+  }
+  if (block.type === "quote") return [`> ${stripInlineMarkdownForPdf(block.text)}`];
+  return [stripInlineMarkdownForPdf(block.text)];
+}
+
+function ensurePdfRoom(doc, y, pageHeight, margin, nextHeight) {
+  if (y + nextHeight <= pageHeight - margin) {
+    return y;
+  }
+  doc.addPage();
+  return margin;
+}
+
+function buildWriterFileBaseName(rawText) {
+  const blocks = parseMarkdownDocumentBlocks(rawText);
+  const firstHeading = blocks.find((item) => item.type === "heading" && item.text);
+  const fallbackText =
+    firstHeading?.text ||
+    blocks.find((item) => typeof item.text === "string" && item.text.trim())?.text ||
+    "writer-document";
+  const slug = String(fallbackText || "")
+    .toLowerCase()
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+  return `loomless-${slug || "writer-document"}`;
+}
+
+function buildDocxBlockXml(block, getHyperlinkId) {
+  if (!block || typeof block !== "object") return "";
+  if (block.type === "blank") return "<w:p/>";
+  if (block.type === "heading") {
+    return buildDocxParagraphXml(block.text, { styleId: `Heading${Math.min(3, Math.max(1, Number(block.level) || 1))}` }, getHyperlinkId);
+  }
+  if (block.type === "paragraph") return buildDocxParagraphXml(block.text, {}, getHyperlinkId);
+  if (block.type === "quote") return buildDocxParagraphXml(`> ${block.text}`, {}, getHyperlinkId);
+  if (block.type === "list") {
+    return (Array.isArray(block.items) ? block.items : [])
+      .map((item, index) =>
+        buildDocxParagraphXml(block.ordered ? `${index + 1}. ${item}` : `• ${item}`, {}, getHyperlinkId)
+      )
+      .join("");
+  }
+  if (block.type === "code") {
+    return String(block.text || "")
+      .split("\n")
+      .map((line) => buildDocxParagraphXml(line || " ", { monospace: true }, getHyperlinkId))
+      .join("");
+  }
+  if (block.type === "table") return buildDocxTableXml(block, getHyperlinkId);
+  return "";
+}
+
+function buildDocxTableXml(block, getHyperlinkId) {
+  const headers = Array.isArray(block?.headers) ? block.headers : [];
+  if (!headers.length) return "";
+  const rows = Array.isArray(block?.rows) ? block.rows : [];
+  const allRows = [headers, ...rows];
+  const rowXml = allRows
+    .map((row, rowIndex) => {
+      const cells = headers.map((_, cellIndex) => {
+        const cellText = row[cellIndex] || "";
+        return `<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>${buildDocxParagraphXml(cellText, rowIndex === 0 ? { bold: true } : {}, getHyperlinkId)}</w:tc>`;
+      });
+      return `<w:tr>${cells.join("")}</w:tr>`;
+    })
+    .join("");
+
+  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="8EA9D8"/><w:left w:val="single" w:sz="8" w:space="0" w:color="8EA9D8"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="8EA9D8"/><w:right w:val="single" w:sz="8" w:space="0" w:color="8EA9D8"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="C7D8F2"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="C7D8F2"/></w:tblBorders></w:tblPr>${rowXml}</w:tbl>`;
+}
+
+function buildDocxParagraphXml(text, options = {}, getHyperlinkId = () => "") {
+  const runs = buildDocxRunsXml(text, options, getHyperlinkId) || `<w:r><w:t xml:space="preserve"> </w:t></w:r>`;
+  const styleXml = options.styleId ? `<w:pStyle w:val="${xmlEscapeAttribute(options.styleId)}"/>` : "";
+  return `<w:p>${styleXml ? `<w:pPr>${styleXml}</w:pPr>` : ""}${runs}</w:p>`;
+}
+
+function buildDocxRunsXml(text, options = {}, getHyperlinkId = () => "") {
+  const segments = parseDocxInlineSegments(text);
+  return segments
+    .map((segment) => {
+      if (segment.type === "link") {
+        const relationshipId = getHyperlinkId(segment.url);
+        if (!relationshipId) return buildDocxTextRunXml(segment.text, options);
+        return `<w:hyperlink r:id="${xmlEscapeAttribute(relationshipId)}"><w:r><w:rPr><w:color w:val="2D66FF"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${xmlEscapeText(segment.text)}</w:t></w:r></w:hyperlink>`;
+      }
+      return buildDocxTextRunXml(segment.text, options);
+    })
+    .join("");
+}
+
+function buildDocxTextRunXml(text, options = {}) {
+  const props = [];
+  if (options.bold) props.push("<w:b/>");
+  if (options.monospace) {
+    props.push('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:eastAsia="Courier New" w:cs="Courier New"/>');
+  }
+  const propsXml = props.length ? `<w:rPr>${props.join("")}</w:rPr>` : "";
+  return `<w:r>${propsXml}<w:t xml:space="preserve">${xmlEscapeText(text || " ")}</w:t></w:r>`;
+}
+
+function parseDocxInlineSegments(text) {
+  const source = String(text || "");
+  const segments = [];
+  const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  let lastIndex = 0;
+  let match = regex.exec(source);
+
+  while (match) {
+    if (match.index > lastIndex) {
+      const plain = stripDocxInlineDecorators(source.slice(lastIndex, match.index));
+      if (plain) segments.push({ type: "text", text: plain });
+    }
+    const label = stripDocxInlineDecorators(match[1] || "");
+    const safeUrl = sanitizeUrl(match[2] || "");
+    if (label) {
+      if (safeUrl) segments.push({ type: "link", text: label, url: safeUrl });
+      else segments.push({ type: "text", text: label });
+    }
+    lastIndex = regex.lastIndex;
+    match = regex.exec(source);
+  }
+
+  if (lastIndex < source.length) {
+    const tail = stripDocxInlineDecorators(source.slice(lastIndex));
+    if (tail) segments.push({ type: "text", text: tail });
+  }
+
+  return segments.length ? segments : [{ type: "text", text: stripDocxInlineDecorators(source) }];
+}
+
+function stripDocxInlineDecorators(text) {
+  return String(text || "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1");
+}
+
+function xmlEscapeText(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function xmlEscapeAttribute(value) {
+  return xmlEscapeText(value).replace(/"/g, "&quot;");
+}
+
+function triggerBlobDownload(blob, fileName) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 }
 
 async function loadAssetAsDataUrl(url) {
@@ -3056,8 +4128,11 @@ function syncModeTabs() {
 function syncModeUI() {
   const isImageMode = activeMode === CHAT_MODES.IMAGE;
   const isChatMode = activeMode === CHAT_MODES.CHAT;
+  const isWriterMode = activeMode === CHAT_MODES.WRITER;
   const modePlaceholder =
-    activeMode === CHAT_MODES.CODE
+    activeMode === CHAT_MODES.WRITER
+      ? "Describe the blog, article, email, script, or copy you want written..."
+      : activeMode === CHAT_MODES.CODE
       ? "Ask for code, scripts, components, or full templates..."
       : isImageMode
         ? "Describe the image you want to generate..."
@@ -3107,6 +4182,10 @@ function syncModeUI() {
   if (isImageMode) {
     modeNoteNode.hidden = true;
     modeNoteNode.textContent = "";
+  } else if (isWriterMode) {
+    modeNoteNode.hidden = false;
+    modeNoteNode.textContent =
+      "Writer mode is tuned for long-form, humanized writing with Meta Llama models only.";
   } else if (activeMode === CHAT_MODES.CODE) {
     modeNoteNode.hidden = false;
     modeNoteNode.textContent =
@@ -3136,6 +4215,10 @@ function setActiveMode(mode) {
   syncModeUI();
   renderModelCards();
   syncActiveModelUI();
+  if (chatHistory.length === 0) {
+    messagesNode.innerHTML = "";
+    appendInitialPanelState();
+  }
 }
 
 function loadSelectedModel(mode = activeMode) {
@@ -3175,7 +4258,7 @@ function toggleUploadMenu() {
 }
 
 function openUploadMenu() {
-  if (activeMode === CHAT_MODES.IMAGE) return;
+  if (activeMode === CHAT_MODES.IMAGE || activeMode === CHAT_MODES.WRITER) return;
   closeModelPicker();
   uploadMenuNode.hidden = false;
 }
@@ -3841,6 +4924,9 @@ function getDefaultModelOptionForMode(mode = activeMode) {
   if (!visible.length) {
     return MODEL_OPTIONS.find((model) => model.apiModel === DEFAULT_MODEL_API) || MODEL_OPTIONS[0];
   }
+  if (resolveMode(mode) === CHAT_MODES.WRITER) {
+    return visible.find((model) => model.apiModel === DEFAULT_WRITER_MODEL_API) || visible[0];
+  }
   if (resolveMode(mode) === CHAT_MODES.CODE) {
     return visible.find((model) => model.apiModel === DEFAULT_CODE_MODEL_API) || visible[0];
   }
@@ -3854,6 +4940,9 @@ function getVisibleModelsForMode(mode = activeMode) {
   const resolvedMode = resolveMode(mode);
   if (resolvedMode === CHAT_MODES.IMAGE) {
     return MODEL_OPTIONS.filter((model) => ENABLED_IMAGE_MODE_MODELS.has(model.apiModel));
+  }
+  if (resolvedMode === CHAT_MODES.WRITER) {
+    return MODEL_OPTIONS.filter((model) => !IMAGE_ONLY_MODELS.has(model.apiModel) && model.apiModel.startsWith("meta/"));
   }
   return MODEL_OPTIONS.filter((model) => !IMAGE_ONLY_MODELS.has(model.apiModel));
 }
@@ -3873,6 +4962,7 @@ function getModelStorageKey(mode = activeMode) {
 }
 
 function resolveMode(mode) {
+  if (mode === CHAT_MODES.WRITER) return CHAT_MODES.WRITER;
   if (mode === CHAT_MODES.CODE) return CHAT_MODES.CODE;
   if (mode === CHAT_MODES.IMAGE) return CHAT_MODES.IMAGE;
   return CHAT_MODES.CHAT;

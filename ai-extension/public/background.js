@@ -6,9 +6,13 @@ const WRITE_MODEL = "meta/llama-3.3-70b-instruct";
 const CHAT_MODEL = PRIMARY_NIM_MODEL;
 const CODE_CHAT_MAX_TOKENS = 100000;
 const CODE_CHAT_FALLBACK_TOKENS = 12000;
+const WRITER_CHAT_MAX_TOKENS = 100000;
+const WRITER_CHAT_FALLBACK_TOKENS = 24000;
+const WRITER_MODEL = "meta/llama-3.2-3b-instruct";
 const IMAGE_GEN_MODEL = "black-forest-labs/flux.1-dev";
 const CHAT_MODES = {
   CHAT: "chat",
+  WRITER: "writer",
   CODE: "code",
 };
 const IMAGE_GEN_ALLOWED_MODELS = new Set([
@@ -37,6 +41,12 @@ const CHAT_ALLOWED_MODELS = new Set([
   "nvidia/nemotron-3-nano-30b-a3b",
   "mistralai/devstral-2-123b-instruct-2512",
   "mistralai/mistral-large-3-675b-instruct-2512",
+  "meta/llama-4-scout-17b-16e-instruct",
+  "meta/llama-3.3-70b-instruct",
+  "meta/llama-3.2-3b-instruct",
+  "meta/llama-3.2-11b-vision-instruct",
+  "meta/llama-3.2-90b-vision-instruct",
+  "meta/llama-3.2-1b-instruct",
   "meta/llama-3.1-70b-instruct",
   "meta/llama-3.1-8b-instruct",
   "meta/llama3-70b-instruct",
@@ -365,8 +375,17 @@ async function callChatModelWithRetry(apiKey, payload) {
         return await callModelWithTokenBudgetRetry(apiKey, {
           prompt: chatPrompt,
           model: modelToTry,
-          temperature: 0.35,
-          maxTokens: chatMode === CHAT_MODES.CODE ? CODE_CHAT_MAX_TOKENS : 2200,
+          temperature: chatMode === CHAT_MODES.WRITER ? 0.72 : 0.35,
+          maxTokens:
+            chatMode === CHAT_MODES.WRITER
+              ? WRITER_CHAT_MAX_TOKENS
+              : chatMode === CHAT_MODES.CODE
+                ? CODE_CHAT_MAX_TOKENS
+                : 2200,
+          fallbackMaxTokens:
+            chatMode === CHAT_MODES.WRITER
+              ? WRITER_CHAT_FALLBACK_TOKENS
+              : CODE_CHAT_FALLBACK_TOKENS,
           systemPrompt: isGeneral
             ? buildGeneralSystemPrompt(chatMode)
             : buildPageAssistantSystemPrompt(chatMode),
@@ -425,18 +444,20 @@ async function callModelWithFallbackModel(apiKey, prompt, preferredModel, config
 }
 
 async function callModelWithTokenBudgetRetry(apiKey, config) {
+  const fallbackMaxTokens =
+    Number(config?.fallbackMaxTokens) > 0 ? Number(config.fallbackMaxTokens) : CODE_CHAT_FALLBACK_TOKENS;
   try {
     return await callModelWithConfig(apiKey, config.prompt, config.model, config);
   } catch (error) {
     if (isUserAbortError(error, config?.requestId)) {
       throw error;
     }
-    if (!shouldRetryWithLowerTokenBudget(error, config.maxTokens)) {
+    if (!shouldRetryWithLowerTokenBudget(error, config.maxTokens, fallbackMaxTokens)) {
       throw error;
     }
     return callModelWithConfig(apiKey, config.prompt, config.model, {
       ...config,
-      maxTokens: CODE_CHAT_FALLBACK_TOKENS,
+      maxTokens: fallbackMaxTokens,
     });
   }
 }
@@ -450,8 +471,8 @@ function uniqueModelAttempts(preferredModel) {
   return Array.from(new Set(models.filter(Boolean)));
 }
 
-function shouldRetryWithLowerTokenBudget(error, attemptedTokens) {
-  if (!error || attemptedTokens <= CODE_CHAT_FALLBACK_TOKENS) return false;
+function shouldRetryWithLowerTokenBudget(error, attemptedTokens, fallbackTokens = CODE_CHAT_FALLBACK_TOKENS) {
+  if (!error || attemptedTokens <= fallbackTokens) return false;
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes("status 400") ||
@@ -1351,6 +1372,7 @@ function sanitizeWriteResponse(content) {
 
 function sanitizeChatResponse(content, mode = CHAT_MODES.CHAT) {
   const sanitized = sanitizeModelResponse(content, "write")
+    .replace(mode === CHAT_MODES.WRITER ? /—/g : /$^/, "-")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
@@ -1403,6 +1425,7 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
 
   const isGeneral = scope === "general";
   const isCodeMode = mode === CHAT_MODES.CODE;
+  const isWriterMode = mode === CHAT_MODES.WRITER;
   const wantsIdentity = isIdentityPrompt(prompt);
   const wantsTableOutput = shouldUseTableFormat(prompt);
   const base = isGeneral
@@ -1412,9 +1435,17 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
         "Rules:",
         "- This is general chat mode, not page mode.",
         "- Reply in clean markdown when useful.",
-        isCodeMode
-          ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
-          : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
+        isWriterMode
+          ? "- WRITER mode: produce polished, human-sounding long-form writing unless user explicitly asks for short copy."
+          : isCodeMode
+            ? "- CODE mode: return complete, runnable output where possible. Use fenced code blocks with language tags."
+            : "- Provide complete answers. If user asks for code/HTML, return full usable output unless user asks for a short version.",
+        isWriterMode ? "- Write like a strong human editor. Use natural rhythm, varied sentence length, and specific wording." : "",
+        isWriterMode ? "- Never use em dashes." : "",
+        isWriterMode ? "- Do not start with preambles like 'Here is', 'Sure', 'Absolutely', or 'Certainly'." : "",
+        isWriterMode ? "- If the user asks for a blog, article, essay, newsletter, email, caption, or script, deliver the finished draft, not just an outline." : "",
+        isWriterMode ? "- Use headings, bullets, tables, and markdown links only when they genuinely improve readability." : "",
+        isWriterMode ? "- Avoid AI-sounding filler, repetition, clichés, and meta commentary." : "",
         wantsTableOutput
           ? "- If the user asks for a comparison or table format, return a valid markdown table with a header row and alignment separator row."
           : "",
@@ -1435,7 +1466,11 @@ function buildChatPrompt({ prompt, history, context, title, url, model, scope, m
         model ? `Current serving model ID: ${model}` : "",
         "Rules:",
         "- Reply in clean markdown when useful.",
-        "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+        isWriterMode
+          ? "- WRITER mode: write polished, human-sounding copy grounded in the provided context."
+          : "- Be concise by default (around 3-8 lines) unless user asks for detail.",
+        isWriterMode ? "- Never use em dashes or AI-style preambles." : "",
+        isWriterMode ? "- If long-form writing is requested, deliver the full draft with useful structure." : "",
         "- If the answer depends on page context, use the provided context first.",
         "- If user asks which model you are, answer with the exact current serving model ID only.",
         "- Never claim you are GPT-4 or any different model.",
@@ -1531,17 +1566,25 @@ function resolveImageModel(model) {
 }
 
 function resolveChatModel(model, mode = CHAT_MODES.CHAT) {
-  if (typeof model !== "string") return CHAT_MODEL;
+  if (typeof model !== "string") return mode === CHAT_MODES.WRITER ? WRITER_MODEL : CHAT_MODEL;
   const clean = model.trim();
-  if (!clean) return CHAT_MODEL;
+  if (!clean) return mode === CHAT_MODES.WRITER ? WRITER_MODEL : CHAT_MODEL;
+  if (mode === CHAT_MODES.WRITER) {
+    return CHAT_ALLOWED_MODELS.has(clean) && clean.startsWith("meta/") ? clean : WRITER_MODEL;
+  }
   return CHAT_ALLOWED_MODELS.has(clean) ? clean : CHAT_MODEL;
 }
 
 function resolveChatMode(mode) {
-  return mode === CHAT_MODES.CODE ? CHAT_MODES.CODE : CHAT_MODES.CHAT;
+  if (mode === CHAT_MODES.CODE) return CHAT_MODES.CODE;
+  if (mode === CHAT_MODES.WRITER) return CHAT_MODES.WRITER;
+  return CHAT_MODES.CHAT;
 }
 
 function buildGeneralSystemPrompt(mode) {
+  if (mode === CHAT_MODES.WRITER) {
+    return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is WRITER mode. Write polished, natural, human-sounding prose. Never use em dashes. Never add preambles, apologies, analysis, or self-reference. If the user asks for long-form writing, deliver the full finished draft. Use markdown structure only when it improves readability. Preserve tables as valid markdown tables and preserve useful links as markdown links.";
+  }
   if (mode === CHAT_MODES.CODE) {
     return "You are LoomLess GPT, an AI assistant developed by LoomLess AI. This is CODE mode. Prioritize complete outputs. Wrap code/markup/config in fenced markdown code blocks with explicit language tags. Avoid partial stubs unless user asks.";
   }
@@ -1549,6 +1592,9 @@ function buildGeneralSystemPrompt(mode) {
 }
 
 function buildPageAssistantSystemPrompt(mode) {
+  if (mode === CHAT_MODES.WRITER) {
+    return "You are LoomLess AI in WRITER mode. Use provided context when relevant and write polished, human-sounding copy. Never use em dashes. Do not add AI-style preambles or commentary. Deliver complete drafts when the user requests writing.";
+  }
   if (mode === CHAT_MODES.CODE) {
     return "You are LoomLess AI in CODE mode. Use provided context when relevant. Return code/markup/config in fenced markdown code blocks with explicit language tags and prefer complete outputs.";
   }

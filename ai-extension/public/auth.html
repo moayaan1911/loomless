@@ -13,7 +13,7 @@
       <header class="hero">
         <h1 class="title-with-icon hero-title">
           <img src="./icon.png" alt="LoomLess AI" class="hero-title-icon" />
-          <span>Sign in to LoomLess AI</span>
+          <span id="hero-title-text">Sign in to LoomLess AI</span>
         </h1>
       </header>
 
@@ -41,15 +41,24 @@
               <span data-ll-icon="verify" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
               <span>Verification code</span>
             </label>
+            <div id="otp-slots" class="otp-slots" aria-label="8 digit OTP input">
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+              <input class="otp-slot" type="text" inputmode="numeric" maxlength="1" />
+            </div>
             <input
               id="otp-code"
               class="input"
               type="text"
               inputmode="numeric"
-              pattern="[0-9]{4,12}"
-              maxlength="12"
+              pattern="[0-9]{8}"
+              maxlength="8"
               autocomplete="one-time-code"
-              placeholder="Enter OTP code"
               required
             />
 
@@ -68,25 +77,20 @@
       </section>
 
       <section id="stage-profile" class="card stage" hidden>
-        <h2 class="title-with-icon">
-          <span data-ll-icon="userPlus" data-ll-icon-class="inline-icon-md" aria-hidden="true"></span>
-          <span>Complete your profile</span>
-        </h2>
-        <p class="desc">Only for first-time users. Keep it short and real.</p>
         <form id="profile-form" class="form">
           <label for="profile-name" class="label label-with-icon">
             <span data-ll-icon="user" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-            <span>Name</span>
+            <span>Name <span class="required-mark" aria-hidden="true">*</span></span>
           </label>
           <input id="profile-name" class="input" type="text" maxlength="60" autocomplete="name" required />
 
           <label for="profile-age" class="label label-with-icon">
             <span data-ll-icon="age" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
-            <span>Age</span>
+            <span>Age <span class="required-mark" aria-hidden="true">*</span></span>
           </label>
           <input id="profile-age" class="input" type="number" min="13" max="100" step="1" required />
 
-          <button id="profile-submit" class="btn primary" type="submit">
+          <button id="profile-submit" class="btn primary profile-submit-btn" type="submit">
             <span data-ll-icon="success" data-ll-icon-class="inline-icon-sm" aria-hidden="true"></span>
             <span>Save and Continue</span>
           </button>

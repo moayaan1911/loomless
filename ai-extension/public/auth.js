@@ -3,6 +3,7 @@ const STORAGE_SUPABASE_KEY = "loomless_ai_supabase_key";
 const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
 const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_FLOATING_KEY = "loomless_ai_floating_enabled";
+const OTP_LENGTH = 8;
 
 const iconApi =
   globalThis.LoomLessIconMap && typeof globalThis.LoomLessIconMap.mount === "function"
@@ -14,6 +15,7 @@ const profileStageNode = document.getElementById("stage-profile");
 const successStageNode = document.getElementById("stage-success");
 const statusWrapNode = document.querySelector(".status-wrap");
 const statusNode = document.getElementById("status");
+const heroTitleTextNode = document.getElementById("hero-title-text");
 
 const loginFormNode = document.getElementById("login-form");
 const emailStepNode = document.getElementById("email-step");
@@ -21,6 +23,7 @@ const loginEmailNode = document.getElementById("login-email");
 const sendCodeBtnNode = document.getElementById("send-code-btn");
 const otpStepNode = document.getElementById("otp-step");
 const otpCodeNode = document.getElementById("otp-code");
+const otpSlotNodes = Array.from(document.querySelectorAll(".otp-slot"));
 const verifyCodeBtnNode = document.getElementById("verify-code-btn");
 const resendCodeBtnNode = document.getElementById("resend-code-btn");
 
@@ -38,6 +41,7 @@ let busy = false;
 let pendingOtpEmail = "";
 
 iconApi?.mount?.(document);
+setupOtpSlots();
 
 init().catch((error) => {
   setStatus(error instanceof Error ? error.message : "Setup failed.", "error");
@@ -88,7 +92,7 @@ verifyCodeBtnNode?.addEventListener("click", async () => {
   const email = String(pendingOtpEmail || loginEmailNode?.value || "")
     .trim()
     .toLowerCase();
-  const token = sanitizeOtpCode(otpCodeNode?.value || "");
+  const token = sanitizeOtpCode(getOtpValue());
 
   if (!isValidEmail(email)) {
     setStatus("Please enter a valid email first.", "error");
@@ -271,8 +275,10 @@ function revealOtpStep() {
   otpStepNode.hidden = false;
   if (otpCodeNode) {
     otpCodeNode.value = "";
-    otpCodeNode.focus();
   }
+  syncOtpSlotsFromValue("");
+  focusFirstEmptyOtpSlot();
+  syncHeroTitle();
 }
 
 function resetLoginFlow() {
@@ -286,6 +292,89 @@ function resetLoginFlow() {
   if (otpCodeNode) {
     otpCodeNode.value = "";
   }
+  syncOtpSlotsFromValue("");
+  syncHeroTitle();
+}
+
+function setupOtpSlots() {
+  if (!otpSlotNodes.length) return;
+
+  otpSlotNodes.forEach((slot, index) => {
+    slot.addEventListener("input", (event) => {
+      const target = event.currentTarget;
+      if (!(target instanceof HTMLInputElement)) return;
+      const digits = String(target.value || "").replace(/\D/g, "");
+      const nextValue = digits ? digits.slice(-1) : "";
+      target.value = nextValue;
+      updateOtpValueFromSlots();
+
+      if (nextValue && index < otpSlotNodes.length - 1) {
+        otpSlotNodes[index + 1].focus();
+        otpSlotNodes[index + 1].select();
+      }
+    });
+
+    slot.addEventListener("keydown", (event) => {
+      const target = event.currentTarget;
+      if (!(target instanceof HTMLInputElement)) return;
+
+      if (event.key === "Backspace" && !target.value && index > 0) {
+        const previous = otpSlotNodes[index - 1];
+        previous.focus();
+        previous.value = "";
+        updateOtpValueFromSlots();
+        event.preventDefault();
+      }
+
+      if (event.key === "ArrowLeft" && index > 0) {
+        otpSlotNodes[index - 1].focus();
+        event.preventDefault();
+      }
+
+      if (event.key === "ArrowRight" && index < otpSlotNodes.length - 1) {
+        otpSlotNodes[index + 1].focus();
+        event.preventDefault();
+      }
+    });
+
+    slot.addEventListener("paste", (event) => {
+      event.preventDefault();
+      const pasted = String(event.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, OTP_LENGTH);
+      if (!pasted) return;
+      syncOtpSlotsFromValue(pasted);
+      const nextIndex = Math.min(pasted.length, otpSlotNodes.length - 1);
+      otpSlotNodes[nextIndex].focus();
+      updateOtpValueFromSlots();
+    });
+  });
+}
+
+function syncOtpSlotsFromValue(value) {
+  if (!otpSlotNodes.length) return;
+  const digits = String(value || "").replace(/\D/g, "").slice(0, OTP_LENGTH);
+  otpSlotNodes.forEach((slot, index) => {
+    slot.value = digits[index] || "";
+  });
+  updateOtpValueFromSlots();
+}
+
+function updateOtpValueFromSlots() {
+  if (!otpCodeNode || !otpSlotNodes.length) return;
+  otpCodeNode.value = otpSlotNodes.map((slot) => String(slot.value || "").replace(/\D/g, "")).join("");
+}
+
+function getOtpValue() {
+  if (otpCodeNode) {
+    updateOtpValueFromSlots();
+    return otpCodeNode.value || "";
+  }
+  return otpSlotNodes.map((slot) => String(slot.value || "").replace(/\D/g, "")).join("");
+}
+
+function focusFirstEmptyOtpSlot() {
+  const firstEmpty = otpSlotNodes.find((slot) => !slot.value);
+  const target = firstEmpty || otpSlotNodes[otpSlotNodes.length - 1];
+  target?.focus();
 }
 
 function getOtpErrorMessage(error) {
@@ -510,8 +599,8 @@ function sanitizeOtpCode(rawValue) {
   const value = String(rawValue || "")
     .trim()
     .replace(/\s+/g, "");
-  if (!/^\d{4,12}$/.test(value)) {
-    return { ok: false, error: "OTP must be numeric (4 to 12 digits)." };
+  if (!new RegExp(`^\\d{${OTP_LENGTH}}$`).test(value)) {
+    return { ok: false, error: `OTP must be exactly ${OTP_LENGTH} digits.` };
   }
   return { ok: true, value };
 }
@@ -525,6 +614,32 @@ function showStage(stage) {
   loginStageNode.hidden = stage !== "login";
   profileStageNode.hidden = stage !== "profile";
   successStageNode.hidden = stage !== "success";
+  syncHeroTitle();
+}
+
+function syncHeroTitle() {
+  if (!heroTitleTextNode) return;
+
+  if (!successStageNode.hidden) {
+    heroTitleTextNode.textContent = "You are all set";
+    document.title = "You Are All Set";
+    return;
+  }
+
+  if (!profileStageNode.hidden) {
+    heroTitleTextNode.textContent = "Complete profile";
+    document.title = "Complete Profile";
+    return;
+  }
+
+  if (!otpStepNode.hidden) {
+    heroTitleTextNode.textContent = "Verify OTP";
+    document.title = "Verify OTP";
+    return;
+  }
+
+  heroTitleTextNode.textContent = "Sign in to LoomLess AI";
+  document.title = "LoomLess AI Access";
 }
 
 function setStatus(text, tone = "") {
