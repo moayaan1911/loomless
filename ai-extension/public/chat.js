@@ -24,6 +24,7 @@ const STORAGE_AUTH_SESSION = "loomless_ai_auth_session";
 const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_CHAT_SESSION_ID = "loomless_ai_chat_active_session_id";
 const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
+const STORAGE_SIDEBAR_MODE = "loomless_ai_chat_sidebar_mode";
 const STORAGE_LOCAL_SESSIONS = "loomless_ai_chat_local_sessions_v1";
 const STORAGE_LOCAL_SECTION_EXPANDED = "loomless_ai_chat_local_section_expanded";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
@@ -305,6 +306,7 @@ const activeModelIconNode = document.getElementById("active-model-icon");
 const modelPickerLabelNode = document.getElementById("model-picker-label");
 const modelPickerPopover = document.getElementById("model-picker-popover");
 const chatShellNode = document.getElementById("chat-shell");
+const sidebarHoverZoneNode = document.getElementById("sidebar-hover-zone");
 const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
 const sidebarNewChatBtn = document.getElementById("sidebar-new-chat-btn");
 const sidebarImageBtn = document.getElementById("sidebar-image-btn");
@@ -390,6 +392,7 @@ let selectedModel = loadSelectedModel(activeMode);
 let currentSessionId = loadOrCreateSessionId();
 let isSessionPinned = loadPinnedState(currentSessionId);
 let sidebarCollapsed = loadSidebarCollapsed();
+let sidebarModePreference = loadSidebarModePreference();
 let localSectionExpanded = loadLocalSectionExpanded();
 let localSessions = loadLocalSessions();
 let savedSessions = [];
@@ -420,7 +423,7 @@ let settingsDraft = {
   location: "",
   memory: "",
   gender: "male",
-  sidebarMode: "manual",
+  sidebarMode: sidebarModePreference,
 };
 let settingsSavedSnapshot = "";
 let settingsProfileHydrated = false;
@@ -466,6 +469,7 @@ sidebarImageBtn?.addEventListener("click", () => {
 });
 
 sidebarToggleBtn?.addEventListener("click", () => {
+  if (sidebarModePreference === "auto") return;
   sidebarCollapsed = !sidebarCollapsed;
   saveSidebarCollapsed(sidebarCollapsed);
   syncSidebarUI();
@@ -1644,6 +1648,18 @@ function saveSidebarCollapsed(collapsed) {
   localStorage.setItem(STORAGE_SIDEBAR_COLLAPSED, collapsed ? "1" : "0");
 }
 
+function normalizeSidebarModePreference(value) {
+  return value === "auto" ? "auto" : "manual";
+}
+
+function loadSidebarModePreference() {
+  return normalizeSidebarModePreference(localStorage.getItem(STORAGE_SIDEBAR_MODE));
+}
+
+function saveSidebarModePreference(mode) {
+  localStorage.setItem(STORAGE_SIDEBAR_MODE, normalizeSidebarModePreference(mode));
+}
+
 function loadLocalSectionExpanded() {
   return localStorage.getItem(STORAGE_LOCAL_SECTION_EXPANDED) !== "0";
 }
@@ -1654,12 +1670,18 @@ function saveLocalSectionExpanded(expanded) {
 
 function syncSidebarUI() {
   if (chatShellNode) {
-    chatShellNode.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+    const isAutoMode = sidebarModePreference === "auto";
+    chatShellNode.classList.toggle("sidebar-auto", isAutoMode);
+    chatShellNode.classList.toggle("sidebar-collapsed", !isAutoMode && sidebarCollapsed);
   }
   if (sidebarToggleBtn) {
     const iconName = sidebarCollapsed ? "sidebarExpand" : "sidebarCollapse";
     sidebarToggleBtn.innerHTML = iconHtml(iconName, "inline-icon-sm");
     sidebarToggleBtn.title = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+    sidebarToggleBtn.disabled = sidebarModePreference === "auto";
+  }
+  if (sidebarHoverZoneNode) {
+    sidebarHoverZoneNode.hidden = sidebarModePreference !== "auto";
   }
 }
 
@@ -1707,9 +1729,7 @@ function ensureSettingsDraftDefaults() {
   if (settingsDraft.gender !== "female") {
     settingsDraft.gender = "male";
   }
-  if (settingsDraft.sidebarMode !== "auto") {
-    settingsDraft.sidebarMode = "manual";
-  }
+  settingsDraft.sidebarMode = normalizeSidebarModePreference(settingsDraft.sidebarMode || sidebarModePreference);
   if (!settingsSavedSnapshot) {
     settingsSavedSnapshot = getSettingsSnapshot();
   }
@@ -1839,8 +1859,18 @@ async function hydrateSettingsProfileFromSupabase() {
 
 async function handleSettingsSave() {
   if (!settingsSaveBtnNode || settingsSaveBtnNode.disabled) return;
+  sidebarModePreference = normalizeSidebarModePreference(settingsDraft.sidebarMode);
+  settingsDraft.sidebarMode = sidebarModePreference;
+  saveSidebarModePreference(sidebarModePreference);
+  syncSidebarUI();
+
   if (!authSession || !profileCompleted) {
-    closeSettingsModal();
+    settingsSavedSnapshot = getSettingsSnapshot();
+    syncSettingsModalUI();
+    setStatus("Sidebar preference saved locally.");
+    window.setTimeout(() => {
+      closeSettingsModal();
+    }, 350);
     return;
   }
 
@@ -1890,7 +1920,11 @@ async function handleSettingsSave() {
       closeSettingsModal();
     }, 550);
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "Could not save settings.");
+    setStatus(
+      error instanceof Error
+        ? `${error.message} Sidebar preference was saved locally.`
+        : "Could not save profile settings. Sidebar preference was saved locally."
+    );
     syncSettingsModalUI();
   }
 }
