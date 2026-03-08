@@ -213,6 +213,68 @@ body {
   color: #8ea9d8;
 }
 
+.session-section {
+  display: grid;
+  gap: 8px;
+}
+
+.session-section-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #8ea9d8;
+  padding: 2px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.session-section-toggle-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-section-toggle-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-section-toggle-count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6f8fc2;
+}
+
+.session-section-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #93b3e2;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+.session-section-toggle[aria-expanded="false"] .session-section-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.session-section-body {
+  display: grid;
+  gap: 8px;
+}
+
+.session-section-body[hidden] {
+  display: none !important;
+}
+
 .saved-session-item {
   width: 100%;
   border: 1px solid rgba(123, 172, 255, 0.26);
@@ -294,6 +356,7 @@ body {
 .chat-shell.sidebar-collapsed .sidebar-btn-text,
 .chat-shell.sidebar-collapsed .sidebar-hint,
 .chat-shell.sidebar-collapsed .session-section-title,
+.chat-shell.sidebar-collapsed .session-section-toggle,
 .chat-shell.sidebar-collapsed .saved-session-content {
   display: none;
 }

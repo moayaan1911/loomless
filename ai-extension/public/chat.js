@@ -25,6 +25,7 @@ const STORAGE_PROFILE_COMPLETED = "loomless_ai_profile_completed";
 const STORAGE_CHAT_SESSION_ID = "loomless_ai_chat_active_session_id";
 const STORAGE_SIDEBAR_COLLAPSED = "loomless_ai_chat_sidebar_collapsed";
 const STORAGE_LOCAL_SESSIONS = "loomless_ai_chat_local_sessions_v1";
+const STORAGE_LOCAL_SECTION_EXPANDED = "loomless_ai_chat_local_section_expanded";
 const DEFAULT_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_CODE_MODEL_API = "nvidia/nemotron-3-nano-30b-a3b";
 const DEFAULT_WRITER_MODEL_API = "meta/llama-3.2-3b-instruct";
@@ -312,6 +313,8 @@ const savedSessionsListNode = document.getElementById("saved-sessions-list");
 const sessionItemMenuNode = document.getElementById("session-item-menu");
 const sessionMenuEditBtn = document.getElementById("session-menu-edit-btn");
 const sessionMenuDeleteBtn = document.getElementById("session-menu-delete-btn");
+const sessionMenuEditLabelNode = document.getElementById("session-menu-edit-label");
+const sessionMenuDeleteLabelNode = document.getElementById("session-menu-delete-label");
 const chatPanelNode = document.querySelector(".chat-panel");
 const chatHeaderNode = document.querySelector(".chat-header");
 const authGateNode = document.getElementById("auth-gate");
@@ -387,6 +390,7 @@ let selectedModel = loadSelectedModel(activeMode);
 let currentSessionId = loadOrCreateSessionId();
 let isSessionPinned = loadPinnedState(currentSessionId);
 let sidebarCollapsed = loadSidebarCollapsed();
+let localSectionExpanded = loadLocalSectionExpanded();
 let localSessions = loadLocalSessions();
 let savedSessions = [];
 let supabaseReady = false;
@@ -399,6 +403,7 @@ let lastPinnedSnapshotHash = "";
 let supabaseConfigCache = null;
 let savedSessionsLoading = false;
 let activeSessionMenuSessionId = "";
+let activeSessionMenuKind = "";
 let regenerateMenuTargetButton = null;
 let regenerateMenuRequestMeta = null;
 let regenerateMenuSourceRow = null;
@@ -474,12 +479,25 @@ savedSessionsListNode?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
+  const sectionToggleBtn = target.closest("[data-session-section-toggle]");
+  if (sectionToggleBtn) {
+    event.stopPropagation();
+    const section = sectionToggleBtn.getAttribute("data-session-section-toggle");
+    if (section === "local") {
+      localSectionExpanded = !localSectionExpanded;
+      saveLocalSectionExpanded(localSectionExpanded);
+      renderSavedSessions();
+    }
+    return;
+  }
+
   const menuBtn = target.closest("[data-session-action='menu']");
   if (menuBtn) {
     event.stopPropagation();
     const sessionId = menuBtn.getAttribute("data-session-id");
+    const sessionKind = menuBtn.getAttribute("data-session-kind");
     if (!sessionId) return;
-    openSessionItemMenu(menuBtn, sessionId);
+    openSessionItemMenu(menuBtn, sessionId, sessionKind || "saved");
     return;
   }
 
@@ -500,7 +518,7 @@ sessionMenuEditBtn?.addEventListener("click", () => {
 });
 
 sessionMenuDeleteBtn?.addEventListener("click", () => {
-  void handleDeleteSavedSession();
+  void handleDeleteSession();
 });
 
 if (chrome?.storage?.onChanged) {
@@ -1361,6 +1379,7 @@ function normalizeLocalSessionRecord(raw) {
     title:
       String(raw.title || "").replace(/\s+/g, " ").trim() ||
       buildSessionTitleFromHistory(messages.map((item) => ({ role: item.role, content: item.content }))),
+    custom_title: raw.custom_title === true,
     last_model: typeof raw.last_model === "string" && raw.last_model.trim() ? raw.last_model.trim() : null,
     message_count: Math.max(messageCount, messages.length),
     created_at: createdAt,
@@ -1456,7 +1475,8 @@ function persistCurrentLocalSession({ render = true } = {}) {
   upsertLocalSessionCache(
     {
       session_id: currentSessionId,
-      title: buildSessionTitleFromHistory(messages),
+      title: existing?.custom_title ? existing.title : buildSessionTitleFromHistory(messages),
+      custom_title: existing?.custom_title === true,
       last_model: selectedModel?.apiModel || existing?.last_model || null,
       message_count: messages.length,
       created_at: existing?.created_at || messages[0]?.createdAt || nowIso,
@@ -1622,6 +1642,14 @@ function loadSidebarCollapsed() {
 
 function saveSidebarCollapsed(collapsed) {
   localStorage.setItem(STORAGE_SIDEBAR_COLLAPSED, collapsed ? "1" : "0");
+}
+
+function loadLocalSectionExpanded() {
+  return localStorage.getItem(STORAGE_LOCAL_SECTION_EXPANDED) !== "0";
+}
+
+function saveLocalSectionExpanded(expanded) {
+  localStorage.setItem(STORAGE_LOCAL_SECTION_EXPANDED, expanded ? "1" : "0");
 }
 
 function syncSidebarUI() {
@@ -1924,10 +1952,19 @@ function renderSavedSessions() {
   const canShowSavedSessions = supabaseReady && authSession && profileCompleted;
 
   if (hasLocalSessions) {
-    savedSessionsListNode.appendChild(createSessionSectionTitle("Local"));
-    localSessions.forEach((session) => {
-      savedSessionsListNode.appendChild(createSessionListItem(session, { kind: "local" }));
+    const localSectionNode = createSessionSection({
+      label: "Local",
+      count: localSessions.length,
+      collapsible: true,
+      expanded: localSectionExpanded,
     });
+    const bodyNode = localSectionNode.querySelector(".session-section-body");
+    if (bodyNode && localSectionExpanded) {
+      localSessions.forEach((session) => {
+        bodyNode.appendChild(createSessionListItem(session, { kind: "local" }));
+      });
+    }
+    savedSessionsListNode.appendChild(localSectionNode);
   }
 
   if (canShowSavedSessions) {
@@ -1962,6 +1999,36 @@ function createSessionSectionTitle(label) {
   return title;
 }
 
+function createSessionSection({ label, count = 0, collapsible = false, expanded = true }) {
+  const section = document.createElement("section");
+  section.className = "session-section";
+
+  if (collapsible) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "session-section-toggle";
+    toggle.setAttribute("data-session-section-toggle", label.toLowerCase());
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.innerHTML = `
+      <span class="session-section-toggle-main">
+        <span class="session-section-toggle-label">${label}</span>
+        <span class="session-section-toggle-count">${count}</span>
+      </span>
+      ${iconHtml("chevronDown", "session-section-toggle-icon inline-icon-sm")}
+    `;
+    section.appendChild(toggle);
+  } else {
+    section.appendChild(createSessionSectionTitle(label));
+  }
+
+  const body = document.createElement("div");
+  body.className = "session-section-body";
+  body.hidden = collapsible ? !expanded : false;
+  section.appendChild(body);
+
+  return section;
+}
+
 function createSessionEmptyState(text) {
   const empty = document.createElement("p");
   empty.className = "saved-sessions-empty";
@@ -1990,16 +2057,15 @@ function createSessionListItem(session, { kind }) {
   content.append(title, meta);
   item.appendChild(content);
 
-  if (kind === "saved") {
-    const menuBtn = document.createElement("button");
-    menuBtn.type = "button";
-    menuBtn.className = "saved-session-menu-btn";
-    menuBtn.setAttribute("data-session-action", "menu");
-    menuBtn.setAttribute("data-session-id", session.session_id);
-    menuBtn.title = "Session actions";
-    menuBtn.innerHTML = iconHtml("menuMore", "inline-icon-sm");
-    item.appendChild(menuBtn);
-  }
+  const menuBtn = document.createElement("button");
+  menuBtn.type = "button";
+  menuBtn.className = "saved-session-menu-btn";
+  menuBtn.setAttribute("data-session-action", "menu");
+  menuBtn.setAttribute("data-session-id", session.session_id);
+  menuBtn.setAttribute("data-session-kind", kind);
+  menuBtn.title = kind === "local" ? "Local chat actions" : "Saved chat actions";
+  menuBtn.innerHTML = iconHtml("menuMore", "inline-icon-sm");
+  item.appendChild(menuBtn);
 
   return item;
 }
@@ -2100,12 +2166,23 @@ function upsertSavedSessionCache(payload) {
   sortSavedSessions();
 }
 
-function openSessionItemMenu(anchorButton, sessionId) {
+function openSessionItemMenu(anchorButton, sessionId, kind = "saved") {
   if (!sessionItemMenuNode) return;
-  const exists = savedSessions.some((item) => item.session_id === sessionId);
+  const exists =
+    kind === "local"
+      ? localSessions.some((item) => item.session_id === sessionId)
+      : savedSessions.some((item) => item.session_id === sessionId);
   if (!exists) return;
 
   activeSessionMenuSessionId = sessionId;
+  activeSessionMenuKind = kind === "local" ? "local" : "saved";
+  if (sessionMenuEditLabelNode) {
+    sessionMenuEditLabelNode.textContent = activeSessionMenuKind === "local" ? "Rename local chat" : "Edit title";
+  }
+  if (sessionMenuDeleteLabelNode) {
+    sessionMenuDeleteLabelNode.textContent =
+      activeSessionMenuKind === "local" ? "Delete local chat" : "Unsave/Delete";
+  }
   const rect = anchorButton.getBoundingClientRect();
   const menuWidth = 220;
   const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
@@ -2119,6 +2196,7 @@ function closeSessionItemMenu() {
   if (!sessionItemMenuNode) return;
   sessionItemMenuNode.hidden = true;
   activeSessionMenuSessionId = "";
+  activeSessionMenuKind = "";
 }
 
 function resolveSessionModeFromMessages(messages) {
@@ -2306,8 +2384,14 @@ function normalizeMessageRole(role) {
 
 async function handleEditSessionTitle() {
   const sessionId = activeSessionMenuSessionId;
+  const sessionKind = activeSessionMenuKind;
   closeSessionItemMenu();
   if (!sessionId) return;
+
+  if (sessionKind === "local") {
+    handleEditLocalSessionTitle(sessionId);
+    return;
+  }
 
   const existing = savedSessions.find((item) => item.session_id === sessionId);
   if (!existing) return;
@@ -2357,6 +2441,70 @@ async function handleEditSessionTitle() {
   }
 }
 
+function handleEditLocalSessionTitle(sessionId) {
+  const existing = findLocalSessionById(sessionId);
+  if (!existing) return;
+
+  const currentTitle = getSessionTitle(existing);
+  const nextTitleRaw = window.prompt("Rename local chat:", currentTitle);
+  if (nextTitleRaw === null) return;
+
+  const nextTitle = String(nextTitleRaw).replace(/\s+/g, " ").trim();
+  if (!nextTitle) {
+    setStatus("Title cannot be empty.");
+    return;
+  }
+  if (nextTitle.length > 120) {
+    setStatus("Title must be 120 characters or less.");
+    return;
+  }
+
+  const index = localSessions.findIndex((item) => item.session_id === sessionId);
+  if (index === -1) return;
+
+  localSessions[index] = {
+    ...localSessions[index],
+    title: nextTitle,
+    custom_title: true,
+    updated_at: new Date().toISOString(),
+  };
+  sortLocalSessions();
+  saveLocalSessions();
+  renderSavedSessions();
+  setStatus("Local chat renamed.");
+}
+
+async function handleDeleteSession() {
+  if (activeSessionMenuKind === "local") {
+    handleDeleteLocalSession();
+    return;
+  }
+  await handleDeleteSavedSession();
+}
+
+function handleDeleteLocalSession() {
+  const sessionId = activeSessionMenuSessionId;
+  closeSessionItemMenu();
+  if (!sessionId) return;
+
+  const existing = findLocalSessionById(sessionId);
+  if (!existing) return;
+
+  const title = getSessionTitle(existing);
+  const confirmed = window.confirm(`Delete local chat "${title}" from this device?`);
+  if (!confirmed) return;
+
+  removeLocalSessionById(sessionId, { render: false });
+
+  if (sessionId === currentSessionId) {
+    startNewChatSession({ persistCurrent: false });
+  } else {
+    renderSavedSessions();
+  }
+
+  setStatus("Local chat deleted.");
+}
+
 async function handleDeleteSavedSession() {
   const sessionId = activeSessionMenuSessionId;
   closeSessionItemMenu();
@@ -2398,8 +2546,10 @@ async function handleNewChat() {
   startNewChatSession();
 }
 
-function startNewChatSession() {
-  persistCurrentLocalSession({ render: false });
+function startNewChatSession({ persistCurrent = true } = {}) {
+  if (persistCurrent) {
+    persistCurrentLocalSession({ render: false });
+  }
   closeModelPicker();
   closeUploadMenu();
   closeRegenerateMenu();
