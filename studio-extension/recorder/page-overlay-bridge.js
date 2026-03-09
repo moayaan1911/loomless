@@ -13,7 +13,7 @@
   const FRAME_URL = chrome.runtime.getURL("recorder/page-overlay.html");
   const DEFAULT_MARGIN = 20;
   let overlayFrame = null;
-  let session = { state: "idle", mode: "screen" };
+  let session = { state: "idle", mode: "screen", overlayPosition: null };
   let frameWidth = 164;
   let frameHeight = 76;
   let dragState = null;
@@ -66,6 +66,13 @@
 
   function applyOverlayPosition() {
     const frame = ensureOverlayFrame();
+
+    if (session.overlayPosition && !dragState) {
+      overlayPosition = {
+        left: session.overlayPosition.left,
+        top: session.overlayPosition.top
+      };
+    }
 
     if (!overlayPosition) {
       frame.style.left = "auto";
@@ -150,6 +157,13 @@
   }
 
   function stopDragging() {
+    if (overlayPosition) {
+      chrome.runtime.sendMessage({
+        action: "SET_OVERLAY_POSITION",
+        position: overlayPosition
+      }).catch(() => {});
+    }
+
     dragState = null;
   }
 

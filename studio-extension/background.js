@@ -3,7 +3,8 @@
 const recordingSession = {
   recorderTabId: null,
   state: "idle",
-  mode: "screen"
+  mode: "screen",
+  overlayPosition: null
 };
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -36,10 +37,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       success: true,
       session: {
         state: recordingSession.state,
-        mode: recordingSession.mode
+        mode: recordingSession.mode,
+        overlayPosition: recordingSession.overlayPosition
       }
     });
     return false;
+  }
+
+  if (message.action === "SET_OVERLAY_POSITION") {
+    handleOverlayPositionUpdate(message, sendResponse);
+    return true;
   }
 });
 
@@ -123,6 +130,10 @@ async function handleRecorderStateUpdate(message, sender, sendResponse) {
     recordingSession.state = message.state || recordingSession.state;
     recordingSession.mode = message.mode || recordingSession.mode;
 
+    if (recordingSession.state === "idle") {
+      recordingSession.overlayPosition = null;
+    }
+
     if (recordingSession.state !== "idle") {
       await injectOverlayBridgeIntoAllTabs();
     }
@@ -131,6 +142,29 @@ async function handleRecorderStateUpdate(message, sender, sendResponse) {
     sendResponse({ success: true });
   } catch (error) {
     console.error("Error updating recorder state:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleOverlayPositionUpdate(message, sendResponse) {
+  try {
+    if (
+      !message.position ||
+      typeof message.position.left !== "number" ||
+      typeof message.position.top !== "number"
+    ) {
+      sendResponse({ success: false, error: "Invalid overlay position" });
+      return;
+    }
+
+    recordingSession.overlayPosition = {
+      left: message.position.left,
+      top: message.position.top
+    };
+    broadcastSessionUpdate();
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error updating overlay position:", error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -203,7 +237,8 @@ function broadcastSessionUpdate() {
     action: "RECORDING_SESSION_UPDATE",
     session: {
       state: recordingSession.state,
-      mode: recordingSession.mode
+      mode: recordingSession.mode,
+      overlayPosition: recordingSession.overlayPosition
     }
   }).catch(() => {});
 
@@ -217,7 +252,8 @@ function broadcastSessionUpdate() {
         action: "RECORDING_SESSION_UPDATE",
         session: {
           state: recordingSession.state,
-          mode: recordingSession.mode
+          mode: recordingSession.mode,
+          overlayPosition: recordingSession.overlayPosition
         }
       }).catch(() => {});
     });
@@ -228,6 +264,7 @@ function resetRecordingSession() {
   recordingSession.recorderTabId = null;
   recordingSession.mode = "screen";
   recordingSession.state = "idle";
+  recordingSession.overlayPosition = null;
 }
 
 chrome.action.onClicked.addListener(() => {

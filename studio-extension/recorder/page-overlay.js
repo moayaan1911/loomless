@@ -71,6 +71,9 @@ async function updateOverlay() {
     stopCameraPreview();
   }
 
+  const hasCamera = !cameraShell.classList.contains("hidden");
+  overlayShell.classList.toggle("camera-active", hasCamera);
+
   if (overlaySession.state === "paused") {
     pauseIcon.classList.add("hidden");
     playIcon.classList.remove("hidden");
@@ -158,7 +161,7 @@ pauseResumeBtn.addEventListener("click", () => {
 function postOverlaySize() {
   const hasCamera = !cameraShell.classList.contains("hidden");
   const width = 164;
-  const height = hasCamera ? 194 : 88;
+  const height = hasCamera ? 186 : 88;
   window.parent.postMessage(
     {
       type: "LOOMLESS_STUDIO_OVERLAY_SIZE",
