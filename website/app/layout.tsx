@@ -14,15 +14,70 @@ const sora = Sora({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://loomless.fun"),
-  title: "LoomLess - Privacy-First Screen Recording Studio",
+  title: {
+    default: "LoomLess | Free Private Screen Recorder Extension",
+    template: "%s | LoomLess",
+  },
+  applicationName: "LoomLess",
   description:
-    "Privacy-First Screen Recording Studio. YOUR VIDEO NEVER LEAVES YOUR DEVICE. Record, edit, and export locally with floating recording controls.",
+    "LoomLess is a free private screen recorder extension for screen, tab, window, webcam, and audio recording with built-in editing and local export. YOUR VIDEO NEVER LEAVES YOUR DEVICE.",
+  keywords: [
+    "free screen recorder",
+    "private screen recorder",
+    "screen recorder extension",
+    "screen recording studio",
+    "local screen recorder",
+    "browser screen recorder",
+    "screen and webcam recorder",
+    "screen recorder with audio",
+    "screen recorder with editor",
+    "webcam overlay screen recorder",
+    "record screen browser tab",
+    "chrome screen recorder extension",
+    "firefox screen recorder extension",
+    "no upload screen recorder",
+    "privacy first screen recorder",
+  ],
+  authors: [{ name: "Mohammad Ayaan Siddiqui", url: "https://moayaan.com" }],
+  creator: "Mohammad Ayaan Siddiqui",
+  publisher: "LoomLess",
+  category: "technology",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
-    title: "LoomLess - Privacy-First Screen Recording Studio",
+    title: "LoomLess | Free Private Screen Recorder Extension",
     description:
-      "YOUR VIDEO NEVER LEAVES YOUR DEVICE. Record, edit, and export locally with floating recording controls and total privacy.",
+      "Free private screen recorder extension with webcam overlay, floating controls, built-in editing, and local export. YOUR VIDEO NEVER LEAVES YOUR DEVICE.",
+    url: "https://loomless.fun",
+    siteName: "LoomLess",
+    locale: "en_US",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "LoomLess" }],
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LoomLess | Free Private Screen Recorder Extension",
+    description:
+      "Free private screen recorder extension with local recording, built-in editing, floating controls, and webcam overlay.",
+    images: ["/og-image.png"],
+    creator: "@moayaan1911",
   },
 };
 

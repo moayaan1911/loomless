@@ -13,7 +13,7 @@ Assalamualaikum guys! 🙌 This is Mohammad Ayaan Siddiqui (♦moayaan.eth♦). 
 - PG Diploma in Blockchain Management from Cambridge International Qualifications (CIQ) 🇬🇧
 - MBA in Blockchain Management from University of Studies Guglielmo Marconi, Italy 🇮🇹
 
-Let’s connect and build something epic! Find me at [moayaan.com](https://moayaan.com) 🌐
+Let’s connect and build something epic! Find me at [moayaan.com](https://moayaan.com) 🌐 or on [X @moayaan1911](https://x.com/moayaan1911)
 
 ---
 
@@ -410,7 +410,7 @@ See [LICENSE](LICENSE) for details.
 
 [![Website](https://img.shields.io/badge/Website-moayaan.com-4f46e5?style=for-the-badge&logo=google-chrome&logoColor=white)](https://moayaan.com)
 [![GitHub](https://img.shields.io/badge/GitHub-moayaan1911-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/moayaan1911)
-[![Twitter](https://img.shields.io/badge/Twitter-moayaan__eth-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/moayaan_eth)
+[![X](https://img.shields.io/badge/X-moayaan1911-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/moayaan1911)
 
 </div>
 

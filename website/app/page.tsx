@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { FaFirefoxBrowser } from "react-icons/fa6";
 import {
   ArrowRight,
   Camera,
   Chrome,
   CloudOff,
+  Copyright,
   Crop,
   Download,
   Github,
@@ -16,6 +19,7 @@ import {
   Sun,
   Video,
   Waves,
+  UserRound,
 } from "lucide-react";
 
 type Theme = "dark" | "light";
@@ -25,26 +29,22 @@ const THEME_KEY = "loomless-theme";
 const highlights = [
   {
     title: "Screen + Audio Capture",
-    description:
-      "Record screens, tabs, or windows with system audio and optional mic.",
+    description: "Record screens, tabs, or windows with optional audio.",
     icon: Video,
   },
   {
     title: "Smart Camera Overlay",
-    description:
-      "Draggable webcam bubble with smart compositing and no duplicate circles.",
+    description: "Draggable webcam bubble with no duplicate circles.",
     icon: Camera,
   },
   {
     title: "Floating Recording Control",
-    description:
-      "Drag pause, resume, and stop controls across browser pages while recording.",
+    description: "Pause, resume, and stop across browser pages.",
     icon: Waves,
   },
   {
     title: "Built-in Editor",
-    description:
-      "Trim, crop, change speed, and export to WebM or MP4 in-browser.",
+    description: "Trim, crop, speed-tune, and export locally.",
     icon: Scissors,
   },
 ];
@@ -69,25 +69,115 @@ const ctaLinks = {
   github: "https://github.com/moayaan1911/loomless",
   donate: "https://moayaan.com/donate",
   author: "https://moayaan.com",
+  twitter: "https://x.com/moayaan1911",
 };
 
+const softwareApplicationLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "LoomLess",
+  applicationCategory: "MultimediaApplication",
+  applicationSubCategory: "Screen Recorder Extension",
+  operatingSystem: "Chrome, Firefox",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  url: "https://loomless.fun",
+  image: "https://loomless.fun/og-image.png",
+  description:
+    "LoomLess is a free private screen recorder extension with local recording, webcam overlay, floating recording controls, built-in editing, and export to WebM or MP4.",
+  keywords:
+    "free screen recorder, private screen recorder, screen recorder extension, local screen recorder, webcam overlay screen recorder, screen recorder with audio, screen recorder with editor",
+  author: {
+    "@type": "Person",
+    name: "Mohammad Ayaan Siddiqui",
+    url: "https://moayaan.com",
+  },
+};
+
+const webSiteLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "LoomLess",
+  url: "https://loomless.fun",
+  description:
+    "Free private screen recorder extension with local recording, floating controls, webcam overlay, and built-in editing.",
+};
+
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is LoomLess?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "LoomLess is a free private screen recorder extension for recording your screen, browser tab, window, webcam, and audio with built-in local editing.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does LoomLess upload my recordings?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. LoomLess processes recordings locally so your video never leaves your device.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can LoomLess record screen and webcam together?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. LoomLess supports screen, screen plus microphone, screen plus webcam, and screen plus webcam plus microphone recording modes.",
+      },
+    },
+  ],
+};
+
+function XIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[17px] w-[17px] fill-current"
+    >
+      <path d="M18.9 2H22l-6.77 7.74L23.2 22h-6.24l-4.89-7.39L5.6 22H2.5l7.24-8.28L.8 2h6.4l4.42 6.76L18.9 2Zm-1.09 18h1.72L6.25 3.9H4.4Z" />
+    </svg>
+  );
+}
+
+function SupportIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[17px] w-[17px] fill-none stroke-current"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5c0-1.1 1.1-2 2.5-2s2.5.9 2.5 2-1 1.8-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2 2.5-.9 2.5-2" />
+      <path d="M12 6.5v11" />
+    </svg>
+  );
+}
+
 export default function Home() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "dark";
     const stored = window.localStorage.getItem(THEME_KEY);
-    const nextTheme = stored === "light" || stored === "dark" ? stored : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    setTheme(nextTheme);
-    setMounted(true);
-  }, []);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  });
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    if (!mounted) return;
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_KEY, theme);
-  }, [mounted, theme]);
+  }, [theme]);
 
   const isDark = theme === "dark";
 
@@ -98,7 +188,7 @@ export default function Home() {
       <div className="orb orb-b pointer-events-none fixed right-0 bottom-0 -z-20 h-96 w-96 rounded-full blur-3xl" />
 
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-7 lg:px-10">
-        <a
+        <Link
           href={ctaLinks.author}
           target="_blank"
           rel="noopener noreferrer"
@@ -107,45 +197,55 @@ export default function Home() {
           <Image
             src="/logo.png"
             alt="LoomLess logo"
-            width={40}
-            height={40}
-            className="rounded-xl border border-white/20 bg-white/10 p-1.5 shadow-lg shadow-cyan-300/20 transition-transform duration-300 group-hover:rotate-6 group-hover:scale-105"
+            width={56}
+            height={56}
+            className="rounded-2xl border border-white/20 bg-white/10 p-1.5 shadow-lg shadow-cyan-300/20 transition-transform duration-300 group-hover:rotate-6 group-hover:scale-105"
           />
-          <div>
-            <p className="font-semibold tracking-wide">LoomLess</p>
-            <p className="text-xs text-(--muted)">Privacy-First Screen Recording Studio</p>
-          </div>
-        </a>
+          <p className="text-2xl font-bold tracking-wide sm:text-3xl">LoomLess</p>
+        </Link>
 
         <button
           type="button"
           aria-label="Toggle theme"
           onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="glass-card flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-transform duration-300 hover:-translate-y-0.5"
+          className="glass-card flex cursor-pointer items-center justify-center rounded-full px-5 py-3 text-sm font-medium transition-transform duration-300 hover:-translate-y-0.5"
         >
-          {mounted && isDark ? <Sun size={16} /> : <MoonStar size={16} />}
-          {mounted && isDark ? "Light Mode" : "Dark Mode"}
+          {isDark ? <Sun size={24} /> : <MoonStar size={24} />}
         </button>
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-6 pb-20 lg:px-10">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
+        />
         <section className="section-appear mb-20 grid items-center gap-10 lg:grid-cols-[1.15fr_1fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-(--line) bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.18em] text-(--muted)">
-              <Waves size={14} />
+            <div
+              className={`inline-flex items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold uppercase tracking-[0.24em] shadow-[0_0_0_1px_rgba(125,224,255,0.08),0_14px_40px_rgba(54,193,255,0.14)] ${
+                isDark
+                  ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100"
+                  : "border border-sky-400/45 bg-sky-200/55 text-sky-700"
+              }`}
+            >
+              <Waves size={18} />
               YOUR VIDEO NEVER LEAVES YOUR DEVICE
             </div>
             <h1 className="neon-title mt-6 text-4xl leading-tight font-bold sm:text-5xl lg:text-6xl">
-              Privacy-First
-              <span className="block text-(--accent)">Screen Recording Studio</span>
+              <span className="block">Privacy-First Screen</span>
+              <span className="block text-(--accent)">Recording Studio</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-(--muted) sm:text-lg">
-              LoomLess is a local-first Chrome extension for recording and editing with
-              floating recording controls, no account walls, no uploads, and no hidden pricing.
-            </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
+            <div className="mt-8 flex flex-wrap gap-3 xl:flex-nowrap">
+              <Link
                 href={ctaLinks.chrome}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -154,8 +254,15 @@ export default function Home() {
                 <Chrome size={18} />
                 Install on Chrome
                 <ArrowRight size={18} />
-              </a>
-              <a
+              </Link>
+              <button
+                type="button"
+                className="action-btn action-btn-firefox"
+              >
+                <FaFirefoxBrowser size={18} />
+                Install on Firefox
+              </button>
+              <Link
                 href={ctaLinks.github}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -163,18 +270,18 @@ export default function Home() {
               >
                 <Github size={18} />
                 Explore Source
-              </a>
+              </Link>
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2">
               {highlights.map((item, index) => (
                 <article
                   key={item.title}
-                  className={`glass-card section-appear rounded-2xl p-4 delay-${index + 1}`}
+                  className={`glass-card section-appear rounded-2xl px-4 py-3.5 delay-${index + 1}`}
                 >
-                  <item.icon size={18} className="mb-3 text-(--accent)" />
-                  <h2 className="mb-2 text-sm font-semibold">{item.title}</h2>
-                  <p className="text-sm leading-6 text-(--muted)">{item.description}</p>
+                  <item.icon size={18} className="mb-2 text-(--accent)" />
+                  <h2 className="mb-1.5 text-sm font-semibold">{item.title}</h2>
+                  <p className="text-sm leading-5.5 text-(--muted)">{item.description}</p>
                 </article>
               ))}
             </div>
@@ -183,20 +290,16 @@ export default function Home() {
           <div className="section-appear delay-2">
             <div className="glass-card relative overflow-hidden rounded-3xl p-4">
               <div className="absolute -top-16 -right-8 h-36 w-36 rounded-full bg-cyan-400/25 blur-3xl" />
-              <Image
-                src="/1.png"
-                alt="LoomLess recorder interface screenshot"
-                width={1050}
-                height={700}
-                priority
-                className="floaty rounded-2xl border border-white/12"
+              <video
+                src="/loomless-promo.mp4"
+                poster="/ui-preview-1-v2.png"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                className="floaty aspect-[16/11] w-full rounded-2xl border border-white/12 object-cover"
               />
-              <div className="absolute top-8 left-8 rounded-full border border-emerald-300/40 bg-emerald-300/15 px-3 py-1 text-xs font-medium text-emerald-100">
-                Local Processing Active
-              </div>
-              <div className="glass-card absolute right-6 bottom-6 rounded-xl px-3 py-2 text-xs">
-                No Account Required
-              </div>
             </div>
           </div>
         </section>
@@ -226,14 +329,14 @@ export default function Home() {
                 Everything you need. Nothing you do not.
               </h3>
             </div>
-            <a
+            <Link
               href={ctaLinks.donate}
               target="_blank"
               rel="noopener noreferrer"
               className="action-btn action-btn-muted"
             >
               Support Project
-            </a>
+            </Link>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -275,12 +378,16 @@ export default function Home() {
               <h3 className="mt-2 text-2xl font-semibold sm:text-3xl">Recorder + Editor Screens</h3>
             </div>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((num) => (
-              <article key={num} className="glass-card group rounded-2xl p-3">
+          <div className="grid gap-5 md:grid-cols-3">
+            {[
+              "/ui-preview-2-v2.png",
+              "/ui-preview-3-v2.png",
+              "/ui-preview-4-v2.png",
+            ].map((src, index) => (
+              <article key={src} className="glass-card group rounded-2xl p-3">
                 <Image
-                  src={`/${num}.png`}
-                  alt={`LoomLess screenshot ${num}`}
+                  src={src}
+                  alt={`LoomLess screenshot ${index + 1}`}
                   width={1250}
                   height={820}
                   className="rounded-xl border border-white/10 transition-transform duration-500 group-hover:scale-[1.015]"
@@ -309,17 +416,47 @@ export default function Home() {
       </main>
 
       <footer className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 border-t border-white/10 px-6 py-8 text-center text-sm text-(--muted) sm:flex-row sm:text-left lg:px-10">
-        <p>Built by moayaan.eth. Open-source and forever free.</p>
+        <p className="flex items-center gap-2">
+          <Copyright size={15} />
+          {currentYear} LoomLess.Fun Built by Mohammad Ayaan Siddiqui
+        </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <a href={ctaLinks.github} target="_blank" rel="noopener noreferrer" className="footer-link">
+          <Link
+            href={ctaLinks.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <Github size={17} />
             GitHub
-          </a>
-          <a href={ctaLinks.author} target="_blank" rel="noopener noreferrer" className="footer-link">
-            Website
-          </a>
-          <a href={ctaLinks.donate} target="_blank" rel="noopener noreferrer" className="footer-link">
+          </Link>
+          <Link
+            href={ctaLinks.author}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <UserRound size={17} />
+            Connect with Dev
+          </Link>
+          <Link
+            href={ctaLinks.twitter}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <XIcon />
+            X
+          </Link>
+          <Link
+            href={ctaLinks.donate}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <SupportIcon />
             Donate
-          </a>
+          </Link>
         </div>
       </footer>
     </div>

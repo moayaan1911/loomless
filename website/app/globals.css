@@ -73,10 +73,14 @@ body {
 .action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   border-radius: 999px;
   border: 1px solid var(--line);
-  padding: 0.78rem 1.2rem;
+  padding: 0.74rem 1.05rem;
   font-size: 0.9rem;
   font-weight: 600;
   transition: transform 180ms ease, box-shadow 240ms ease, border-color 180ms ease;
@@ -102,8 +106,22 @@ body {
   color: var(--fg);
 }
 
+.action-btn-firefox {
+  background: linear-gradient(
+    110deg,
+    rgba(255, 140, 74, 0.16),
+    rgba(127, 91, 255, 0.14)
+  );
+  border-color: rgba(255, 166, 91, 0.3);
+  color: var(--fg);
+  box-shadow: 0 14px 28px rgba(133, 88, 255, 0.12);
+}
+
 .footer-link {
+  display: inline-flex;
+  align-items: center;
   transition: color 200ms ease;
+  cursor: pointer;
 }
 
 .footer-link:hover {
