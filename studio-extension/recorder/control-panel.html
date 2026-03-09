@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="control-panel.css" />
+    <title>LoomLess Controls</title>
+  </head>
+  <body>
+    <main class="control-shell">
+      <div class="control-status">
+        <span class="status-dot" id="statusDot"></span>
+        <div>
+          <div class="status-title" id="statusTitle">Recording</div>
+          <div class="status-subtitle" id="statusSubtitle">Floating controls</div>
+        </div>
+      </div>
+
+      <div class="control-actions">
+        <button class="control-btn control-btn-secondary" id="pauseResumeBtn" type="button">
+          Pause
+        </button>
+        <button class="control-btn control-btn-danger" id="stopBtn" type="button">
+          Stop
+        </button>
+      </div>
+    </main>
+
+    <script src="control-panel.js"></script>
+  </body>
+</html>

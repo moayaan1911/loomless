@@ -1,31 +1,91 @@
 // Background service worker for LoomLess Studio extension
 
+const recordingSession = {
+  recorderTabId: null,
+  state: "idle",
+  mode: "screen"
+};
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("LoomLess Studio extension installed");
 });
 
-// Handle messages from popup and other parts of the extension
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "OPEN_RECORDER") {
     openRecorderTab(sendResponse);
-    return true; // Keep message channel open for async response
+    return true;
+  }
+
+  if (message.action === "REGISTER_RECORDER") {
+    handleRegisterRecorder(sender, sendResponse);
+    return true;
+  }
+
+  if (message.action === "RECORDER_STATE_UPDATE") {
+    handleRecorderStateUpdate(message, sender, sendResponse);
+    return true;
+  }
+
+  if (message.action === "RECORDER_COMMAND") {
+    forwardRecorderCommand(message, sendResponse);
+    return true;
+  }
+
+  if (message.action === "GET_RECORDING_SESSION") {
+    sendResponse({
+      success: true,
+      session: {
+        state: recordingSession.state,
+        mode: recordingSession.mode
+      }
+    });
+    return false;
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === recordingSession.recorderTabId) {
+    resetRecordingSession();
+    broadcastSessionUpdate();
+  }
+});
+
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  if (recordingSession.state === "idle") {
+    return;
+  }
+
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await injectOverlayBridge(tab);
+  } catch (error) {
+    console.warn("Overlay injection on activate failed:", error);
+  }
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (recordingSession.state === "idle" || changeInfo.status !== "complete") {
+    return;
+  }
+
+  try {
+    await injectOverlayBridge(tab);
+  } catch (error) {
+    console.warn("Overlay injection on update failed:", error);
   }
 });
 
 async function openRecorderTab(sendResponse) {
   try {
-    // Check if recorder tab is already open
     const tabs = await chrome.tabs.query({
       url: chrome.runtime.getURL("recorder/recorder.html"),
     });
 
     if (tabs.length > 0) {
-      // Focus existing recorder tab
       await chrome.tabs.update(tabs[0].id, { active: true });
       await chrome.windows.update(tabs[0].windowId, { focused: true });
       sendResponse({ success: true, message: "Focused existing recorder tab" });
     } else {
-      // Create new recorder tab
       const tab = await chrome.tabs.create({
         url: chrome.runtime.getURL("recorder/recorder.html"),
         active: true,
@@ -42,19 +102,142 @@ async function openRecorderTab(sendResponse) {
   }
 }
 
-// Handle extension icon click (optional - mainly handled by popup)
-chrome.action.onClicked.addListener(async (tab) => {
-  // This will only fire if no popup is defined in manifest
-  // Since we have a popup, this is just a fallback
+async function handleRegisterRecorder(sender, sendResponse) {
+  try {
+    if (sender.tab?.id) {
+      recordingSession.recorderTabId = sender.tab.id;
+    }
+
+    sendResponse({ success: true });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function handleRecorderStateUpdate(message, sender, sendResponse) {
+  try {
+    if (sender.tab?.id) {
+      recordingSession.recorderTabId = sender.tab.id;
+    }
+
+    recordingSession.state = message.state || recordingSession.state;
+    recordingSession.mode = message.mode || recordingSession.mode;
+
+    if (recordingSession.state !== "idle") {
+      await injectOverlayBridgeIntoAllTabs();
+    }
+
+    broadcastSessionUpdate();
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error updating recorder state:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+async function forwardRecorderCommand(message, sendResponse) {
+  try {
+    if (!recordingSession.recorderTabId) {
+      sendResponse({ success: false, error: "No active recorder tab" });
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      action: "RECORDER_INTERNAL_COMMAND",
+      targetTabId: recordingSession.recorderTabId,
+      command: message.command
+    });
+
+    sendResponse({
+      success: Boolean(response?.success),
+      error: response?.error
+    });
+  } catch (error) {
+    console.error("Error forwarding recorder command:", error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+function canInjectOverlay(tab) {
+  const url = tab?.url || "";
+
+  if (!tab?.id) {
+    return false;
+  }
+
+  if (!url) {
+    return false;
+  }
+
+  return (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("file://")
+  );
+}
+
+async function injectOverlayBridge(tab) {
+  if (!canInjectOverlay(tab)) {
+    return;
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["recorder/page-overlay-bridge.js"]
+  });
+}
+
+async function injectOverlayBridgeIntoAllTabs() {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    try {
+      await injectOverlayBridge(tab);
+    } catch (error) {
+      console.warn("Overlay injection failed for tab:", tab.id, error);
+    }
+  }
+}
+
+function broadcastSessionUpdate() {
+  chrome.runtime.sendMessage({
+    action: "RECORDING_SESSION_UPDATE",
+    session: {
+      state: recordingSession.state,
+      mode: recordingSession.mode
+    }
+  }).catch(() => {});
+
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      if (!tab.id) {
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, {
+        action: "RECORDING_SESSION_UPDATE",
+        session: {
+          state: recordingSession.state,
+          mode: recordingSession.mode
+        }
+      }).catch(() => {});
+    });
+  });
+}
+
+function resetRecordingSession() {
+  recordingSession.recorderTabId = null;
+  recordingSession.mode = "screen";
+  recordingSession.state = "idle";
+}
+
+chrome.action.onClicked.addListener(() => {
   openRecorderTab(() => {});
 });
 
-// Clean up when extension is disabled/removed
 chrome.runtime.onSuspend.addListener(() => {
   console.log("LoomLess Studio extension suspending");
 });
 
-// Handle when extension context is invalidated
 chrome.runtime.onStartup.addListener(() => {
   console.log("LoomLess Studio extension starting up");
 });

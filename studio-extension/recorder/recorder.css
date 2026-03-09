@@ -288,6 +288,12 @@ body {
   animation: pulse 1s infinite;
 }
 
+.status-indicator.paused .status-dot {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 8px var(--accent-glow);
+  animation: none;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.6; transform: scale(1.1); }
@@ -311,6 +317,11 @@ body {
 .studio-container.recording .timer-display {
   color: var(--recording-red);
   animation: pulse 1s infinite;
+}
+
+.studio-container.paused .timer-display {
+  color: var(--accent-secondary);
+  animation: none;
 }
 
 /* Main Content */
@@ -395,8 +406,20 @@ body {
   transform: scale(0.98);
 }
 
+.record-btn:disabled {
+  cursor: default;
+}
+
 .studio-container.recording .record-btn {
   background: linear-gradient(135deg, var(--recording-red), #dc2626);
+  box-shadow:
+    0 0 0 4px var(--bg-primary),
+    0 0 0 6px var(--recording-red),
+    0 10px 40px var(--recording-glow);
+}
+
+.studio-container.recording .record-btn:hover {
+  transform: none;
   box-shadow:
     0 0 0 4px var(--bg-primary),
     0 0 0 6px var(--recording-red),
@@ -418,8 +441,7 @@ body {
   transition: all 0.3s ease;
 }
 
-.record-icon,
-.stop-icon {
+.record-icon {
   position: absolute;
 }
 
@@ -436,6 +458,10 @@ body {
 
 .studio-container.recording .recording-label {
   color: var(--recording-red);
+}
+
+.studio-container.paused .recording-label {
+  color: var(--accent-secondary);
 }
 
 /* Waveform */
@@ -463,6 +489,11 @@ body {
 .studio-container.recording .wave-bar {
   animation: wave 0.8s ease-in-out infinite;
   background: var(--recording-red);
+}
+
+.studio-container.paused .wave-bar {
+  animation-play-state: paused;
+  background: var(--accent-secondary);
 }
 
 .wave-bar:nth-child(1) { animation-delay: 0s; }

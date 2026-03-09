@@ -62,10 +62,19 @@ h1 {
 .tagline {
     font-size: 13px;
     color: #6b7280;
-    margin-bottom: 24px;
+    margin-bottom: 6px;
     line-height: 1.5;
     font-weight: 500;
     animation: fadeIn 0.4s ease-out 0.1s both;
+}
+
+.keyline {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #4338ca;
+    font-weight: 800;
+    margin-bottom: 24px;
+    animation: fadeIn 0.4s ease-out 0.12s both;
 }
 
 @keyframes fadeIn {

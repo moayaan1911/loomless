@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="page-overlay.css" />
+    <title>LoomLess Overlay</title>
+  </head>
+  <body>
+    <main class="overlay-shell" id="overlayShell">
+      <div class="camera-shell hidden" id="cameraShell">
+        <video class="camera-preview" id="cameraPreview" autoplay muted playsinline></video>
+      </div>
+
+      <div class="controls-shell">
+        <button class="overlay-btn overlay-btn-secondary" id="pauseResumeBtn" type="button" aria-label="Pause or resume recording">
+          <svg class="overlay-btn-icon" id="pauseIcon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="7" y="5" width="4" height="14" rx="1"></rect>
+            <rect x="13" y="5" width="4" height="14" rx="1"></rect>
+          </svg>
+          <svg class="overlay-btn-icon hidden" id="playIcon" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="8 5 19 12 8 19 8 5"></polygon>
+          </svg>
+        </button>
+        <button class="overlay-btn overlay-btn-danger" id="stopBtn" type="button" aria-label="Stop recording">
+          <svg class="overlay-btn-icon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
+        </button>
+      </div>
+    </main>
+
+    <script src="page-overlay.js"></script>
+  </body>
+</html>

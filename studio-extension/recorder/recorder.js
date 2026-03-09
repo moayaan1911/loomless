@@ -9,7 +9,11 @@ let stream = null;
 let startTime = null;
 let timerInterval = null;
 let isRecording = false;
+let recordingState = "idle";
 let recordingDuration = 0;
+let pausedAt = null;
+let pausedDuration = 0;
+let recorderMimeType = "video/webm";
 
 // Recording mode variables
 let recordingMode = 'screen'; // 'screen' | 'screen-mic' | 'screen-cam' | 'screen-cam-mic'
@@ -28,11 +32,11 @@ let cameraDragState = {
   offsetY: 0
 };
 const SELF_CAPTURE_HANDLE = "loomless-recorder";
+let recorderTabId = null;
 
 // DOM elements
 let recordBtn,
   recordIcon,
-  stopIcon,
   recordingLabel,
   timer,
   statusIndicator,
@@ -53,12 +57,12 @@ document.addEventListener("DOMContentLoaded", function () {
   setupEventListeners();
   initializeTheme();
   configureCaptureHandle();
+  registerRecorderTab();
 });
 
 function initializeElements() {
   recordBtn = document.getElementById("startRecordBtn");
   recordIcon = document.getElementById("recordIcon");
-  stopIcon = document.getElementById("stopIcon");
   recordingLabel = document.getElementById("recordingLabel");
   timer = document.getElementById("timer");
   statusIndicator = document.getElementById("statusIndicator");
@@ -82,7 +86,7 @@ function setupEventListeners() {
   const modeButtons = document.querySelectorAll(".mode-btn");
   modeButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (!isRecording) {
+      if (recordingState === "idle") {
         setRecordingMode(btn.dataset.mode);
       }
     });
@@ -100,8 +104,35 @@ function setupEventListeners() {
   document.addEventListener("keydown", (e) => {
     if (e.code === "Space" && document.activeElement === document.body) {
       e.preventDefault();
-      toggleRecording();
+      if (recordingState === "idle") {
+        startRecording();
+      }
     }
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action !== "RECORDER_INTERNAL_COMMAND") {
+      return false;
+    }
+
+    if (message.targetTabId && recorderTabId && message.targetTabId !== recorderTabId) {
+      return false;
+    }
+
+    let success = false;
+
+    if (message.command === "pause-resume") {
+      success = togglePauseResume();
+    } else if (message.command === "pause") {
+      success = pauseRecording();
+    } else if (message.command === "resume") {
+      success = resumeRecording();
+    } else if (message.command === "stop") {
+      success = stopRecording();
+    }
+
+    sendResponse({ success });
+    return true;
   });
 }
 
@@ -132,11 +163,185 @@ function toggleTheme() {
 }
 
 function toggleRecording() {
-  if (isRecording) {
-    stopRecording();
-  } else {
+  if (recordingState === "idle") {
     startRecording();
   }
+}
+
+function togglePauseResume() {
+  if (recordingState === "recording") {
+    return pauseRecording();
+  } else if (recordingState === "paused") {
+    return resumeRecording();
+  }
+
+  return false;
+}
+
+function applyPausedState(pausedTime = Date.now()) {
+  if (recordingState === "paused") {
+    return;
+  }
+
+  recordingState = "paused";
+  pausedAt = pausedTime;
+  updateTimerDisplay(pausedAt);
+  stopTimer();
+  updateUIForPausedRecording();
+  syncRecordingState();
+}
+
+function applyRecordingState() {
+  if (recordingState === "recording") {
+    return;
+  }
+
+  recordingState = "recording";
+  updateUIForRecording();
+  updateTimerDisplay();
+  startTimer();
+  syncRecordingState();
+}
+
+function updateTimerDisplay(referenceTime = Date.now()) {
+  const elapsed = getActiveRecordingDuration(referenceTime);
+  const minutes = Math.floor(elapsed / 60000);
+  const seconds = Math.floor((elapsed % 60000) / 1000);
+  timer.textContent = `${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function getActiveRecordingDuration(referenceTime = Date.now()) {
+  if (!startTime) {
+    return 0;
+  }
+
+  let elapsed = referenceTime - startTime - pausedDuration;
+  if (recordingState === "paused" && pausedAt) {
+    elapsed -= referenceTime - pausedAt;
+  }
+
+  return Math.max(0, elapsed);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function getRecorderOptions() {
+  const options = {
+    mimeType: "video/webm;codecs=vp9,opus",
+    videoBitsPerSecond: 2500000,
+  };
+
+  if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+    options.mimeType = "video/webm;codecs=vp8,opus";
+  }
+  if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+    options.mimeType = "video/webm";
+  }
+
+  return options;
+}
+
+function attachRecorderHandlers() {
+  if (!mediaRecorder) {
+    return;
+  }
+
+  mediaRecorder.ondataavailable = function (event) {
+    if (event.data.size > 0) {
+      recordedChunks.push(event.data);
+    }
+  };
+
+  mediaRecorder.onstop = function () {
+    mediaRecorder = null;
+    finalizeStoppedRecording();
+  };
+
+  mediaRecorder.onpause = function () {
+    applyPausedState();
+  };
+
+  mediaRecorder.onresume = function () {
+    if (pausedAt) {
+      pausedDuration += Date.now() - pausedAt;
+      pausedAt = null;
+    }
+
+    applyRecordingState();
+  };
+}
+
+function startRecorderSegment() {
+  if (!stream) {
+    return false;
+  }
+
+  const options = getRecorderOptions();
+  recorderMimeType = options.mimeType;
+  mediaRecorder = new MediaRecorder(stream, options);
+  attachRecorderHandlers();
+  mediaRecorder.start(1000);
+  return true;
+}
+
+function cleanupCaptureResources() {
+  stopTimer();
+
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+
+  if (stream) {
+    stream.getTracks().forEach((track) => track.stop());
+    if (stream._screenStream) {
+      stream._screenStream.getTracks().forEach((track) => track.stop());
+    }
+  }
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+
+  if (micStream) {
+    micStream.getTracks().forEach((track) => track.stop());
+    micStream = null;
+  }
+
+  hideCameraPreview();
+}
+
+function finalizeStoppedRecording() {
+  cleanupCaptureResources();
+  handleRecordingComplete();
+}
+
+function registerRecorderTab() {
+  chrome.tabs.getCurrent((tab) => {
+    recorderTabId = tab?.id || null;
+    chrome.runtime.sendMessage({ action: "REGISTER_RECORDER" }).catch(() => {});
+  });
+}
+
+function syncRecordingState() {
+  chrome.runtime.sendMessage({
+    action: "RECORDER_STATE_UPDATE",
+    state: recordingState,
+    mode: recordingMode
+  }).catch(() => {});
 }
 
 function configureCaptureHandle() {
@@ -197,6 +402,29 @@ function isLikelySelfTabCapture(track) {
   const recorderStillVisible = document.visibilityState === "visible";
 
   return labelLooksLikeRecorderTab || recorderStillVisible;
+}
+
+function isLikelyBrowserWindowCapture(track) {
+  if (!track) {
+    return false;
+  }
+
+  const settings = typeof track.getSettings === "function" ? track.getSettings() : {};
+  if (settings?.displaySurface !== "window") {
+    return false;
+  }
+
+  const label = (track.label || "").toLowerCase();
+  return (
+    label.includes("chrome") ||
+    label.includes("brave") ||
+    label.includes("edge") ||
+    label.includes("firefox") ||
+    label.includes("arc") ||
+    label.includes("opera") ||
+    label.includes("vivaldi") ||
+    label.includes("browser")
+  );
 }
 
 function isCameraModeEnabled(mode = recordingMode) {
@@ -521,6 +749,8 @@ function showErrorToast(message) {
 
 async function startRecording() {
   try {
+    recordingState = "starting";
+
     // Update UI immediately
     recordBtn.disabled = true;
     recordingLabel.textContent = "Requesting Permission...";
@@ -597,7 +827,9 @@ async function startRecording() {
     //   so we need to composite the camera overlay into the video.
     const screenSettings = screenTrack.getSettings ? screenTrack.getSettings() : {};
     const isEntireScreen = screenSettings.displaySurface === "monitor";
-    const previewAlreadyCaptured = isSelfCapture || isEntireScreen;
+    const isBrowserSurface = screenSettings.displaySurface === "browser";
+    const isBrowserWindow = isLikelyBrowserWindowCapture(screenTrack);
+    const previewAlreadyCaptured = isSelfCapture || isEntireScreen || isBrowserSurface || isBrowserWindow;
 
     if (needsCamera && cameraStream && !previewAlreadyCaptured) {
       const compositeStream = createCompositeStream(screenStream, cameraStream);
@@ -624,33 +856,7 @@ async function startRecording() {
     // Store screen stream reference for cleanup
     stream._screenStream = screenStream;
 
-    // Set up MediaRecorder
-    const options = {
-      mimeType: "video/webm;codecs=vp9,opus",
-      videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
-    };
-
-    // Fallback for older browsers
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      options.mimeType = "video/webm;codecs=vp8,opus";
-    }
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      options.mimeType = "video/webm";
-    }
-
-    mediaRecorder = new MediaRecorder(stream, options);
     recordedChunks = [];
-
-    // Set up MediaRecorder event handlers
-    mediaRecorder.ondataavailable = function (event) {
-      if (event.data.size > 0) {
-        recordedChunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = function () {
-      handleRecordingComplete();
-    };
 
     // Handle stream ending (user stops sharing from system)
     screenTrack.addEventListener("ended", function () {
@@ -660,73 +866,81 @@ async function startRecording() {
     });
 
     // Start recording
-    mediaRecorder.start(1000); // Collect data every second
+    if (!startRecorderSegment()) {
+      throw new Error("Unable to start recorder segment");
+    }
     isRecording = true;
+    recordingState = "recording";
     startTime = Date.now();
+    pausedAt = null;
+    pausedDuration = 0;
 
     // Update UI for recording state
     updateUIForRecording();
     startTimer();
+    syncRecordingState();
   } catch (error) {
     console.error("Error starting recording:", error);
     handleRecordingError(error);
   }
 }
 
+function pauseRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "recording") {
+    return false;
+  }
+
+  try {
+    mediaRecorder.pause();
+    return true;
+  } catch (error) {
+    console.error("Error pausing recording:", error);
+    showErrorToast("Pause failed. Please try again.");
+    return false;
+  }
+}
+
+function resumeRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== "paused") {
+    return false;
+  }
+
+  try {
+    mediaRecorder.resume();
+    return true;
+  } catch (error) {
+    console.error("Error resuming recording:", error);
+    showErrorToast("Resume failed. Please try again.");
+    return false;
+  }
+}
+
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
+  if (mediaRecorder && (mediaRecorder.state === "recording" || mediaRecorder.state === "paused")) {
+    const stoppedAt = Date.now();
+    if (pausedAt) {
+      pausedDuration += stoppedAt - pausedAt;
+      pausedAt = null;
+    }
+
+    recordingDuration = getActiveRecordingDuration(stoppedAt);
     isRecording = false;
+    recordingState = "stopping";
 
     // Update UI
     recordBtn.disabled = true;
     recordingLabel.textContent = "Processing...";
+    recordIcon.classList.remove("hidden");
     statusText.textContent = "Processing";
+    statusIndicator.classList.remove("recording", "paused");
+    studioContainer.classList.remove("paused");
+    syncRecordingState();
 
-    // Stop recording
     mediaRecorder.stop();
-
-    // Stop timer
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-
-    // Stop animation frame for compositing
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
-    }
-
-    // Close audio context
-    if (audioContext) {
-      audioContext.close();
-      audioContext = null;
-    }
-
-    // Stop all tracks from main stream
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      // Also stop the original screen stream
-      if (stream._screenStream) {
-        stream._screenStream.getTracks().forEach((track) => track.stop());
-      }
-    }
-
-    // Stop camera stream
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      cameraStream = null;
-    }
-
-    // Stop mic stream
-    if (micStream) {
-      micStream.getTracks().forEach((track) => track.stop());
-      micStream = null;
-    }
-
-    // Hide camera preview
-    hideCameraPreview();
+    return true;
   }
+
+  return false;
 }
 
 async function handleRecordingComplete() {
@@ -736,11 +950,8 @@ async function handleRecordingComplete() {
 
     // Create blob from recorded chunks
     const blob = new Blob(recordedChunks, {
-      type: mediaRecorder.mimeType || "video/webm",
+      type: recorderMimeType || "video/webm",
     });
-
-    // Calculate recording duration
-    recordingDuration = startTime ? Date.now() - startTime : 0;
 
     // Generate filename with timestamp
     const now = new Date();
@@ -750,7 +961,7 @@ async function handleRecordingComplete() {
     // Store recording in IndexedDB
     const recordingId = await window.videoStorage.storeRecording(
       blob,
-      mediaRecorder.mimeType || "video/webm",
+      recorderMimeType || "video/webm",
       {
         filename,
         duration: recordingDuration,
@@ -803,16 +1014,17 @@ function openEditingTab(recordingId) {
 function updateUIForRecording() {
   // Add recording class to container
   studioContainer.classList.add("recording");
+  studioContainer.classList.remove("paused");
 
   // Update button
-  recordBtn.disabled = false;
-  recordIcon.classList.add("hidden");
-  stopIcon.classList.remove("hidden");
+  recordBtn.disabled = true;
+  recordIcon.classList.remove("hidden");
 
   // Update label
-  recordingLabel.textContent = "Click to Stop Recording";
+  recordingLabel.textContent = "Use the floating controls to pause or stop";
 
   // Update status
+  statusIndicator.classList.remove("paused");
   statusIndicator.classList.add("recording");
   statusText.textContent = "Recording";
 
@@ -838,20 +1050,38 @@ function updateUIForRecording() {
   }
 }
 
+function updateUIForPausedRecording() {
+  studioContainer.classList.add("recording", "paused");
+
+  recordBtn.disabled = true;
+  recordIcon.classList.remove("hidden");
+  recordingLabel.textContent = "Paused from the floating controls";
+  statusIndicator.classList.remove("recording");
+  statusIndicator.classList.add("paused");
+  statusText.textContent = "Paused";
+
+  initialInstructions.classList.add("hidden");
+  recordingInstructions.classList.remove("hidden");
+
+  if (isCameraModeEnabled()) {
+    cameraPreviewContainer.classList.remove("hidden");
+  }
+}
+
 function resetUIToInitial() {
   // Remove recording class
   studioContainer.classList.remove("recording");
+  studioContainer.classList.remove("paused");
 
   // Reset button
   recordBtn.disabled = false;
   recordIcon.classList.remove("hidden");
-  stopIcon.classList.add("hidden");
 
   // Reset label
   recordingLabel.textContent = "Click to Start Recording";
 
   // Reset status
-  statusIndicator.classList.remove("recording");
+  statusIndicator.classList.remove("recording", "paused");
   statusText.textContent = "Ready";
   timer.textContent = "00:00";
 
@@ -872,10 +1102,7 @@ function resetUIToInitial() {
   }
 
   // Clear timer
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
+  stopTimer();
 
   // Stop animation frame
   if (animationFrameId) {
@@ -906,8 +1133,16 @@ function resetUIToInitial() {
 
   // Reset variables
   isRecording = false;
+  recordingState = "idle";
   startTime = null;
+  pausedAt = null;
+  pausedDuration = 0;
+  recordingDuration = 0;
   recordedChunks = [];
+  mediaRecorder = null;
+  stream = null;
+  recorderMimeType = "video/webm";
+  syncRecordingState();
 
   // Restore camera preview if current mode still requires camera.
   if (isCameraModeEnabled()) {
@@ -916,14 +1151,10 @@ function resetUIToInitial() {
 }
 
 function startTimer() {
+  stopTimer();
   timerInterval = setInterval(() => {
-    if (startTime) {
-      const elapsed = Date.now() - startTime;
-      const minutes = Math.floor(elapsed / 60000);
-      const seconds = Math.floor((elapsed % 60000) / 1000);
-      timer.textContent = `${minutes.toString().padStart(2, "0")}:${seconds
-        .toString()
-        .padStart(2, "0")}`;
+    if (startTime && recordingState === "recording") {
+      updateTimerDisplay();
     }
   }, 1000);
 }
