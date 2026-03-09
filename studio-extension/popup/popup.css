@@ -159,9 +159,64 @@ h1 {
 }
 
 .footer .credit {
-    margin-top: 10px;
+    margin-top: 4px;
     font-size: 12px;
     color: #9ca3af;
+}
+
+.developer-links {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.developer-links-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9ca3af;
+}
+
+.developer-link-icons {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.developer-link-icons a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 124px;
+    height: 84px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    cursor: pointer;
+}
+
+.developer-link-icons a:hover {
+    transform: translateY(-2px);
+    border-color: transparent;
+    background: transparent;
+}
+
+.developer-icon {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.developer-icon-pizbot {
+    width: 116px;
+    height: 116px;
+    filter: brightness(0);
 }
 
 .footer .credit a {

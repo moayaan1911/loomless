@@ -259,6 +259,33 @@ body {
   opacity: 0.5;
 }
 
+.header-link-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+}
+
+.header-link-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.header-link-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* Theme Toggle */
 .theme-toggle {
   width: 36px;
@@ -306,6 +333,10 @@ body {
 
 [data-theme="light"] .theme-toggle .moon-icon {
   display: block;
+}
+
+[data-theme="light"] .header-link-btn {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 /* Export Button */

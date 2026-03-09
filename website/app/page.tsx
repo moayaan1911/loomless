@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Camera,
   Chrome,
+  CircleHelp,
   CloudOff,
   Copyright,
   Crop,
@@ -69,6 +70,7 @@ const ctaLinks = {
   github: "https://github.com/moayaan1911/loomless",
   donate: "https://moayaan.com/donate",
   author: "https://moayaan.com",
+  pizbot: "https://pizbot.com",
   twitter: "https://x.com/moayaan1911",
 };
 
@@ -431,6 +433,20 @@ export default function Home() {
             GitHub
           </Link>
           <Link
+            href="/loomless-studio-privacy-policy"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <CloudOff size={17} />
+            Privacy Policy
+          </Link>
+          <Link
+            href="/faq"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <CircleHelp size={17} />
+            FAQ
+          </Link>
+          <Link
             href={ctaLinks.author}
             target="_blank"
             rel="noopener noreferrer"
@@ -438,6 +454,21 @@ export default function Home() {
           >
             <UserRound size={17} />
             Connect with Dev
+          </Link>
+          <Link
+            href={ctaLinks.pizbot}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link flex cursor-pointer items-center gap-2"
+          >
+            <Image
+              src="/pizbot.webp"
+              alt="Pizbot"
+              width={17}
+              height={17}
+              className="rounded-sm"
+            />
+            Pizbot
           </Link>
           <Link
             href={ctaLinks.twitter}
