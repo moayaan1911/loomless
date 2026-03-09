@@ -14,13 +14,13 @@ const sora = Sora({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://loomless.fun"),
-  title: "LoomLess - Privacy-First Screen Recorder",
+  title: "LoomLess - Privacy-First Screen Recording Studio",
   description:
-    "Record, edit, and export videos locally with LoomLess. No sign-up, no cloud uploads, and no tracking.",
+    "Privacy-First Screen Recording Studio. YOUR VIDEO NEVER LEAVES YOUR DEVICE. Record, edit, and export locally with floating recording controls.",
   openGraph: {
-    title: "LoomLess - Privacy-First Screen Recorder",
+    title: "LoomLess - Privacy-First Screen Recording Studio",
     description:
-      "The local-first Chrome extension for recording and editing your screen with total privacy.",
+      "YOUR VIDEO NEVER LEAVES YOUR DEVICE. Record, edit, and export locally with floating recording controls and total privacy.",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "LoomLess" }],
     type: "website",
   },

@@ -21,11 +21,11 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 <div align="center">
 
-<img src="extension/icons/icon128.png" alt="LoomLess Logo" width="120" height="120">
+<img src="./store%20icon.png" alt="LoomLess Logo" width="120" height="120">
 
-### **The Privacy-First Screen Recorder**
+### **Privacy-First Screen Recording Studio**
 
-**✨ Minimalist Recording Studio ✨**
+**YOUR VIDEO NEVER LEAVES YOUR DEVICE**
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install_Now-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj)
 [![Website](https://img.shields.io/badge/Website-loomless.fun-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://loomless.fun)
@@ -48,11 +48,11 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 <div align="center">
 
-### 🎥 **Record. Edit. Download. Done.**
+### 🎥 **Privacy-First Screen Recording Studio**
 
 </div>
 
-**LoomLess** is a powerful yet minimalist screen recording Chrome extension designed for users who value **privacy**, **simplicity**, and **freedom**. In a world where most tools require accounts, subscriptions, and upload your data to the cloud, LoomLess takes a radically different approach.
+**LoomLess** is a powerful yet minimalist screen recording Chrome extension designed for users who value **privacy**, **simplicity**, and **freedom**. In a world where most tools require accounts, subscriptions, and upload your data to the cloud, LoomLess takes a radically different approach: **YOUR VIDEO NEVER LEAVES YOUR DEVICE**.
 
 Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots, and the latest updates.
 
@@ -100,15 +100,16 @@ Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots,
 
 </div>
 
-| Feature                    | Description                                           |
-| -------------------------- | ----------------------------------------------------- |
-| 🖱️ **One-Click Recording** | Start recording instantly with a single click         |
-| 🖥️ **Flexible Capture**    | Record entire screen, specific window, or browser tab |
-| 🔊 **Audio Support**       | Capture system audio along with video                 |
-| 🎙️ **Microphone Support**  | Record your voice narration simultaneously            |
-| ⏱️ **Unlimited Duration**  | Record as long as you need - no time limits           |
-| 🎯 **High Quality**        | Crystal clear recordings at native resolution         |
-| ⚡ **Lightweight**         | Minimal CPU/memory footprint                          |
+| Feature                    | Description                                              |
+| -------------------------- | -------------------------------------------------------- |
+| 🖱️ **One-Click Recording** | Start recording instantly with a single click            |
+| 🖥️ **Flexible Capture**    | Record entire screen, specific window, or browser tab    |
+| 🎛️ **Floating Controls**   | Pause, resume, and stop from a draggable on-page control |
+| 🔊 **Audio Support**       | Capture system audio along with video                    |
+| 🎙️ **Microphone Support**  | Record your voice narration simultaneously               |
+| ⏱️ **Unlimited Duration**  | Record as long as you need - no time limits              |
+| 🎯 **High Quality**        | Crystal clear recordings at native resolution            |
+| ⚡ **Lightweight**         | Minimal CPU/memory footprint                             |
 
 <div align="center">
 
@@ -122,6 +123,19 @@ Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots,
 | 🖱️ **Drag to Reposition** | Move the camera bubble anywhere on screen before recording  |
 | 🎭 **Smart Compositing**  | Automatically handles all capture modes without duplication |
 | 🔇 **Mic + Cam Combo**    | Record screen, webcam, and microphone all at once           |
+
+<div align="center">
+
+### 🎛️ **Floating Recording Control** _(New in v4.0.0!)_
+
+</div>
+
+| Feature                      | Description                                                       |
+| ---------------------------- | ----------------------------------------------------------------- |
+| ⏯️ **Pause / Resume Toggle** | Control your recording without returning to the dashboard         |
+| ⏹️ **Quick Stop Control**    | Stop the recording instantly from the floating control            |
+| 🌐 **Cross-Page Presence**   | Control follows across browser pages while you continue recording |
+| 🖱️ **Drag to Reposition**    | Move the floating control anywhere that feels comfortable         |
 
 <div align="center">
 

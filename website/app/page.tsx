@@ -13,7 +13,6 @@ import {
   MoonStar,
   Rocket,
   Scissors,
-  ShieldCheck,
   Sun,
   Video,
   Waves,
@@ -27,26 +26,26 @@ const highlights = [
   {
     title: "Screen + Audio Capture",
     description:
-      "Record full screen, tabs, or windows with system audio and optional mic narration.",
+      "Record screens, tabs, or windows with system audio and optional mic.",
     icon: Video,
   },
   {
     title: "Smart Camera Overlay",
     description:
-      "Draggable webcam bubble with intelligent compositing to avoid duplicate camera circles.",
+      "Draggable webcam bubble with smart compositing and no duplicate circles.",
     icon: Camera,
+  },
+  {
+    title: "Floating Recording Control",
+    description:
+      "Drag pause, resume, and stop controls across browser pages while recording.",
+    icon: Waves,
   },
   {
     title: "Built-in Editor",
     description:
-      "Trim, crop, adjust speed, and export to WebM or MP4 directly in-browser.",
+      "Trim, crop, change speed, and export to WebM or MP4 in-browser.",
     icon: Scissors,
-  },
-  {
-    title: "100% Local Processing",
-    description:
-      "No sign-up, no cloud upload, no tracking. Your recordings stay on your device.",
-    icon: ShieldCheck,
   },
 ];
 
@@ -114,7 +113,7 @@ export default function Home() {
           />
           <div>
             <p className="font-semibold tracking-wide">LoomLess</p>
-            <p className="text-xs text-(--muted)">Privacy-first screen recorder</p>
+            <p className="text-xs text-(--muted)">Privacy-First Screen Recording Studio</p>
           </div>
         </a>
 
@@ -134,15 +133,15 @@ export default function Home() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-(--line) bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.18em] text-(--muted)">
               <Waves size={14} />
-              Zero Cloud. Zero Tracking.
+              YOUR VIDEO NEVER LEAVES YOUR DEVICE
             </div>
             <h1 className="neon-title mt-6 text-4xl leading-tight font-bold sm:text-5xl lg:text-6xl">
-              Futuristic screen recording
-              <span className="block text-(--accent)">without sacrificing privacy.</span>
+              Privacy-First
+              <span className="block text-(--accent)">Screen Recording Studio</span>
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-(--muted) sm:text-lg">
-              LoomLess is a local-first Chrome extension for recording and editing.
-              No account walls, no uploads, no watermark, and no hidden pricing.
+              LoomLess is a local-first Chrome extension for recording and editing with
+              floating recording controls, no account walls, no uploads, and no hidden pricing.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -237,12 +236,19 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <article className="glass-card rounded-2xl p-5">
               <CloudOff size={18} className="mb-3 text-(--accent)" />
               <h4 className="mb-2 text-base font-semibold">No Cloud Uploads</h4>
               <p className="text-sm text-(--muted)">
-                IndexedDB handoff keeps recorder and editor local. Files stay on-device.
+                IndexedDB handoff keeps recorder and editor local. YOUR VIDEO NEVER LEAVES YOUR DEVICE.
+              </p>
+            </article>
+            <article className="glass-card rounded-2xl p-5">
+              <Waves size={18} className="mb-3 text-(--accent)" />
+              <h4 className="mb-2 text-base font-semibold">Floating Recording Control</h4>
+              <p className="text-sm text-(--muted)">
+                Pause, resume, and stop recordings from a draggable control that follows across browser pages.
               </p>
             </article>
             <article className="glass-card rounded-2xl p-5">

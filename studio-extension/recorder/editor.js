@@ -1214,8 +1214,10 @@ async function handleDownload() {
     // Create a new video element for processing
     const processingVideo = document.createElement("video");
     processingVideo.src = videoPlayer.src;
-    processingVideo.muted = true; // Prevent audio playback during processing
+    processingVideo.muted = true;
+    processingVideo.defaultMuted = true;
     processingVideo.playsInline = true;
+    processingVideo.preload = "auto";
 
     // Wait for video to load
     await new Promise((resolve, reject) => {
@@ -1289,6 +1291,10 @@ async function handleDownload() {
       showStatus("Processing video...", "info", true);
     }
 
+    const clipEnd = Number.isFinite(trimEndTime)
+      ? trimEndTime
+      : processingVideo.duration;
+    const rawDuration = Math.max(0, clipEnd - trimStartTime);
     const stream = canvas.captureStream(30);
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: mimeType,
@@ -1313,65 +1319,15 @@ async function handleDownload() {
 
       if (needsDurationFix) {
         const playbackDuration = Math.max(0.1, rawDuration / playbackSpeed);
-        try {
-          downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
-        } catch (durationError) {
-          console.warn("Unable to patch WebM duration", durationError);
-        }
+        downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
       }
 
-      // Set progress bar to 100% - download will happen after this
       if (statusProgress && statusProgressBar) {
         statusProgressBar.style.width = `100%`;
       }
 
-      // Download the file
-      const url = URL.createObjectURL(downloadBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `loomless-edited-${Date.now()}.${downloadExtension}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      // Now hide progress bar and re-enable buttons
-      setTimeout(() => {
-        if (statusProgress) {
-          statusProgress.classList.add("hidden");
-        }
-
-        // Re-enable ALL buttons
-        downloadBtn.disabled = false;
-        downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Export</span>';
-
-        // Re-enable trim buttons
-        trimStartBtn.disabled = false;
-        trimEndBtn.disabled = false;
-        resetTrimBtn.disabled = false;
-
-        // Re-enable speed controls
-        speedSlider.disabled = false;
-        presetButtons.forEach((btn) => (btn.disabled = false));
-
-        // Re-enable crop button
-        cropModeBtn.disabled = false;
-
-        // Re-enable format buttons
-        formatButtons.forEach((btn) => (btn.disabled = false));
-      }, 1000);
-
+      await finalizeExportDownload(downloadBlob, downloadExtension);
       showStatus("Video exported successfully!", "success");
-
-      // Clean up storage
-      setTimeout(async () => {
-        try {
-          await window.videoStorage.deleteRecording(currentRecording.id);
-          console.log("Original recording cleaned up");
-        } catch (error) {
-          console.error("Error cleaning up:", error);
-        }
-      }, 1000);
     };
 
     // Start recording
@@ -1379,13 +1335,7 @@ async function handleDownload() {
 
     // Prepare playback-based rendering
     const frameRate = 30;
-    const clipEnd = Number.isFinite(trimEndTime)
-      ? trimEndTime
-      : processingVideo.duration;
-    const rawDuration = Math.max(0, clipEnd - trimStartTime);
     const EPS = 1 / frameRate;
-
-    let processedFrames = 0;
 
     const updateProgressFromTime = () => {
       const elapsed = Math.max(
@@ -1414,7 +1364,6 @@ async function handleDownload() {
         canvasWidth,
         canvasHeight
       );
-      processedFrames += 1;
       updateProgressFromTime();
     };
 
@@ -1462,25 +1411,7 @@ async function handleDownload() {
     }
   } catch (error) {
     console.error("Error processing video:", error);
-
-    // Re-enable ALL buttons on error
-    downloadBtn.disabled = false;
-    downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Export</span>';
-
-    // Re-enable trim buttons
-    trimStartBtn.disabled = false;
-    trimEndBtn.disabled = false;
-    resetTrimBtn.disabled = false;
-
-    // Re-enable speed controls
-    speedSlider.disabled = false;
-    presetButtons.forEach((btn) => (btn.disabled = false));
-
-    // Re-enable crop button
-    cropModeBtn.disabled = false;
-
-    // Re-enable format buttons
-    formatButtons.forEach((btn) => (btn.disabled = false));
+    restoreExportControls();
 
     // Hide progress bar
     if (statusProgress) {
@@ -1499,6 +1430,46 @@ function handleVideoEnded() {
   if (trimEndTime > trimStartTime && videoPlayer.currentTime >= trimEndTime) {
     videoPlayer.currentTime = trimStartTime;
   }
+}
+
+async function finalizeExportDownload(downloadBlob, downloadExtension) {
+  const url = URL.createObjectURL(downloadBlob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `loomless-edited-${Date.now()}.${downloadExtension}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  setTimeout(() => {
+    if (statusProgress) {
+      statusProgress.classList.add("hidden");
+    }
+
+    restoreExportControls();
+  }, 1000);
+
+  setTimeout(async () => {
+    try {
+      await window.videoStorage.deleteRecording(currentRecording.id);
+      console.log("Original recording cleaned up");
+    } catch (error) {
+      console.error("Error cleaning up:", error);
+    }
+  }, 1000);
+}
+
+function restoreExportControls() {
+  downloadBtn.disabled = false;
+  downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Export</span>';
+  trimStartBtn.disabled = false;
+  trimEndBtn.disabled = false;
+  resetTrimBtn.disabled = false;
+  speedSlider.disabled = false;
+  presetButtons.forEach((btn) => (btn.disabled = false));
+  cropModeBtn.disabled = false;
+  formatButtons.forEach((btn) => (btn.disabled = false));
 }
 
 /**
@@ -1582,7 +1553,7 @@ async function fixWebmDuration(blob, durationSeconds) {
     return new Blob([buffer], { type: blob.type });
   }
 
-  throw new Error("Duration element not found in WebM");
+  return blob;
 }
 
 /**
