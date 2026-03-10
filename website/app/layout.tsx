@@ -68,7 +68,14 @@ export const metadata: Metadata = {
     url: "https://loomless.fun",
     siteName: "LoomLess",
     locale: "en_US",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "LoomLess" }],
+    images: [
+      {
+        url: "https://loomless.fun/og-image-v2.jpg",
+        width: 1200,
+        height: 630,
+        alt: "LoomLess private screen recorder preview",
+      },
+    ],
     type: "website",
   },
   twitter: {
@@ -76,7 +83,7 @@ export const metadata: Metadata = {
     title: "LoomLess: Free Private Screen Recorder with Local Editing",
     description:
       "Free private screen recorder for Chrome with local recording, built-in editing, floating controls, and webcam overlay.",
-    images: ["/og-image.png"],
+    images: ["https://loomless.fun/og-image-v2.jpg"],
     creator: "@moayaan1911",
   },
 };

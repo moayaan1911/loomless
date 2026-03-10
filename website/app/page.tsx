@@ -88,7 +88,7 @@ const softwareApplicationLd = {
     priceCurrency: "USD",
   },
   url: "https://loomless.fun",
-  image: "https://loomless.fun/og-image.png",
+  image: "https://loomless.fun/og-image-v2.jpg",
   description:
     "LoomLess is a free private screen recorder for Chrome with local recording, webcam overlay, floating recording controls, built-in editing, and export to WebM or MP4.",
   keywords:
