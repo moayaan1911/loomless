@@ -15,12 +15,12 @@ const sora = Sora({
 export const metadata: Metadata = {
   metadataBase: new URL("https://loomless.fun"),
   title: {
-    default: "LoomLess | Free Private Screen Recorder Extension",
+    default: "LoomLess: Free Private Screen Recorder with Local Editing",
     template: "%s | LoomLess",
   },
   applicationName: "LoomLess",
   description:
-    "LoomLess is a free private screen recorder extension for screen, tab, window, webcam, and audio recording with built-in editing and local export. YOUR VIDEO NEVER LEAVES YOUR DEVICE.",
+    "LoomLess is a free private screen recorder for Chrome that records your screen, tab, window, webcam, and audio with floating controls, built-in editing, and local export. Your video never leaves your device.",
   keywords: [
     "free screen recorder",
     "private screen recorder",
@@ -62,9 +62,9 @@ export const metadata: Metadata = {
     apple: "/logo.png",
   },
   openGraph: {
-    title: "LoomLess | Free Private Screen Recorder Extension",
+    title: "LoomLess: Free Private Screen Recorder with Local Editing",
     description:
-      "Free private screen recorder extension with webcam overlay, floating controls, built-in editing, and local export. YOUR VIDEO NEVER LEAVES YOUR DEVICE.",
+      "Free private screen recorder for Chrome with webcam overlay, floating controls, built-in editing, and local export. Your video never leaves your device.",
     url: "https://loomless.fun",
     siteName: "LoomLess",
     locale: "en_US",
@@ -73,9 +73,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "LoomLess | Free Private Screen Recorder Extension",
+    title: "LoomLess: Free Private Screen Recorder with Local Editing",
     description:
-      "Free private screen recorder extension with local recording, built-in editing, floating controls, and webcam overlay.",
+      "Free private screen recorder for Chrome with local recording, built-in editing, floating controls, and webcam overlay.",
     images: ["/og-image.png"],
     creator: "@moayaan1911",
   },

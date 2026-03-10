@@ -78,6 +78,7 @@ const softwareApplicationLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "LoomLess",
+  alternateName: "LoomLess Studio",
   applicationCategory: "MultimediaApplication",
   applicationSubCategory: "Screen Recorder Extension",
   operatingSystem: "Chrome, Firefox",
@@ -89,7 +90,7 @@ const softwareApplicationLd = {
   url: "https://loomless.fun",
   image: "https://loomless.fun/og-image.png",
   description:
-    "LoomLess is a free private screen recorder extension with local recording, webcam overlay, floating recording controls, built-in editing, and export to WebM or MP4.",
+    "LoomLess is a free private screen recorder for Chrome with local recording, webcam overlay, floating recording controls, built-in editing, and export to WebM or MP4.",
   keywords:
     "free screen recorder, private screen recorder, screen recorder extension, local screen recorder, webcam overlay screen recorder, screen recorder with audio, screen recorder with editor",
   author: {
@@ -103,9 +104,10 @@ const webSiteLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "LoomLess",
+  alternateName: ["LoomLess Studio", "loomless.fun"],
   url: "https://loomless.fun",
   description:
-    "Free private screen recorder extension with local recording, floating controls, webcam overlay, and built-in editing.",
+    "Free private screen recorder for Chrome with local recording, floating controls, webcam overlay, and built-in editing.",
 };
 
 const faqLd = {
@@ -242,8 +244,8 @@ export default function Home() {
               YOUR VIDEO NEVER LEAVES YOUR DEVICE
             </div>
             <h1 className="neon-title mt-6 text-4xl leading-tight font-bold sm:text-5xl lg:text-6xl">
-              <span className="block">Privacy-First Screen</span>
-              <span className="block text-(--accent)">Recording Studio</span>
+              <span className="block">LoomLess: Private Screen Recorder</span>
+              <span className="block text-(--accent)">with Local Editing</span>
             </h1>
 
             <div className="mt-8 flex flex-wrap gap-3 xl:flex-nowrap">
