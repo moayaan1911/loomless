@@ -21,6 +21,9 @@ let videoPlayer,
   statusText,
   statusProgress,
   statusProgressBar,
+  exportModal,
+  exportModalProgressBar,
+  exportModalText,
   speedSlider,
   speedValue,
   presetButtons,
@@ -117,6 +120,9 @@ function initializeElements() {
   statusText = document.getElementById("statusText");
   statusProgress = document.getElementById("statusProgress");
   statusProgressBar = document.getElementById("statusProgressBar");
+  exportModal = document.getElementById("exportModal");
+  exportModalProgressBar = document.getElementById("exportModalProgressBar");
+  exportModalText = document.getElementById("exportModalText");
 
   // Speed controls
   speedSlider = document.getElementById("speedSlider");
@@ -1178,11 +1184,27 @@ function selectExportSettings(format) {
   throw new Error("No supported MediaRecorder formats available");
 }
 
+function showExportModal() {
+  if (exportModal) {
+    exportModal.classList.remove("hidden");
+  }
+  if (exportModalProgressBar) {
+    exportModalProgressBar.style.width = "0%";
+  }
+}
+
+function hideExportModal() {
+  if (exportModal) {
+    exportModal.classList.add("hidden");
+  }
+}
+
 /**
  * Handle download button click
  */
 async function handleDownload() {
   try {
+    showExportModal();
     showStatus("Processing video...", "info", true);
 
     const trimmedDuration = trimEndTime - trimStartTime;
@@ -1325,8 +1347,15 @@ async function handleDownload() {
       if (statusProgress && statusProgressBar) {
         statusProgressBar.style.width = `100%`;
       }
+      if (exportModalProgressBar) {
+        exportModalProgressBar.style.width = `100%`;
+      }
+      if (exportModalText) {
+        exportModalText.textContent = "Download starting...";
+      }
 
       await finalizeExportDownload(downloadBlob, downloadExtension);
+      hideExportModal();
       showStatus("Video exported successfully!", "success");
     };
 
@@ -1349,6 +1378,9 @@ async function handleDownload() {
       if (statusProgress && statusProgressBar) {
         statusProgress.classList.remove("hidden");
         statusProgressBar.style.width = `${processingProgress}%`;
+      }
+      if (exportModalProgressBar) {
+        exportModalProgressBar.style.width = `${processingProgress}%`;
       }
     };
 
@@ -1373,6 +1405,9 @@ async function handleDownload() {
       } catch (e) {}
       if (statusProgress && statusProgressBar) {
         statusProgressBar.style.width = `100%`;
+      }
+      if (exportModalProgressBar) {
+        exportModalProgressBar.style.width = `100%`;
       }
       mediaRecorder.stop();
     };
@@ -1411,6 +1446,7 @@ async function handleDownload() {
     }
   } catch (error) {
     console.error("Error processing video:", error);
+    hideExportModal();
     restoreExportControls();
 
     // Hide progress bar

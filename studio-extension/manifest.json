@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "LoomLess Studio",
-  "version": "4.0.0",
-  "description": "Privacy-First Screen Recording Studio",
+  "name": "LoomLess: Free Screen Recorder & Editor",
+  "version": "4.1.0",
+  "description": "Privacy-First Screen Recording Studio. No Sign Up, No Payment, No Cloud.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -32,7 +32,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "LoomLess Studio - Record Screen",
+    "default_title": "LoomLess: Free Screen Recorder & Editor",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

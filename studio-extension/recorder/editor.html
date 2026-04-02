@@ -359,6 +359,44 @@
       <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="credit-badge">
         Built by moayaan.eth
       </a>
+
+      <!-- Export Processing Modal -->
+      <div id="exportModal" class="export-modal hidden">
+        <div class="export-modal-card">
+          <div class="export-modal-support">
+            <div class="export-modal-support-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M17 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M3 8h14v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"></path>
+                <path d="M6 1v3"></path>
+                <path d="M10 1v3"></path>
+                <path d="M14 1v3"></path>
+              </svg>
+            </div>
+            <div class="export-modal-support-text">
+              <p class="export-modal-support-title">LoomLess is free, built by a solo dev</p>
+              <p class="export-modal-support-sub">If it helped you, consider buying me a coffee!</p>
+            </div>
+            <a
+              href="https://moayaan.com/donate"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="export-modal-support-btn">
+              Support
+            </a>
+          </div>
+          <div class="export-modal-divider"></div>
+          <div class="export-modal-processing">
+            <div class="export-modal-spinner">
+              <div class="export-spinner-ring"></div>
+            </div>
+            <p id="exportModalText" class="export-modal-label">Processing video...</p>
+            <div class="export-modal-progress-track">
+              <div id="exportModalProgressBar" class="export-modal-progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="storage.js"></script>

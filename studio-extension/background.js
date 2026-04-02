@@ -9,6 +9,7 @@ const recordingSession = {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("LoomLess Studio extension installed");
+  chrome.runtime.setUninstallURL("https://forms.gle/WUnpyQQartYc6y8a9");
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

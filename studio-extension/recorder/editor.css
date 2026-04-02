@@ -1168,6 +1168,147 @@ body {
   transition: width 0.15s ease;
 }
 
+/* ========== Export Processing Modal ========== */
+.export-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  pointer-events: all;
+}
+
+.export-modal.hidden {
+  display: none;
+}
+
+.export-modal-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.export-modal-support {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 20px;
+}
+
+.export-modal-support-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.export-modal-support-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.export-modal-support-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.export-modal-support-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.export-modal-support-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.export-modal-support-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--accent-primary);
+  color: #fff;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.export-modal-support-btn:hover {
+  opacity: 0.85;
+}
+
+.export-modal-divider {
+  height: 1px;
+  background: var(--border-default);
+  margin-bottom: 20px;
+}
+
+.export-modal-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-modal-spinner {
+  width: 36px;
+  height: 36px;
+  position: relative;
+}
+
+.export-spinner-ring {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--accent-primary);
+  animation: exportSpin 0.8s linear infinite;
+}
+
+@keyframes exportSpin {
+  to { transform: rotate(360deg); }
+}
+
+.export-modal-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.export-modal-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.export-modal-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: 3px;
+  transition: width 0.15s ease;
+}
+
 /* ========== Credit Badge ========== */
 .credit-badge {
   position: fixed;
