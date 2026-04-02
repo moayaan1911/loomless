@@ -77,8 +77,8 @@ const ctaLinks = {
 const softwareApplicationLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "LoomLess",
-  alternateName: "LoomLess Studio",
+  name: "LoomLess: Free Screen Recorder & Editor",
+  alternateName: "LoomLess",
   applicationCategory: "MultimediaApplication",
   applicationSubCategory: "Screen Recorder Extension",
   operatingSystem: "Chrome, Firefox",
@@ -104,7 +104,7 @@ const webSiteLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "LoomLess",
-  alternateName: ["LoomLess Studio", "loomless.fun"],
+  alternateName: ["LoomLess", "loomless.fun"],
   url: "https://loomless.fun",
   description:
     "Free private screen recorder for Chrome with local recording, floating controls, webcam overlay, and built-in editing.",
@@ -259,13 +259,19 @@ export default function Home() {
                 Install on Chrome
                 <ArrowRight size={18} />
               </Link>
-              <button
-                type="button"
-                className="action-btn action-btn-firefox"
-              >
-                <FaFirefoxBrowser size={18} />
-                Install on Firefox
-              </button>
+              <div className="group relative">
+                <button
+                  type="button"
+                  disabled
+                  className="action-btn action-btn-firefox cursor-not-allowed opacity-50"
+                >
+                  <FaFirefoxBrowser size={18} />
+                  Install on Firefox
+                </button>
+                <span className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-black/85 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  Coming Soon
+                </span>
+              </div>
               <Link
                 href={ctaLinks.github}
                 target="_blank"
