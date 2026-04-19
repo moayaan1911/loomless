@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Git tag to build and release
+        required: true
+        type: string
 
 jobs:
   build-and-release:
@@ -45,11 +51,11 @@ jobs:
         run: bash sidecar/build.sh
 
       - name: Build app and upload release assets
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         with:
           projectPath: desktop-app
-          tagName: ${{ github.ref_name }}
-          releaseName: LoomLess ${{ github.ref_name }}
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: LoomLess ${{ github.event.inputs.tag || github.ref_name }}
           releaseBody: |
             LoomLess desktop release.
 
