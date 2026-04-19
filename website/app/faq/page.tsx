@@ -70,7 +70,7 @@ export default function FaqPage() {
       <div className="glass-card rounded-3xl p-6 sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <Image
-            src="/logo.png"
+            src="/loomless-icon.png"
             alt="LoomLess logo"
             width={72}
             height={72}

@@ -1,111 +1,53 @@
 import type { Metadata } from "next";
-import { Sora, Space_Grotesk } from "next/font/google";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
-const sora = Sora({
-  variable: "--font-sora",
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://loomless.fun"),
   title: {
-    default: "LoomLess - Free Screen Recorder & Editor | No Sign Up, No Cloud",
+    default: "LoomLess | Free Screen Recorder & Editor",
     template: "%s | LoomLess",
   },
-  applicationName: "LoomLess: Free Screen Recorder & Editor",
+  applicationName: "LoomLess",
   description:
-    "LoomLess is a free screen recorder for Chrome. Record your screen, webcam, and audio with no sign up, no payment, and no cloud upload. Built-in video editor with trim, crop, and export. Your video never leaves your device.",
+    "LoomLess is a free screen recorder and editor with a macOS app and Chrome extension. Download the DMG, install the extension, and keep your workflow local. Your video NEVER leaves your device.",
   keywords: [
-    // High-volume generic terms
     "free screen recorder",
-    "screen recorder",
-    "screen recording",
-    "screen capture",
-    "record screen",
-    "screen recorder free",
-    "best free screen recorder",
-    "screen recorder no watermark",
-    "screen recorder no sign up",
-    "screen recorder no download",
-    // Browser/extension specific
-    "screen recorder chrome",
-    "chrome screen recorder extension",
-    "chrome extension screen recorder",
-    "browser screen recorder",
-    "record screen in browser",
-    "record screen without software",
-    "screen recorder online free",
-    "screen recorder web",
-    // Privacy/no cloud intent
+    "screen recorder for mac",
+    "screen recorder for macos",
+    "screen recorder chrome extension",
+    "screen recorder and editor",
     "private screen recorder",
-    "screen recorder no upload",
-    "screen recorder no account",
-    "screen recorder no cloud",
-    "offline screen recorder",
     "local screen recorder",
-    "privacy first screen recorder",
-    "secure screen recorder",
-    // Feature-specific
+    "loom alternative",
+    "free loom alternative",
+    "screen recorder no cloud",
+    "screen recorder no signup",
     "screen recorder with editor",
-    "screen recorder with webcam",
-    "screen recorder with audio",
-    "screen recorder with microphone",
-    "screen and webcam recorder",
-    "screen recorder webcam overlay",
-    "screen recorder camera overlay",
-    "screen recorder with face cam",
-    "screen recorder trim video",
-    "screen recorder crop video",
-    "screen recorder export mp4",
-    "screen recorder export webm",
-    // Use case terms
-    "record browser tab",
-    "record entire screen",
-    "record window",
-    "record screen and audio free",
-    "record screen and camera",
-    "record tutorial video",
-    "record gameplay browser",
-    "record zoom meeting locally",
-    "record google meet locally",
-    // Long-tail / comparison
-    "loom alternative free",
-    "loom free alternative",
-    "free loom replacement",
-    "screen recorder without loom",
-    "open source screen recorder",
-    "screen recorder extension no watermark",
-    "free screen recorder no time limit",
-    // Product name
+    "screen recorder dmg download",
     "loomless",
-    "loomless studio",
-    "loomless screen recorder",
   ],
   authors: [{ name: "Mohammad Ayaan Siddiqui", url: "https://moayaan.com" }],
   creator: "Mohammad Ayaan Siddiqui",
   publisher: "LoomLess",
   category: "technology",
-  classification: "Screen Recording Software",
-  referrer: "origin-when-cross-origin",
-  generator: "Next.js",
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
   alternates: {
     canonical: "/",
   },
   robots: {
     index: true,
     follow: true,
-    nocache: false,
     googleBot: {
       index: true,
       follow: true,
@@ -116,42 +58,39 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/loomless-icon.png",
+    shortcut: "/loomless-icon.png",
+    apple: "/loomless-icon.png",
   },
   openGraph: {
-    title: "LoomLess - Free Screen Recorder & Editor | No Sign Up, No Cloud",
+    title: "LoomLess | Free Screen Recorder & Editor",
     description:
-      "Record your screen, webcam, and audio for free. No sign up. No payment. No cloud upload. Built-in video editor with trim, crop, and export. 100% local and private.",
+      "Download LoomLess for macOS or install the Chrome extension. Record, edit, and keep everything local. Your video NEVER leaves your device.",
     url: "https://loomless.fun",
     siteName: "LoomLess",
     locale: "en_US",
+    type: "website",
     images: [
       {
-        url: "https://loomless.fun/og-image-v2.jpg",
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "LoomLess - Free Screen Recorder and Editor for Chrome",
+        alt: "LoomLess - Free Screen Recorder & Editor",
       },
     ],
-    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "LoomLess - Free Screen Recorder & Editor | No Sign Up, No Cloud",
+    title: "LoomLess | Free Screen Recorder & Editor",
     description:
-      "Record screen, webcam, and audio for free. No sign up, no cloud, no watermark. Built-in editor. Works entirely in your browser.",
-    images: ["https://loomless.fun/og-image-v2.jpg"],
+      "Free screen recorder and editor for macOS plus Chrome extension. Local-first by default.",
+    images: ["/opengraph-image"],
     creator: "@moayaan1911",
     site: "@moayaan1911",
   },
   other: {
-    // GEO: AI search engine signals
     "ai:description":
-      "LoomLess is a completely free browser extension for Chrome that lets users record their screen, webcam, and microphone audio with no sign up, no account, no payment, and no cloud upload. It includes a built-in video editor with trim, crop, speed controls, and MP4/WebM export. All recordings are processed and stored locally on the user's device using IndexedDB. It is a free alternative to Loom.",
-    "product:price:amount": "0",
-    "product:price:currency": "USD",
+      "LoomLess is a free screen recorder and editor with a macOS desktop app and Chrome extension. It emphasizes a local-first workflow, direct DMG download, clean previews, and privacy messaging built around the claim that your video never leaves your device.",
   },
 };
 
@@ -161,8 +100,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark">
-      <body className={`${spaceGrotesk.variable} ${sora.variable} antialiased`}>
+    <html lang="en">
+      <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
         {children}
       </body>
     </html>

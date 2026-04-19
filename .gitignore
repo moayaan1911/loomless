@@ -35,3 +35,15 @@ loomless-demo
 *.db
 *.sqlite
 *.sqlite3
+
+# Local build outputs
+website/.next
+website/out
+website/.vercel
+desktop-app/src-tauri/target
+
+# Local release artifacts
+LoomLess*.dmg
+LoomLess*.app.tar.gz
+LoomLess*.app.tar.gz.sig
+latest.json
