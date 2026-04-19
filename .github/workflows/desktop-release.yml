@@ -1,0 +1,66 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Git tag to build and release
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    name: Build desktop app and create draft release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop-app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      - name: Install desktop app dependencies
+        working-directory: desktop-app
+        run: npm install
+
+      - name: Build camera overlay sidecar
+        working-directory: desktop-app
+        run: bash sidecar/build.sh
+
+      - name: Build app and upload release assets
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: desktop-app
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: LoomLess ${{ github.event.inputs.tag || github.ref_name }}
+          releaseBody: |
+            LoomLess desktop release.
+
+            Assets in this draft release are generated automatically by GitHub Actions.
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true

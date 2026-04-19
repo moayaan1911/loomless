@@ -1,7 +1,7 @@
 # 👨‍💻 About the Developer
 
 <p align="center">
-  <img src="https://gateway.lighthouse.storage/ipfs/bafybeidlpfu7vy2rgevvo2msiebtvjfjtejlgjsgjja4jixly45sq3woii/profile.jpeg" alt="Mohammad Ayaan Siddiqui" width="200" />
+  <img src="https://emerald-dizzy-stoat-639.mypinata.cloud/ipfs/bafkreiblp6uoh274nzffbcos6d4cxql3zj7lu7z6xvkdhytbd3aqotjsh4?pinataGatewayToken=DFsUmTMRXBF_0KmYgSHbz1ipOKWFjv_rjyvxjq_vHNcdnP0KeJ64G8QQlgmhZyo8" alt="Mohammad Ayaan Siddiqui" width="200" />
 </p>
 
 Assalamualaikum guys! 🙌 This is Mohammad Ayaan Siddiqui (♦moayaan.eth♦). I’m a **Full Stack Blockchain Developer** , **Crypto Investor** and **MBA in Blockchain Management** with **2 years of experience** rocking the Web3 world! 🚀 I’ve worn many hats:
@@ -21,9 +21,9 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 <div align="center">
 
-<img src="./store%20icon.png" alt="LoomLess Logo" width="120" height="120">
+<img src="./assets/loomless-icon.png" alt="LoomLess Logo" width="120" height="120">
 
-### **Privacy-First Screen Recording Studio**
+### **Privacy-First Screen Recording Suite**
 
 **YOUR VIDEO NEVER LEAVES YOUR DEVICE**
 
@@ -52,9 +52,11 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 </div>
 
-**LoomLess** is a powerful yet minimalist screen recording Chrome extension designed for users who value **privacy**, **simplicity**, and **freedom**. In a world where most tools require accounts, subscriptions, and upload your data to the cloud, LoomLess takes a radically different approach: **YOUR VIDEO NEVER LEAVES YOUR DEVICE**.
+**LoomLess** is a privacy-first screen recording suite with a **macOS desktop app**, **Chrome extension**, and **landing page** built around one simple idea: **YOUR VIDEO NEVER LEAVES YOUR DEVICE**.
 
-Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots, and the latest updates.
+Whether you want a lightweight recorder, a clean editing flow, or a local-first alternative to cloud-heavy tools, LoomLess keeps the experience fast, simple, and fully under your control.
+
+Visit **[loomless.fun](https://loomless.fun)** for updates and public release info.
 
 ### 🤔 Why LoomLess?
 
@@ -143,14 +145,14 @@ Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots,
 
 </div>
 
-| Feature                 | Description                                            |
-| ----------------------- | ------------------------------------------------------ |
-| ✂️ **Smart Trimming**   | Cut unwanted portions from start and end               |
-| 🎯 **Free-Form Crop**   | Select any rectangular area to focus on                |
-| ⚡ **Speed Control**    | Adjust playback speed from 0.5x to 2x                  |
-| 📦 **Export Formats**   | Save as WebM or MP4                                    |
-| 👁️ **Live Preview**     | See your edits in real-time before exporting           |
-| 💾 **Local Processing** | All editing happens in your browser - nothing uploaded |
+| Feature                 | Description                                           |
+| ----------------------- | ----------------------------------------------------- |
+| ✂️ **Smart Trimming**   | Cut unwanted portions from start and end              |
+| 🎯 **Free-Form Crop**   | Select any rectangular area to focus on               |
+| ⚡ **Speed Control**    | Adjust playback speed from 0.5x to 2x                 |
+| 📦 **Export Formats**   | Save as WebM or MP4                                   |
+| 👁️ **Live Preview**     | See your edits in real-time before exporting          |
+| 💾 **Local Processing** | All editing stays on-device with no cloud dependency  |
 
 <div align="center">
 
@@ -168,9 +170,27 @@ Visit us at **[loomless.fun](https://loomless.fun)** for more info, screenshots,
 
 ---
 
+## 📸 Screenshots
+
+### macOS Desktop App
+
+| Home | Settings |
+| ---- | -------- |
+| <img src="./assets/desktop-app-home.png" alt="LoomLess desktop app home screen" width="100%" /> | <img src="./assets/desktop-app-settings.png" alt="LoomLess desktop app settings modal" width="100%" /> |
+
+| Recording | Editor |
+| --------- | ------ |
+| <img src="./assets/desktop-app-recording.png" alt="LoomLess desktop app active recording view" width="100%" /> | <img src="./assets/desktop-app-editor.png" alt="LoomLess desktop app editor view" width="100%" /> |
+
+### Studio Extension
+
+_Screenshots coming soon after the extension release is finalized._
+
+---
+
 ## 🚀 Installation
 
-### 📦 Option 1: Chrome Web Store (Recommended)
+### 📦 Option 1: Chrome Extension
 
 <div align="center">
 
@@ -182,7 +202,25 @@ Just click the button above and hit **"Add to Chrome"** - that's it! 🎉
 
 Or visit **[loomless.fun](https://loomless.fun)** to learn more before installing.
 
-### 🛠️ Option 2: Manual Installation (For Developers)
+### 🖥️ Option 2: macOS Desktop App
+
+The desktop app lives in `desktop-app/` and is currently intended for local/dev builds while the release flow is being polished.
+
+```bash
+cd desktop-app
+npm install
+npm run tauri dev
+```
+
+For production builds:
+
+```bash
+cd desktop-app
+bash sidecar/build.sh
+npm run tauri build
+```
+
+### 🛠️ Option 3: Manual Extension Installation (For Developers)
 
 <details>
 <summary><b>Click to expand installation steps</b></summary>
@@ -211,7 +249,7 @@ Toggle "Developer mode" switch (top-right corner)
 **Step 4:** Load the Extension
 
 ```
-Click "Load unpacked" → Select the "extension" folder
+Click "Load unpacked" → Select the "studio-extension" folder
 ```
 
 **Step 5:** Pin for Easy Access
@@ -285,14 +323,17 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 
 <div align="center">
 
-| Technology                                                                                                              | Purpose                    |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| ![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Core functionality         |
-| ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?style=flat-square&logo=css3&logoColor=white)                   | Modern UI design           |
-| ![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?style=flat-square&logo=google-chrome&logoColor=white)  | Extension platform         |
-| ![MediaRecorder](https://img.shields.io/badge/API-MediaRecorder-FF6B6B?style=flat-square)                               | Screen & audio capture     |
-| ![Canvas](https://img.shields.io/badge/API-Canvas-9B59B6?style=flat-square)                                             | Camera overlay compositing |
-| ![getUserMedia](https://img.shields.io/badge/API-getUserMedia-27AE60?style=flat-square)                                 | Webcam & microphone access |
+| Technology                                                                                                              | Purpose                         |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| ![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Core recorder/editor logic      |
+| ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?style=flat-square&logo=css3&logoColor=white)                   | UI styling                      |
+| ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8D8?style=flat-square&logo=tauri&logoColor=white)                     | Desktop app shell               |
+| ![Rust](https://img.shields.io/badge/Rust-Backend-000000?style=flat-square&logo=rust&logoColor=white)                   | Tauri backend                   |
+| ![Swift](https://img.shields.io/badge/Swift-Sidecar-FA7343?style=flat-square&logo=swift&logoColor=white)                | Native macOS camera overlay     |
+| ![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?style=flat-square&logo=google-chrome&logoColor=white)  | Extension platform              |
+| ![MediaRecorder](https://img.shields.io/badge/API-MediaRecorder-FF6B6B?style=flat-square)                               | Screen and audio capture        |
+| ![Canvas](https://img.shields.io/badge/API-Canvas-9B59B6?style=flat-square)                                             | Overlay compositing and export  |
+| ![getUserMedia](https://img.shields.io/badge/API-getUserMedia-27AE60?style=flat-square)                                 | Webcam and microphone access    |
 
 </div>
 
@@ -300,20 +341,14 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 
 ```
 loomless/
-├── 📂 extension/
-│   ├── 📂 icons/          # Extension icons
+├── 📂 assets/             # README images and shared media
+├── 📂 desktop-app/        # Tauri macOS desktop app
+│   ├── 📂 src/            # Recorder/editor frontend
+│   ├── 📂 src-tauri/      # Rust backend and app bundle config
+│   └── 📂 sidecar/        # Swift camera overlay binary
+├── 📂 studio-extension/   # Chrome extension
 │   ├── 📂 popup/          # Extension popup UI
-│   │   ├── popup.html
-│   │   ├── popup.css
-│   │   └── popup.js
-│   ├── 📂 recorder/       # Recording & editing
-│   │   ├── recorder.html
-│   │   ├── recorder.css
-│   │   ├── recorder.js
-│   │   ├── editor.html
-│   │   ├── editor.css
-│   │   ├── editor.js
-│   │   └── storage.js
+│   ├── 📂 recorder/       # Recording and editing surface
 │   ├── background.js      # Service worker
 │   └── manifest.json      # Extension manifest
 ├── 📂 website/            # Landing page (loomless.fun)
@@ -335,10 +370,13 @@ loomless/
 | ✅     | WebM and MP4 export               |
 | ✅     | Webcam overlay support            |
 | ✅     | Microphone recording              |
-| 🔜     | Drawing/annotation tools          |
-| 🔜     | GIF export option                 |
-| 🔜     | Keyboard shortcuts                |
-| 🔜     | Firefox extension                 |
+| ✅     | Floating controls                 |
+| ✅     | Dark/Light/System theme           |
+| ✅     | Camera overlay with drag position |
+| ✅     | Screen + Mic/Cam modes           |
+| ✅     | macOS desktop app                |
+| ✅     | 100% local, privacy-first        |
+| ✅     | No sign-up, forever free         |
 
 </div>
 

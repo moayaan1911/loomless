@@ -1,6 +1,7 @@
 .DS_Store
 .git
 .env
+.env.*
 AGENTS.md
 *.zip
 /my-video
@@ -9,3 +10,28 @@ node_modules
 dist
 .env
 remotion-demo
+skills-lock.json
+.agents
+.claude
+.codex
+loomless-demo
+.vscode
+
+# Secrets and local credentials
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+*.crt
+.npmrc
+.netrc
+
+# Local databases and state
+*.db
+*.sqlite
+*.sqlite3
