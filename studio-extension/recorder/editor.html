@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LoomLess Studio</title>
+    <title>LoomLess: Free Screen Recorder & Editor</title>
     <link rel="stylesheet" href="editor.css" />
   </head>
   <body>
@@ -12,11 +12,7 @@
       <header class="studio-toolbar">
         <div class="toolbar-left">
           <div class="brand">
-            <div class="brand-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-            </div>
+            <img src="../icon.png" alt="LoomLess" class="brand-icon-img" />
             <span class="brand-name">LoomLess<span class="brand-pro">Studio</span></span>
           </div>
         </div>
@@ -57,36 +53,13 @@
           </div>
         </div>
         <div class="toolbar-right">
-          <a
-            class="header-link-btn"
-            href="https://moayaan.com/support"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Support the developer"
-            aria-label="Support the developer">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M17 8h1a4 4 0 0 1 0 8h-1"></path>
-              <path d="M3 8h14v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"></path>
-              <path d="M6 1v3"></path>
-              <path d="M10 1v3"></path>
-              <path d="M14 1v3"></path>
+          <button class="discard-btn" id="discardBtn" title="Discard and go home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
             </svg>
-          </a>
-          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
-            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
+            <span>Discard</span>
           </button>
           <button class="export-btn" id="downloadBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -101,16 +74,10 @@
 
       <!-- Main Workspace -->
       <main class="studio-workspace">
-        <!-- Left Panel - Tools -->
+        <!-- Left Panel - All Tools Combined -->
         <aside class="panel panel-left">
-          <div class="panel-tabs">
-            <button class="panel-tab active" data-panel="speed">Speed</button>
-            <button class="panel-tab" data-panel="crop">Crop</button>
-            <button class="panel-tab" data-panel="export">Export</button>
-          </div>
-
-          <!-- Speed Panel -->
-          <div class="panel-content" id="speedPanel">
+          <div class="panel-content-combined">
+            <!-- Speed Section -->
             <div class="panel-section">
               <div class="section-header">
                 <span class="section-icon">
@@ -121,22 +88,17 @@
                 </span>
                 <span>Playback Speed</span>
               </div>
-              <div class="speed-slider-container">
-                <input type="range" id="speedSlider" min="0.25" max="2" step="0.25" value="1" class="speed-slider" />
-                <div class="speed-value" id="speedValue">1.0x</div>
-              </div>
-              <div class="speed-presets">
+              <div class="speed-presets compact">
                 <button class="preset-btn" data-speed="0.5">0.5x</button>
                 <button class="preset-btn" data-speed="0.75">0.75x</button>
                 <button class="preset-btn active" data-speed="1">1x</button>
+                <button class="preset-btn" data-speed="1.25">1.25x</button>
                 <button class="preset-btn" data-speed="1.5">1.5x</button>
                 <button class="preset-btn" data-speed="2">2x</button>
               </div>
             </div>
-          </div>
 
-          <!-- Crop Panel -->
-          <div class="panel-content hidden" id="cropPanel">
+            <!-- Crop Section -->
             <div class="panel-section">
               <div class="section-header">
                 <span class="section-icon">
@@ -145,59 +107,18 @@
                     <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
                   </svg>
                 </span>
-                <span>Crop Mode</span>
+                <span>Crop</span>
               </div>
               <button class="action-btn full-width" id="cropModeBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 </svg>
-                <span>Enable Free Crop</span>
+                <span>Crop</span>
               </button>
-              <div class="crop-dimensions">
-                <div class="dimension-group">
-                  <label>X</label>
-                  <input type="number" id="cropX" placeholder="0" min="0" />
-                </div>
-                <div class="dimension-group">
-                  <label>Y</label>
-                  <input type="number" id="cropY" placeholder="0" min="0" />
-                </div>
-                <div class="dimension-group">
-                  <label>W</label>
-                  <input type="number" id="cropWidth" placeholder="Width" min="1" />
-                </div>
-                <div class="dimension-group">
-                  <label>H</label>
-                  <input type="number" id="cropHeight" placeholder="Height" min="1" />
-                </div>
-              </div>
             </div>
-          </div>
 
-          <!-- Export Panel -->
-          <div class="panel-content hidden" id="exportPanel">
-            <div class="panel-section">
-              <div class="section-header">
-                <span class="section-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                  </svg>
-                </span>
-                <span>Format</span>
-              </div>
-              <div class="format-selector">
-                <button class="format-option active" id="formatWebM" data-format="webm">
-                  <div class="format-icon">WebM</div>
-                  <span class="format-label">Smaller size</span>
-                </button>
-                <button class="format-option" id="formatMP4" data-format="mp4">
-                  <div class="format-icon">MP4</div>
-                  <span class="format-label">Universal</span>
-                </button>
-              </div>
-            </div>
-            <div class="panel-section">
+            <!-- Info Section -->
+            <div class="panel-section compact-info">
               <div class="section-header">
                 <span class="section-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -206,21 +127,10 @@
                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                   </svg>
                 </span>
-                <span>Video Info</span>
+                <span>Info</span>
               </div>
-              <div class="info-grid">
-                <div class="info-row">
-                  <span class="info-label">Duration</span>
-                  <span class="info-value" id="infoDuration">--:--</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">File Size</span>
-                  <span class="info-value" id="infoSize">-- MB</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Trim Range</span>
-                  <span class="info-value" id="infoTrimmed">Full</span>
-                </div>
+              <div class="info-compact">
+                <span id="infoDuration">--:--</span> • <span id="infoSize">-- MB</span> • <span id="infoTrimmed">Full</span>
               </div>
             </div>
           </div>
@@ -355,37 +265,11 @@
         </div>
       </div>
 
-      <!-- Credit Badge -->
-      <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="credit-badge">
-        Built by moayaan.eth
-      </a>
+
 
       <!-- Export Processing Modal -->
       <div id="exportModal" class="export-modal hidden">
         <div class="export-modal-card">
-          <div class="export-modal-support">
-            <div class="export-modal-support-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M17 8h1a4 4 0 0 1 0 8h-1"></path>
-                <path d="M3 8h14v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"></path>
-                <path d="M6 1v3"></path>
-                <path d="M10 1v3"></path>
-                <path d="M14 1v3"></path>
-              </svg>
-            </div>
-            <div class="export-modal-support-text">
-              <p class="export-modal-support-title">LoomLess is free, built by a solo dev</p>
-              <p class="export-modal-support-sub">If it helped you, consider buying me a coffee!</p>
-            </div>
-            <a
-              href="https://moayaan.com/donate"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="export-modal-support-btn">
-              Support
-            </a>
-          </div>
-          <div class="export-modal-divider"></div>
           <div class="export-modal-processing">
             <div class="export-modal-spinner">
               <div class="export-spinner-ring"></div>
@@ -395,6 +279,68 @@
               <div id="exportModalProgressBar" class="export-modal-progress-fill"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="settings-modal hidden" id="settingsModal" aria-hidden="true">
+        <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+          <div class="settings-header">
+            <div>
+              <p class="settings-eyebrow">Studio Settings</p>
+              <h2 id="settingsTitle">Customize LoomLess</h2>
+            </div>
+            <button class="settings-close-btn" id="settingsCloseBtn" type="button" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <section class="settings-section">
+            <div class="settings-section-title">Recording</div>
+            <div class="settings-row settings-row-toggle">
+              <div>
+                <p class="settings-label">Show Floating Controls</p>
+                <p class="settings-copy">Play/Pause and Stop buttons toggle</p>
+              </div>
+              <label class="settings-switch" for="floatingControlsToggle">
+                <input type="checkbox" id="floatingControlsToggle" />
+                <span class="settings-switch-slider"></span>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-title">Appearance</div>
+            <div class="theme-selector" id="themeSelector">
+              <button class="theme-option-btn" type="button" data-theme-preference="system">System</button>
+              <button class="theme-option-btn" type="button" data-theme-preference="light">Light</button>
+              <button class="theme-option-btn" type="button" data-theme-preference="dark">Dark</button>
+            </div>
+          </section>
+
+          <section class="settings-section settings-section-about">
+            <div class="settings-section-title">About</div>
+            <div class="settings-about-card">
+              <p class="settings-about-title">Built by moayaan.eth</p>
+              <p class="settings-about-copy">Privacy-first screen recording, built locally with no cloud uploads.</p>
+              <div class="settings-links">
+                <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="settings-link-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  <span>Website</span>
+                </a>
+                <a href="https://github.com/moayaan1911/loomless" target="_blank" rel="noopener noreferrer" class="settings-link-btn">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .08 1.53 1.05 1.53 1.05.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.15-4.56-5.1 0-1.13.39-2.05 1.03-2.77-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.35 1.9-1.34 2.74-1.06 2.74-1.06.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.77 0 3.96-2.34 4.84-4.57 5.09.36.32.68.95.68 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.59 17.52 2 12 2z"></path></svg>
+                  <span>GitHub</span>
+                </a>
+                <a href="https://moayaan.com/donate" target="_blank" rel="noopener noreferrer" class="settings-link-btn settings-link-btn-primary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-6.72-4.35-9.33-8.19C.78 10.03 1.2 6.1 4.24 4.1c2.04-1.34 4.86-.94 6.76 1.03 1.9-1.97 4.72-2.37 6.76-1.03 3.04 2 3.46 5.93 1.57 8.71C18.72 16.65 12 21 12 21z"></path></svg>
+                  <span>Support</span>
+                </a>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>

@@ -4,6 +4,8 @@
  */
 
 // videoStorage is available globally from storage.js
+const THEME_STORAGE_KEY = "loomless-theme-preference";
+const RECORDER_SETTINGS_KEY = "loomless-recorder-settings";
 
 // DOM elements
 let videoPlayer,
@@ -24,8 +26,6 @@ let videoPlayer,
   exportModal,
   exportModalProgressBar,
   exportModalText,
-  speedSlider,
-  speedValue,
   presetButtons,
   formatButtons,
   infoDuration,
@@ -35,8 +35,6 @@ let videoPlayer,
   cropSelection,
   cropModeBtn,
   cropDimensionsText,
-  panelTabs,
-  panelContents,
   currentTimeDisplay,
   totalTimeDisplay,
   playPauseBtn,
@@ -44,7 +42,12 @@ let videoPlayer,
   pauseIcon,
   stopBtn,
   skipBackBtn,
-  skipForwardBtn;
+  skipForwardBtn,
+  settingsBtn,
+  settingsModal,
+  settingsCloseBtn,
+  floatingControlsToggle,
+  themeOptionButtons;
 
 // Video state
 let currentRecording = null;
@@ -53,7 +56,7 @@ let trimStartTime = 0;
 let trimEndTime = 0;
 let playbackSpeed = 1.0;
 let cropSettings = { aspect: "none", x: 0, y: 0, width: 0, height: 0 };
-let exportFormat = "webm";
+let exportFormat = "mp4";
 let isDraggingTrim = false;
 let draggedHandle = null;
 
@@ -63,42 +66,125 @@ let isDraggingCrop = false;
 let cropDragStart = { x: 0, y: 0 };
 let cropSelectionRect = { x: 0, y: 0, width: 0, height: 0 };
 let cropResizeHandle = null;
-
-// Theme toggle element
-let themeToggle;
+const TRIM_PLAYBACK_EPSILON = 0.05;
+const MIN_CROP_SELECTION_SIZE = 20;
 
 // Initialize when DOM is loaded
 document.addEventListener("DOMContentLoaded", async function () {
   initializeElements();
   setupEventListeners();
+  setupRightClickDisable();
   initializeTheme();
+  await initializeSettings();
   await loadVideoFromStorage();
 });
+
+function setupRightClickDisable() {
+  let toastTimer = null;
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    let toast = document.getElementById("rightClickToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "rightClickToast";
+      toast.className = "right-click-toast";
+      toast.textContent = "Right click disabled on this page";
+      document.body.appendChild(toast);
+    }
+    toast.classList.add("visible");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("visible"), 1800);
+  });
+}
 
 /**
  * Initialize theme from localStorage or system preference
  */
 function initializeTheme() {
-  const savedTheme = localStorage.getItem("loomless-theme");
+  applyThemePreference(getStoredThemePreference());
 
-  if (savedTheme) {
-    document.documentElement.setAttribute("data-theme", savedTheme);
-  } else {
-    // Check system preference
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+  const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const syncSystemTheme = () => {
+    if (getStoredThemePreference() === "system") {
+      applyThemePreference("system");
+    }
+  };
+
+  if (typeof systemTheme.addEventListener === "function") {
+    systemTheme.addEventListener("change", syncSystemTheme);
+  } else if (typeof systemTheme.addListener === "function") {
+    systemTheme.addListener(syncSystemTheme);
   }
 }
 
-/**
- * Toggle between light and dark themes
- */
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute("data-theme");
-  const newTheme = currentTheme === "light" ? "dark" : "light";
+async function initializeSettings() {
+  if (floatingControlsToggle) {
+    try {
+      const stored = await chrome.storage.local.get(RECORDER_SETTINGS_KEY);
+      floatingControlsToggle.checked =
+        stored[RECORDER_SETTINGS_KEY]?.showFloatingControls !== false;
+    } catch (error) {
+      floatingControlsToggle.checked = true;
+    }
+  }
 
-  document.documentElement.setAttribute("data-theme", newTheme);
-  localStorage.setItem("loomless-theme", newTheme);
+  updateThemeOptionButtons(getStoredThemePreference());
+}
+
+function getStoredThemePreference() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  return savedTheme === "light" || savedTheme === "dark" || savedTheme === "system"
+    ? savedTheme
+    : "system";
+}
+
+function applyThemePreference(preference) {
+  const resolvedTheme = preference === "system"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : preference;
+
+  document.documentElement.setAttribute("data-theme", resolvedTheme);
+  updateThemeOptionButtons(preference);
+}
+
+function setThemePreference(preference) {
+  localStorage.setItem(THEME_STORAGE_KEY, preference);
+  applyThemePreference(preference);
+}
+
+function updateThemeOptionButtons(preference) {
+  themeOptionButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.themePreference === preference);
+  });
+}
+
+async function handleFloatingControlsToggle() {
+  if (!floatingControlsToggle) {
+    return;
+  }
+
+  try {
+    const stored = await chrome.storage.local.get(RECORDER_SETTINGS_KEY);
+    await chrome.storage.local.set({
+      [RECORDER_SETTINGS_KEY]: {
+        showFloatingControls: true,
+        ...(stored[RECORDER_SETTINGS_KEY] || {}),
+        showFloatingControls: floatingControlsToggle.checked,
+      },
+    });
+  } catch (error) {
+    console.warn("Could not persist floating controls setting:", error);
+  }
+}
+
+function openSettingsModal() {
+  settingsModal?.classList.remove("hidden");
+  settingsModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeSettingsModal() {
+  settingsModal?.classList.add("hidden");
+  settingsModal?.setAttribute("aria-hidden", "true");
 }
 
 /**
@@ -125,8 +211,6 @@ function initializeElements() {
   exportModalText = document.getElementById("exportModalText");
 
   // Speed controls
-  speedSlider = document.getElementById("speedSlider");
-  speedValue = document.getElementById("speedValue");
   presetButtons = document.querySelectorAll(".preset-btn");
 
   // Format controls
@@ -143,14 +227,6 @@ function initializeElements() {
   cropModeBtn = document.getElementById("cropModeBtn");
   cropDimensionsText = document.getElementById("cropDimensionsText");
 
-  // Panel tabs
-  panelTabs = document.querySelectorAll(".panel-tab");
-  panelContents = {
-    speed: document.getElementById("speedPanel"),
-    crop: document.getElementById("cropPanel"),
-    export: document.getElementById("exportPanel"),
-  };
-
   // Time display
   currentTimeDisplay = document.getElementById("currentTime");
   totalTimeDisplay = document.getElementById("totalTime");
@@ -162,9 +238,11 @@ function initializeElements() {
   stopBtn = document.getElementById("stopBtn");
   skipBackBtn = document.getElementById("skipBackBtn");
   skipForwardBtn = document.getElementById("skipForwardBtn");
-
-  // Theme toggle
-  themeToggle = document.getElementById("themeToggle");
+  settingsBtn = document.getElementById("settingsBtn");
+  settingsModal = document.getElementById("settingsModal");
+  settingsCloseBtn = document.getElementById("settingsCloseBtn");
+  floatingControlsToggle = document.getElementById("floatingControlsToggle");
+  themeOptionButtons = document.querySelectorAll(".theme-option-btn");
 }
 
 /**
@@ -202,7 +280,6 @@ function setupEventListeners() {
   resetTrimBtn.addEventListener("click", resetTrim);
 
   // Speed controls
-  speedSlider.addEventListener("input", handleSpeedSlider);
   presetButtons.forEach((btn) => {
     btn.addEventListener("click", handleSpeedPreset);
   });
@@ -223,11 +300,6 @@ function setupEventListeners() {
   document.addEventListener("mousemove", handleCropDrag);
   document.addEventListener("mouseup", stopCropDrag);
 
-  // Panel tabs
-  panelTabs.forEach((tab) => {
-    tab.addEventListener("click", handlePanelTabClick);
-  });
-
   // Window resize to update crop overlay size
   window.addEventListener("resize", () => {
     if (videoPlayer && videoPlayer.videoWidth) {
@@ -238,14 +310,36 @@ function setupEventListeners() {
   // Keyboard shortcuts
   document.addEventListener("keydown", handleKeyboardShortcuts);
 
-  // Theme toggle
-  themeToggle.addEventListener("click", toggleTheme);
+  settingsBtn?.addEventListener("click", openSettingsModal);
+  settingsCloseBtn?.addEventListener("click", closeSettingsModal);
+  settingsModal?.addEventListener("click", (event) => {
+    if (event.target === settingsModal) {
+      closeSettingsModal();
+    }
+  });
+  floatingControlsToggle?.addEventListener("change", handleFloatingControlsToggle);
+  themeOptionButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setThemePreference(button.dataset.themePreference || "system");
+    });
+  });
+
+  // Discard button
+  const discardBtn = document.getElementById("discardBtn");
+  if (discardBtn) {
+    discardBtn.addEventListener("click", handleDiscard);
+  }
 }
 
 /**
  * Handle keyboard shortcuts
  */
 function handleKeyboardShortcuts(event) {
+  if (event.code === "Escape" && settingsModal && !settingsModal.classList.contains("hidden")) {
+    closeSettingsModal();
+    return;
+  }
+
   // Don't trigger if typing in an input
   if (event.target.tagName === "INPUT") return;
 
@@ -274,6 +368,13 @@ function handleKeyboardShortcuts(event) {
  */
 function togglePlayPause() {
   if (videoPlayer.paused) {
+    if (
+      trimEndTime > trimStartTime &&
+      (videoPlayer.currentTime < trimStartTime ||
+        videoPlayer.currentTime >= trimEndTime - TRIM_PLAYBACK_EPSILON)
+    ) {
+      videoPlayer.currentTime = trimStartTime;
+    }
     videoPlayer.play();
   } else {
     videoPlayer.pause();
@@ -305,44 +406,23 @@ function stopVideo() {
  * Skip time
  */
 function skipTime(seconds) {
-  const newTime = Math.max(0, Math.min(videoPlayer.duration, videoPlayer.currentTime + seconds));
+  const duration = getEditorDuration();
+  const minTime = trimEndTime > trimStartTime ? trimStartTime : 0;
+  const maxTime = trimEndTime > trimStartTime ? trimEndTime : duration;
+  const newTime = Math.max(minTime, Math.min(maxTime, videoPlayer.currentTime + seconds));
   videoPlayer.currentTime = newTime;
 }
 
-/**
- * Handle panel tab click
- */
-function handlePanelTabClick(event) {
-  const tabName = event.target.dataset.panel;
+function getEditorDuration() {
+  if (Number.isFinite(videoPlayer.duration) && !Number.isNaN(videoPlayer.duration)) {
+    return videoPlayer.duration;
+  }
 
-  // Update tab states
-  panelTabs.forEach((tab) => tab.classList.remove("active"));
-  event.target.classList.add("active");
+  if (Number.isFinite(trimEndTime) && trimEndTime > 0) {
+    return trimEndTime;
+  }
 
-  // Update panel visibility
-  Object.entries(panelContents).forEach(([name, panel]) => {
-    if (name === tabName) {
-      panel.classList.remove("hidden");
-    } else {
-      panel.classList.add("hidden");
-    }
-  });
-}
-
-/**
- * Handle speed slider
- */
-function handleSpeedSlider(event) {
-  const speed = parseFloat(event.target.value);
-  playbackSpeed = speed;
-  videoPlayer.playbackRate = speed;
-  speedValue.textContent = `${speed.toFixed(1)}x`;
-
-  // Update preset buttons
-  presetButtons.forEach((btn) => {
-    const btnSpeed = parseFloat(btn.dataset.speed);
-    btn.classList.toggle("active", btnSpeed === speed);
-  });
+  return 0;
 }
 
 /**
@@ -352,12 +432,13 @@ function handleSpeedPreset(event) {
   const speed = parseFloat(event.target.dataset.speed);
   playbackSpeed = speed;
   videoPlayer.playbackRate = speed;
-  speedSlider.value = speed;
-  speedValue.textContent = `${speed.toFixed(1)}x`;
 
   // Update preset buttons
   presetButtons.forEach((btn) => btn.classList.remove("active"));
   event.target.classList.add("active");
+
+  updateTimeDisplays();
+  updateVideoInfo();
 }
 
 /**
@@ -514,11 +595,32 @@ function generateTimelineRuler(duration) {
 function updateTimeDisplays() {
   if (!videoPlayer) return;
 
-  const current = videoPlayer.currentTime || 0;
-  const total = Number.isFinite(videoPlayer.duration) ? videoPlayer.duration : trimEndTime;
+  const current = getDisplayedOutputTimeSeconds();
+  const total = getOutputDurationSeconds();
 
   currentTimeDisplay.textContent = formatTimePrecise(current);
   totalTimeDisplay.textContent = formatTimePrecise(total);
+}
+
+function getClipEndTime() {
+  const sourceDuration = getEditorDuration();
+  if (Number.isFinite(trimEndTime) && trimEndTime > trimStartTime) {
+    return trimEndTime;
+  }
+  return sourceDuration;
+}
+
+function getOutputDurationSeconds() {
+  const clipEnd = getClipEndTime();
+  const trimmedDuration = Math.max(0, clipEnd - trimStartTime);
+  return trimmedDuration / Math.max(0.1, playbackSpeed);
+}
+
+function getDisplayedOutputTimeSeconds() {
+  const clipEnd = getClipEndTime();
+  const currentTime = Number.isFinite(videoPlayer.currentTime) ? videoPlayer.currentTime : 0;
+  const clampedCurrent = clampNumber(currentTime, trimStartTime, clipEnd);
+  return Math.max(0, clampedCurrent - trimStartTime) / Math.max(0.1, playbackSpeed);
 }
 
 /**
@@ -541,13 +643,8 @@ function formatTimePrecise(seconds) {
 function updateVideoInfo() {
   if (!currentRecording) return;
 
-  // Choose a finite duration if possible
-  let durationSeconds =
-    Number.isFinite(videoPlayer.duration) && !Number.isNaN(videoPlayer.duration)
-      ? videoPlayer.duration
-      : Number.isFinite(trimEndTime)
-      ? trimEndTime
-      : 0;
+  const sourceDuration = getEditorDuration();
+  const durationSeconds = getOutputDurationSeconds();
 
   // Duration
   infoDuration.textContent = formatTime(durationSeconds);
@@ -561,10 +658,10 @@ function updateVideoInfo() {
   const endSeconds =
     Number.isFinite(trimEndTime) && !Number.isNaN(trimEndTime)
       ? trimEndTime
-      : durationSeconds;
+      : sourceDuration;
   const trimmedEnd = formatTime(endSeconds);
 
-  if (trimStartTime === 0 && trimEndTime === durationSeconds) {
+  if (trimStartTime === 0 && Math.abs(endSeconds - sourceDuration) < 0.01) {
     infoTrimmed.textContent = "Full";
   } else {
     infoTrimmed.textContent = `${trimmedStart} - ${trimmedEnd}`;
@@ -575,14 +672,13 @@ function updateVideoInfo() {
  * Initialize crop overlay to match video dimensions
  */
 function initializeCropOverlay() {
-  const videoContainer = videoPlayer.parentElement;
-  const containerRect = videoContainer.getBoundingClientRect();
+  const videoRect = videoPlayer.getBoundingClientRect();
 
   cropOverlay.style.position = "absolute";
   cropOverlay.style.top = "0";
   cropOverlay.style.left = "0";
-  cropOverlay.style.width = `${containerRect.width}px`;
-  cropOverlay.style.height = `${containerRect.height}px`;
+  cropOverlay.style.width = `${videoRect.width}px`;
+  cropOverlay.style.height = `${videoRect.height}px`;
 
   // Reset crop selection
   cropSelectionRect = { x: 0, y: 0, width: 0, height: 0 };
@@ -656,13 +752,19 @@ function stopTimelineScrub() {
  * Update timeline progress
  */
 function updateTimelineProgress() {
-  if (
-    !Number.isFinite(videoPlayer.duration) ||
-    Number.isNaN(videoPlayer.duration)
-  )
-    return;
+  const duration = getEditorDuration();
+  if (!Number.isFinite(duration) || Number.isNaN(duration) || duration <= 0) return;
 
-  const percentage = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+  if (
+    trimEndTime > trimStartTime &&
+    !videoPlayer.paused &&
+    videoPlayer.currentTime >= trimEndTime - TRIM_PLAYBACK_EPSILON
+  ) {
+    videoPlayer.pause();
+    videoPlayer.currentTime = trimEndTime;
+  }
+
+  const percentage = (videoPlayer.currentTime / duration) * 100;
 
   // Update playhead position
   if (playhead) {
@@ -670,8 +772,8 @@ function updateTimelineProgress() {
   }
 
   // Update trim region
-  const startPercentage = (trimStartTime / videoPlayer.duration) * 100;
-  const endPercentage = (trimEndTime / videoPlayer.duration) * 100;
+  const startPercentage = (trimStartTime / duration) * 100;
+  const endPercentage = (trimEndTime / duration) * 100;
 
   if (trimRegion) {
     trimRegion.style.left = `${startPercentage}%`;
@@ -702,18 +804,19 @@ function startTrimDrag(event) {
  * Handle trim handle drag
  */
 function handleTrimDrag(event) {
-  if (!isDraggingTrim || !videoPlayer.duration) return;
+  const duration = getEditorDuration();
+  if (!isDraggingTrim || !duration) return;
 
   const rect = timelineTrack.getBoundingClientRect();
   const mouseX = event.clientX - rect.left;
   const percentage = Math.max(0, Math.min(1, mouseX / rect.width));
-  const time = percentage * videoPlayer.duration;
+  const time = percentage * duration;
 
   if (draggedHandle === "start") {
     trimStartTime = Math.max(0, Math.min(time, trimEndTime - 0.5));
   } else {
     trimEndTime = Math.min(
-      videoPlayer.duration,
+      duration,
       Math.max(time, trimStartTime + 0.5)
     );
   }
@@ -734,7 +837,8 @@ function stopTrimDrag() {
  * Set trim start to current time
  */
 function setTrimStart() {
-  if (!videoPlayer.duration) return;
+  const duration = getEditorDuration();
+  if (!duration) return;
   trimStartTime = Math.max(
     0,
     Math.min(videoPlayer.currentTime, trimEndTime - 0.5)
@@ -748,9 +852,10 @@ function setTrimStart() {
  * Set trim end to current time
  */
 function setTrimEnd() {
-  if (!videoPlayer.duration) return;
+  const duration = getEditorDuration();
+  if (!duration) return;
   trimEndTime = Math.min(
-    videoPlayer.duration,
+    duration,
     Math.max(videoPlayer.currentTime, trimStartTime + 0.5)
   );
   updateVideoInfo();
@@ -762,9 +867,10 @@ function setTrimEnd() {
  * Reset trim to full video
  */
 function resetTrim() {
-  if (!videoPlayer.duration) return;
+  const duration = getEditorDuration();
+  if (!duration) return;
   trimStartTime = 0;
-  trimEndTime = videoPlayer.duration;
+  trimEndTime = duration;
   updateVideoInfo();
   updateTimelineProgress();
   showStatus("Trim reset", "success");
@@ -829,8 +935,8 @@ function startCropSelection(event) {
   if (!isCropModeActive) return;
 
   const rect = cropOverlay.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const x = clampNumber(event.clientX - rect.left, 0, cropOverlay.clientWidth);
+  const y = clampNumber(event.clientY - rect.top, 0, cropOverlay.clientHeight);
 
   // Check if clicking on a handle for resizing
   const handle = getCropHandleAtPosition(x, y);
@@ -867,8 +973,8 @@ function handleCropDrag(event) {
   if (!isDraggingCrop || !isCropModeActive) return;
 
   const rect = cropOverlay.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const x = clampNumber(event.clientX - rect.left, 0, cropOverlay.clientWidth);
+  const y = clampNumber(event.clientY - rect.top, 0, cropOverlay.clientHeight);
 
   if (cropResizeHandle) {
     // Resizing
@@ -878,12 +984,14 @@ function handleCropDrag(event) {
     moveCropSelection(x, y);
   } else {
     // Creating new selection
-    const width = x - cropSelectionRect.x;
-    const height = y - cropSelectionRect.y;
-    cropSelectionRect.width = Math.abs(width);
-    cropSelectionRect.height = Math.abs(height);
-    cropSelectionRect.x = width < 0 ? x : cropSelectionRect.x;
-    cropSelectionRect.y = height < 0 ? y : cropSelectionRect.y;
+    const left = Math.min(cropDragStart.x, x);
+    const top = Math.min(cropDragStart.y, y);
+    const right = Math.max(cropDragStart.x, x);
+    const bottom = Math.max(cropDragStart.y, y);
+    cropSelectionRect.x = left;
+    cropSelectionRect.y = top;
+    cropSelectionRect.width = right - left;
+    cropSelectionRect.height = bottom - top;
   }
 
   updateCropSelectionDisplay();
@@ -988,69 +1096,77 @@ function getCropHandleRect(handle, size) {
   }
 }
 
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(value, max));
+}
+
 /**
  * Resize crop selection
  */
 function resizeCropSelection(x, y) {
-  const dx = x - cropDragStart.x;
-  const dy = y - cropDragStart.y;
+  const overlayWidth = cropOverlay.clientWidth;
+  const overlayHeight = cropOverlay.clientHeight;
+  const clampedX = clampNumber(x, 0, overlayWidth);
+  const clampedY = clampNumber(y, 0, overlayHeight);
+  let left = cropSelectionRect.x;
+  let top = cropSelectionRect.y;
+  let right = cropSelectionRect.x + cropSelectionRect.width;
+  let bottom = cropSelectionRect.y + cropSelectionRect.height;
 
   switch (cropResizeHandle) {
     case "nw":
-      cropSelectionRect.x += dx;
-      cropSelectionRect.y += dy;
-      cropSelectionRect.width -= dx;
-      cropSelectionRect.height -= dy;
+      left = Math.min(clampedX, right - MIN_CROP_SELECTION_SIZE);
+      top = Math.min(clampedY, bottom - MIN_CROP_SELECTION_SIZE);
       break;
     case "ne":
-      cropSelectionRect.y += dy;
-      cropSelectionRect.width += dx;
-      cropSelectionRect.height -= dy;
+      right = Math.max(clampedX, left + MIN_CROP_SELECTION_SIZE);
+      top = Math.min(clampedY, bottom - MIN_CROP_SELECTION_SIZE);
       break;
     case "sw":
-      cropSelectionRect.x += dx;
-      cropSelectionRect.width -= dx;
-      cropSelectionRect.height += dy;
+      left = Math.min(clampedX, right - MIN_CROP_SELECTION_SIZE);
+      bottom = Math.max(clampedY, top + MIN_CROP_SELECTION_SIZE);
       break;
     case "se":
-      cropSelectionRect.width += dx;
-      cropSelectionRect.height += dy;
+      right = Math.max(clampedX, left + MIN_CROP_SELECTION_SIZE);
+      bottom = Math.max(clampedY, top + MIN_CROP_SELECTION_SIZE);
       break;
     case "n":
-      cropSelectionRect.y += dy;
-      cropSelectionRect.height -= dy;
+      top = Math.min(clampedY, bottom - MIN_CROP_SELECTION_SIZE);
       break;
     case "e":
-      cropSelectionRect.width += dx;
+      right = Math.max(clampedX, left + MIN_CROP_SELECTION_SIZE);
       break;
     case "s":
-      cropSelectionRect.height += dy;
+      bottom = Math.max(clampedY, top + MIN_CROP_SELECTION_SIZE);
       break;
     case "w":
-      cropSelectionRect.x += dx;
-      cropSelectionRect.width -= dx;
+      left = Math.min(clampedX, right - MIN_CROP_SELECTION_SIZE);
       break;
   }
 
-  // Ensure minimum size
-  if (cropSelectionRect.width < 20) cropSelectionRect.width = 20;
-  if (cropSelectionRect.height < 20) cropSelectionRect.height = 20;
+  left = clampNumber(left, 0, Math.max(0, overlayWidth - MIN_CROP_SELECTION_SIZE));
+  top = clampNumber(top, 0, Math.max(0, overlayHeight - MIN_CROP_SELECTION_SIZE));
+  right = clampNumber(right, left + MIN_CROP_SELECTION_SIZE, overlayWidth);
+  bottom = clampNumber(bottom, top + MIN_CROP_SELECTION_SIZE, overlayHeight);
 
-  // Keep within bounds
-  const maxX = cropOverlay.clientWidth - cropSelectionRect.width;
-  const maxY = cropOverlay.clientHeight - cropSelectionRect.height;
-  cropSelectionRect.x = Math.max(0, Math.min(cropSelectionRect.x, maxX));
-  cropSelectionRect.y = Math.max(0, Math.min(cropSelectionRect.y, maxY));
+  cropSelectionRect.x = left;
+  cropSelectionRect.y = top;
+  cropSelectionRect.width = right - left;
+  cropSelectionRect.height = bottom - top;
 
-  cropDragStart = { x, y };
+  cropDragStart = { x: clampedX, y: clampedY };
 }
 
 /**
  * Move crop selection
  */
 function moveCropSelection(x, y) {
-  const dx = x - cropDragStart.x;
-  const dy = y - cropDragStart.y;
+  const overlayWidth = cropOverlay.clientWidth;
+  const overlayHeight = cropOverlay.clientHeight;
+  const clampedX = clampNumber(x, 0, overlayWidth);
+  const clampedY = clampNumber(y, 0, overlayHeight);
+  const dx = clampedX - cropDragStart.x;
+  const dy = clampedY - cropDragStart.y;
 
   cropSelectionRect.x += dx;
   cropSelectionRect.y += dy;
@@ -1061,7 +1177,7 @@ function moveCropSelection(x, y) {
   cropSelectionRect.x = Math.max(0, Math.min(cropSelectionRect.x, maxX));
   cropSelectionRect.y = Math.max(0, Math.min(cropSelectionRect.y, maxY));
 
-  cropDragStart = { x, y };
+  cropDragStart = { x: clampedX, y: clampedY };
 }
 
 /**
@@ -1084,20 +1200,6 @@ function updateCropSelectionDisplay() {
       cropDimensionsText.textContent = `${w} x ${h}`;
     }
 
-    // Update input fields
-    const cropX = document.getElementById("cropX");
-    const cropY = document.getElementById("cropY");
-    const cropWidth = document.getElementById("cropWidth");
-    const cropHeight = document.getElementById("cropHeight");
-
-    if (cropX && videoPlayer.videoWidth) {
-      const scaleX = videoPlayer.videoWidth / cropOverlay.clientWidth;
-      const scaleY = videoPlayer.videoHeight / cropOverlay.clientHeight;
-      cropX.value = Math.round(cropSelectionRect.x * scaleX);
-      cropY.value = Math.round(cropSelectionRect.y * scaleY);
-      cropWidth.value = Math.round(cropSelectionRect.width * scaleX);
-      cropHeight.value = Math.round(cropSelectionRect.height * scaleY);
-    }
   } else {
     cropSelection.style.display = "none";
   }
@@ -1115,10 +1217,18 @@ function updateCropSettingsFromSelection() {
   const scaleY = videoPlayer.videoHeight / videoRect.height;
 
   // Convert overlay coordinates to video coordinates
-  cropSettings.x = Math.round(cropSelectionRect.x * scaleX);
-  cropSettings.y = Math.round(cropSelectionRect.y * scaleY);
-  cropSettings.width = Math.round(cropSelectionRect.width * scaleX);
-  cropSettings.height = Math.round(cropSelectionRect.height * scaleY);
+  cropSettings.x = clampNumber(Math.round(cropSelectionRect.x * scaleX), 0, videoPlayer.videoWidth);
+  cropSettings.y = clampNumber(Math.round(cropSelectionRect.y * scaleY), 0, videoPlayer.videoHeight);
+  cropSettings.width = clampNumber(
+    Math.round(cropSelectionRect.width * scaleX),
+    1,
+    Math.max(1, videoPlayer.videoWidth - cropSettings.x)
+  );
+  cropSettings.height = clampNumber(
+    Math.round(cropSelectionRect.height * scaleY),
+    1,
+    Math.max(1, videoPlayer.videoHeight - cropSettings.y)
+  );
   cropSettings.aspect = "custom";
 }
 
@@ -1140,11 +1250,11 @@ function selectExportSettings(format) {
 
   if (format === "mp4") {
     const mp4Candidates = [
-      "video/mp4;codecs=avc1.640028,mp4a.40.2",
-      "video/mp4;codecs=avc1.4d401f,mp4a.40.2",
+      "video/mp4",
       "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
       "video/mp4;codecs=avc1.42E01E",
-      "video/mp4",
+      "video/mp4;codecs=avc1.4d401f,mp4a.40.2",
+      "video/mp4;codecs=avc1.640028,mp4a.40.2",
     ];
 
     const supportedMp4 = mp4Candidates.find(mediaRecorderSupported);
@@ -1153,13 +1263,12 @@ function selectExportSettings(format) {
         mimeType: supportedMp4,
         extension: "mp4",
         needsDurationFix: false,
-        warningMessage: "",
+        warningMessage:
+          "MP4 export is experimental on the desktop app right now.",
       };
     }
 
-    console.warn(
-      "MP4 encoding not supported on this platform, falling back to WebM"
-    );
+    throw new Error("MP4 export is not supported on this system.");
   }
 
   const webmCandidates = [
@@ -1174,14 +1283,141 @@ function selectExportSettings(format) {
       mimeType: supportedWebm,
       extension: "webm",
       needsDurationFix: supportedWebm.startsWith("video/webm"),
-      warningMessage:
-        format === "mp4"
-          ? "MP4 export not supported by this browser. Falling back to WebM."
-          : "",
+      warningMessage: "",
     };
   }
 
   throw new Error("No supported MediaRecorder formats available");
+}
+
+function getRecommendedVideoBitrate(width, height) {
+  const safeWidth = Math.max(1, Math.round(width || 1920));
+  const safeHeight = Math.max(1, Math.round(height || 1080));
+  const pixels = safeWidth * safeHeight;
+
+  if (pixels >= 3840 * 2160) return 28000000;
+  if (pixels >= 2560 * 1440) return 18000000;
+  if (pixels >= 1920 * 1080) return 12000000;
+  if (pixels >= 1280 * 720) return 8000000;
+  return 5000000;
+}
+
+function currentRecordingIsMp4() {
+  const mimeType = currentRecording?.mimeType || videoBlob?.type || "";
+  const filename = currentRecording?.filename || "";
+  return mimeType.includes("mp4") || filename.toLowerCase().endsWith(".mp4");
+}
+
+function cleanupCurrentRecordingLater() {
+  setTimeout(async () => {
+    try {
+      await window.videoStorage.deleteRecording(currentRecording.id);
+      console.log("Original recording cleaned up");
+    } catch (error) {
+      console.error("Error cleaning up:", error);
+    }
+  }, 1000);
+}
+
+async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
+  // Native desktop trim export is temporarily disabled until the macOS
+  // avconvert path is stable again. Fall back to the proven in-browser export.
+  if (true || !window.__TAURI__ || hasCrop || Math.abs(playbackSpeed - 1) > 0.001) {
+    return false;
+  }
+
+  if (!currentRecordingIsMp4()) {
+    hideExportModal();
+    restoreExportControls();
+    showStatus(
+      "This recording was captured as WebM. Make a new desktop recording after this update so native MP4 trim export can work.",
+      "error"
+    );
+    return true;
+  }
+
+  const { save } = window.__TAURI__.dialog;
+  const { writeFile } = window.__TAURI__.fs;
+  const { BaseDirectory } = window.__TAURI__.path;
+  const invoke = window.__TAURI__.core.invoke;
+
+  const fileName = `loomless-edited-${Date.now()}.mp4`;
+  const outputPath = await save({
+    defaultPath: fileName,
+    filters: [
+      {
+        name: "MP4",
+        extensions: ["mp4"],
+      },
+    ],
+  });
+
+  if (!outputPath) {
+    hideExportModal();
+    restoreExportControls();
+    return true;
+  }
+
+  if (exportModalText) {
+    exportModalText.textContent = "Preparing native export...";
+  }
+  if (exportModalProgressBar) {
+    exportModalProgressBar.style.width = "25%";
+  }
+
+  const tempSourceName = `loomless-native-source-${Date.now()}.mp4`;
+  const sourceBytes = new Uint8Array(await videoBlob.arrayBuffer());
+  await writeFile(tempSourceName, sourceBytes, {
+    baseDir: BaseDirectory.Temp,
+  });
+
+  if (exportModalText) {
+    exportModalText.textContent = "Trimming with native exporter...";
+  }
+  if (exportModalProgressBar) {
+    exportModalProgressBar.style.width = "70%";
+  }
+
+  // Add timeout for native export (30 seconds max)
+  const exportPromise = invoke("native_trim_export_video", {
+    tempSourceName,
+    outputPath,
+    trimStart: trimStartTime,
+    trimEnd: clipEnd,
+  });
+  
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("Export timed out after 30 seconds")), 30000);
+  });
+  
+  try {
+    await Promise.race([exportPromise, timeoutPromise]);
+  } catch (error) {
+    console.error("Native export failed:", error);
+    // Clean up temp file
+    try {
+      const { remove } = window.__TAURI__.fs;
+      const { BaseDirectory } = window.__TAURI__.path;
+      await remove(tempSourceName, { baseDir: BaseDirectory.Temp });
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
+    // Return false to fall back to canvas-based export
+    return false;
+  }
+
+  if (exportModalProgressBar) {
+    exportModalProgressBar.style.width = "100%";
+  }
+  if (exportModalText) {
+    exportModalText.textContent = "Export complete";
+  }
+
+  hideExportModal();
+  showStatus("Video exported successfully!", "success");
+  showExportSuccessAndReturn();
+  cleanupCurrentRecordingLater();
+  return true;
 }
 
 function showExportModal() {
@@ -1199,6 +1435,93 @@ function hideExportModal() {
   }
 }
 
+function getProcessingStageStyle() {
+  // WKWebView may stop rendering media that is fully off-screen, so keep the
+  // export elements technically visible while making them effectively invisible.
+  return [
+    "position:fixed",
+    "right:8px",
+    "bottom:8px",
+    "width:2px",
+    "height:2px",
+    "opacity:0.01",
+    "pointer-events:none",
+    "z-index:-1",
+    "overflow:hidden",
+  ].join(";");
+}
+
+function getMediaElementCaptureStream(element) {
+  if (typeof element.captureStream === "function") {
+    return element.captureStream();
+  }
+
+  if (typeof element.mozCaptureStream === "function") {
+    return element.mozCaptureStream();
+  }
+
+  return null;
+}
+
+async function attachElementAudioTrackToStream(video, stream) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  try {
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaElementSource(video);
+    const destination = audioContext.createMediaStreamDestination();
+    const sinkGain = audioContext.createGain();
+
+    sinkGain.gain.value = 0;
+
+    source.connect(destination);
+    source.connect(sinkGain);
+    sinkGain.connect(audioContext.destination);
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    const [audioTrack] = destination.stream.getAudioTracks();
+    if (audioTrack) {
+      stream.addTrack(audioTrack);
+    }
+
+    return async () => {
+      try {
+        source.disconnect();
+      } catch (error) {}
+      try {
+        sinkGain.disconnect();
+      } catch (error) {}
+
+      destination.stream.getTracks().forEach((track) => track.stop());
+
+      try {
+        await audioContext.close();
+      } catch (error) {}
+    };
+  } catch (error) {
+    console.warn("[EXPORT] Could not attach audio track to export stream:", error);
+    return null;
+  }
+}
+
+async function handleDiscard() {
+  try {
+    if (window.videoStorage && currentRecording?.id) {
+      await window.videoStorage.deleteRecording(currentRecording.id);
+    }
+  } catch (e) {
+    console.warn("Could not delete recording:", e);
+  }
+
+  window.location.href = "recorder.html";
+}
+
 /**
  * Handle download button click
  */
@@ -1210,6 +1533,7 @@ async function handleDownload() {
     const trimmedDuration = trimEndTime - trimStartTime;
 
     if (trimmedDuration <= 0) {
+      hideExportModal();
       showStatus("Invalid trim range", "error");
       return;
     }
@@ -1223,8 +1547,7 @@ async function handleDownload() {
     trimEndBtn.disabled = true;
     resetTrimBtn.disabled = true;
 
-    // Disable speed slider and presets
-    speedSlider.disabled = true;
+    // Disable speed presets
     presetButtons.forEach((btn) => (btn.disabled = true));
 
     // Disable crop button
@@ -1233,70 +1556,11 @@ async function handleDownload() {
     // Disable format buttons
     formatButtons.forEach((btn) => (btn.disabled = true));
 
-    // Create a new video element for processing
-    const processingVideo = document.createElement("video");
-    processingVideo.src = videoPlayer.src;
-    processingVideo.muted = true;
-    processingVideo.defaultMuted = true;
-    processingVideo.playsInline = true;
-    processingVideo.preload = "auto";
-
-    // Wait for video to load
-    await new Promise((resolve, reject) => {
-      processingVideo.onloadedmetadata = resolve;
-      processingVideo.onerror = reject;
-    });
-
-    // Create canvas for rendering
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    // Set canvas dimensions based on crop settings
-    let canvasWidth = processingVideo.videoWidth;
-    let canvasHeight = processingVideo.videoHeight;
-    let sourceX = 0;
-    let sourceY = 0;
-    let sourceWidth = canvasWidth;
-    let sourceHeight = canvasHeight;
-
-    // Apply crop settings
-    if (
-      cropSettings.aspect === "custom" &&
-      cropSettings.width > 0 &&
-      cropSettings.height > 0
-    ) {
-      // Use custom crop coordinates
-      sourceX = cropSettings.x;
-      sourceY = cropSettings.y;
-      sourceWidth = cropSettings.width;
-      sourceHeight = cropSettings.height;
-      canvasWidth = cropSettings.width;
-      canvasHeight = cropSettings.height;
-    } else if (cropSettings.aspect !== "none") {
-      const aspectRatios = {
-        "16:9": 16 / 9,
-        "4:3": 4 / 3,
-        "1:1": 1,
-      };
-
-      const targetAspect = aspectRatios[cropSettings.aspect];
-      const videoAspect = canvasWidth / canvasHeight;
-
-      if (videoAspect > targetAspect) {
-        // Video is wider, crop width
-        sourceWidth = canvasHeight * targetAspect;
-        sourceX = (canvasWidth - sourceWidth) / 2;
-        canvasWidth = sourceWidth;
-      } else {
-        // Video is taller, crop height
-        sourceHeight = canvasWidth / targetAspect;
-        sourceY = (canvasHeight - sourceHeight) / 2;
-        canvasHeight = sourceHeight;
-      }
-    }
-
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
+    // Determine if crop is active
+    const hasCrop = (
+      (cropSettings.aspect === "custom" && cropSettings.width > 0 && cropSettings.height > 0) ||
+      (cropSettings.aspect !== "none" && cropSettings.aspect !== "custom")
+    );
 
     // Create MediaRecorder with appropriate settings
     const exportSettings = selectExportSettings(exportFormat);
@@ -1305,76 +1569,204 @@ async function handleDownload() {
       extension: downloadExtension,
       needsDurationFix,
       warningMessage,
-    } =
-      exportSettings;
+    } = exportSettings;
 
     if (warningMessage) {
       showStatus(warningMessage, "warning");
       showStatus("Processing video...", "info", true);
     }
 
+    // Create a new video element for processing (must be in DOM for WKWebView to render frames)
+    const processingVideo = document.createElement("video");
+    processingVideo.src = videoPlayer.src;
+    processingVideo.muted = false;
+    processingVideo.defaultMuted = false;
+    processingVideo.volume = 1;
+    processingVideo.playsInline = true;
+    processingVideo.preload = "auto";
+    processingVideo.style.cssText = getProcessingStageStyle();
+    document.body.appendChild(processingVideo);
+
+    // Wait for video to load
+    await new Promise((resolve, reject) => {
+      processingVideo.onloadedmetadata = resolve;
+      processingVideo.onerror = reject;
+    });
+
     const clipEnd = Number.isFinite(trimEndTime)
       ? trimEndTime
       : processingVideo.duration;
     const rawDuration = Math.max(0, clipEnd - trimStartTime);
-    const stream = canvas.captureStream(30);
+
+    if (await tryNativeDesktopTrimExport(hasCrop, clipEnd)) {
+      try {
+        processingVideo.remove();
+      } catch (error) {}
+      return;
+    }
+
+    console.log("[EXPORT] Video dimensions:", processingVideo.videoWidth, "x", processingVideo.videoHeight);
+    console.log("[EXPORT] Clip range:", trimStartTime, "to", clipEnd, "duration:", rawDuration);
+    console.log("[EXPORT] hasCrop:", hasCrop, "playbackSpeed:", playbackSpeed);
+
+    let canvasWidth = processingVideo.videoWidth;
+    let canvasHeight = processingVideo.videoHeight;
+    let sourceX = 0;
+    let sourceY = 0;
+    let sourceWidth = canvasWidth;
+    let sourceHeight = canvasHeight;
+
+    if (hasCrop) {
+      if (cropSettings.aspect === "custom" && cropSettings.width > 0 && cropSettings.height > 0) {
+        sourceX = cropSettings.x;
+        sourceY = cropSettings.y;
+        sourceWidth = cropSettings.width;
+        sourceHeight = cropSettings.height;
+        canvasWidth = cropSettings.width;
+        canvasHeight = cropSettings.height;
+      } else if (cropSettings.aspect !== "none") {
+        const aspectRatios = { "16:9": 16 / 9, "4:3": 4 / 3, "1:1": 1 };
+        const targetAspect = aspectRatios[cropSettings.aspect];
+        const videoAspect = canvasWidth / canvasHeight;
+        if (videoAspect > targetAspect) {
+          sourceWidth = canvasHeight * targetAspect;
+          sourceX = (canvasWidth - sourceWidth) / 2;
+          canvasWidth = sourceWidth;
+        } else {
+          sourceHeight = canvasWidth / targetAspect;
+          sourceY = (canvasHeight - sourceHeight) / 2;
+          canvasHeight = sourceHeight;
+        }
+      }
+    }
+
+    let canvas = null;
+    let ctx = null;
+    let stream = null;
+    let cleanupAudioPassthrough = null;
+    let stopDrawingLoop = () => {};
+    const directMediaStream = !hasCrop
+      ? getMediaElementCaptureStream(processingVideo)
+      : null;
+    const canUseDirectMediaCapture =
+      !!directMediaStream && Math.abs(playbackSpeed - 1) < 0.001;
+    const exportFrameRate = playbackSpeed > 1 ? 60 : 30;
+
+    if (canUseDirectMediaCapture) {
+      stream = directMediaStream;
+      console.log("[EXPORT] Using direct media capture stream for export");
+    } else {
+      canvas = document.createElement("canvas");
+      ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Could not initialize export canvas");
+      }
+
+      canvas.style.cssText = getProcessingStageStyle();
+      document.body.appendChild(canvas);
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      console.log("[EXPORT] Canvas size:", canvasWidth, "x", canvasHeight);
+      stream = canvas.captureStream(exportFrameRate);
+    }
+
+    if (!stream) {
+      throw new Error("Could not create export capture stream");
+    }
+
+    if (stream.getAudioTracks().length === 0) {
+      cleanupAudioPassthrough = await attachElementAudioTrackToStream(
+        processingVideo,
+        stream
+      );
+    }
+    console.log("[EXPORT] Stream tracks:", stream.getTracks().map(t => t.kind + ":" + t.readyState));
+
+    const targetVideoBitrate = getRecommendedVideoBitrate(canvasWidth, canvasHeight);
+    console.log("[EXPORT] Using mimeType:", mimeType);
+    console.log("[EXPORT] MediaRecorder.isTypeSupported:", MediaRecorder.isTypeSupported(mimeType));
+    console.log("[EXPORT] Target video bitrate:", targetVideoBitrate);
+
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: mimeType,
-      videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
+      videoBitsPerSecond: targetVideoBitrate,
+      audioBitsPerSecond: 160000,
     });
+    console.log("[EXPORT] MediaRecorder state:", mediaRecorder.state);
 
     const chunks = [];
     let processingProgress = 0;
+    const playbackDurationMs =
+      Math.max(0.1, rawDuration / Math.max(0.1, playbackSpeed)) * 1000;
+    let stopRequested = false;
+    let fallbackStopTimeout = null;
 
     mediaRecorder.ondataavailable = (event) => {
+      console.log("[EXPORT] Data chunk received, size:", event.data.size);
       if (event.data.size > 0) {
         chunks.push(event.data);
       }
     };
 
-    mediaRecorder.onstop = async () => {
-      const processedBlob = new Blob(chunks, {
-        type: mimeType,
-      });
-
-      let downloadBlob = processedBlob;
-
-      if (needsDurationFix) {
-        const playbackDuration = Math.max(0.1, rawDuration / playbackSpeed);
-        downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
-      }
-
-      if (statusProgress && statusProgressBar) {
-        statusProgressBar.style.width = `100%`;
-      }
-      if (exportModalProgressBar) {
-        exportModalProgressBar.style.width = `100%`;
-      }
-      if (exportModalText) {
-        exportModalText.textContent = "Download starting...";
-      }
-
-      await finalizeExportDownload(downloadBlob, downloadExtension);
-      hideExportModal();
-      showStatus("Video exported successfully!", "success");
+    mediaRecorder.onerror = (event) => {
+      console.error("[EXPORT] MediaRecorder error:", event.error);
     };
 
-    // Start recording
-    mediaRecorder.start(1000); // Collect data every second
+    mediaRecorder.onstop = async () => {
+      try {
+        console.log("[EXPORT] MediaRecorder stopped. Total chunks:", chunks.length, "Total size:", chunks.reduce((s, c) => s + c.size, 0));
+        const processedBlob = new Blob(chunks, { type: mimeType });
+        console.log("[EXPORT] Final blob size:", processedBlob.size);
 
-    // Prepare playback-based rendering
-    const frameRate = 30;
+        if (fallbackStopTimeout) {
+          clearTimeout(fallbackStopTimeout);
+          fallbackStopTimeout = null;
+        }
+
+        let downloadBlob = processedBlob;
+
+        if (needsDurationFix) {
+          const playbackDuration = Math.max(0.1, rawDuration / playbackSpeed);
+          downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
+        }
+
+        if (downloadBlob.size < 4096) {
+          hideExportModal();
+          restoreExportControls();
+          showStatus(
+            `Desktop ${downloadExtension.toUpperCase()} export failed to encode correctly.`,
+            "error"
+          );
+          return;
+        }
+
+        if (statusProgress && statusProgressBar) {
+          statusProgressBar.style.width = `100%`;
+        }
+        if (exportModalProgressBar) {
+          exportModalProgressBar.style.width = `100%`;
+        }
+        if (exportModalText) {
+          exportModalText.textContent = "Download starting...";
+        }
+
+        await finalizeExportDownload(downloadBlob, downloadExtension);
+        hideExportModal();
+        showStatus("Video exported successfully!", "success");
+      } finally {
+        try { processingVideo.remove(); } catch (error) {}
+        try { canvas?.remove(); } catch (error) {}
+        stopDrawingLoop();
+        await cleanupAudioPassthrough?.();
+      }
+    };
+
+    const frameRate = exportFrameRate;
     const EPS = 1 / frameRate;
 
     const updateProgressFromTime = () => {
-      const elapsed = Math.max(
-        0,
-        Math.min(rawDuration, processingVideo.currentTime - trimStartTime)
-      );
-      processingProgress = Math.min(
-        100,
-        Math.round((elapsed / rawDuration) * 100)
-      );
+      const elapsed = Math.max(0, Math.min(rawDuration, processingVideo.currentTime - trimStartTime));
+      processingProgress = Math.min(100, Math.round((elapsed / rawDuration) * 100));
       if (statusProgress && statusProgressBar) {
         statusProgress.classList.remove("hidden");
         statusProgressBar.style.width = `${processingProgress}%`;
@@ -1384,7 +1776,48 @@ async function handleDownload() {
       }
     };
 
-    const drawCurrentFrame = () => {
+    const stopProcessing = () => {
+      if (stopRequested) {
+        return;
+      }
+      stopRequested = true;
+
+      try { processingVideo.pause(); } catch (e) {}
+      try {
+        if (ctx) {
+          ctx.drawImage(
+            processingVideo,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            canvasWidth,
+            canvasHeight
+          );
+        }
+      } catch (e) {}
+      if (statusProgress && statusProgressBar) {
+        statusProgressBar.style.width = `100%`;
+      }
+      if (exportModalProgressBar) {
+        exportModalProgressBar.style.width = `100%`;
+      }
+      setTimeout(() => {
+        if (mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+      }, 150);
+    };
+
+    // Seek to start, set speed, and play
+    await new Promise((resolve) => {
+      processingVideo.onseeked = () => resolve();
+      processingVideo.currentTime = trimStartTime;
+    });
+    processingVideo.playbackRate = Math.max(0.1, playbackSpeed);
+    if (ctx) {
       ctx.drawImage(
         processingVideo,
         sourceX,
@@ -1396,56 +1829,95 @@ async function handleDownload() {
         canvasWidth,
         canvasHeight
       );
+    }
+
+    // Always draw video frames to canvas (required for WKWebView compatibility)
+    let frameCount = 0;
+    const drawCurrentFrame = () => {
+      if (!ctx) {
+        updateProgressFromTime();
+        return;
+      }
+      ctx.drawImage(processingVideo, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvasWidth, canvasHeight);
+      frameCount++;
+      if (frameCount % 30 === 1) {
+        console.log("[EXPORT] Frame", frameCount, "time:", processingVideo.currentTime.toFixed(2), "paused:", processingVideo.paused);
+      }
       updateProgressFromTime();
     };
 
-    const stopProcessing = () => {
-      try {
-        processingVideo.pause();
-      } catch (e) {}
-      if (statusProgress && statusProgressBar) {
-        statusProgressBar.style.width = `100%`;
+    const maybeStopAtTrimEnd = () => {
+      if (processingVideo.currentTime >= clipEnd - EPS) {
+        stopProcessing();
       }
-      if (exportModalProgressBar) {
-        exportModalProgressBar.style.width = `100%`;
-      }
-      mediaRecorder.stop();
     };
 
-    // Seek to start, set speed, and play
-    await new Promise((resolve) => {
-      processingVideo.onseeked = () => resolve();
-      processingVideo.currentTime = trimStartTime;
-    });
-    processingVideo.playbackRate = Math.max(0.1, playbackSpeed);
+    processingVideo.addEventListener("timeupdate", updateProgressFromTime);
+    processingVideo.addEventListener("timeupdate", maybeStopAtTrimEnd);
+    processingVideo.addEventListener("ended", stopProcessing);
 
-    // Use requestVideoFrameCallback when available for precise frame timing
-    if (typeof processingVideo.requestVideoFrameCallback === "function") {
-      const onFrame = () => {
+    if (ctx && playbackSpeed > 1) {
+      let animationFrameId = 0;
+      const onAnimationFrame = () => {
         if (processingVideo.currentTime >= clipEnd - EPS) {
           stopProcessing();
           return;
         }
         drawCurrentFrame();
-        processingVideo.requestVideoFrameCallback(onFrame);
+        animationFrameId = requestAnimationFrame(onAnimationFrame);
       };
-      processingVideo.requestVideoFrameCallback(onFrame);
-      processingVideo.play().catch(() => {});
-    } else {
-      // Fallback: draw at fixed interval while video plays
-      const interval = setInterval(() => {
-        if (processingVideo.currentTime >= clipEnd - EPS) {
-          clearInterval(interval);
-          stopProcessing();
-          return;
+      stopDrawingLoop = () => {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = 0;
         }
+      };
+      animationFrameId = requestAnimationFrame(onAnimationFrame);
+    } else if (ctx && typeof processingVideo.requestVideoFrameCallback === "function") {
+      let callbackId = 0;
+      const onFrame = () => {
+        if (processingVideo.currentTime >= clipEnd - EPS) { stopProcessing(); return; }
         drawCurrentFrame();
-        updateProgressFromTime();
+        callbackId = processingVideo.requestVideoFrameCallback(onFrame);
+      };
+      stopDrawingLoop = () => {
+        if (
+          callbackId &&
+          typeof processingVideo.cancelVideoFrameCallback === "function"
+        ) {
+          processingVideo.cancelVideoFrameCallback(callbackId);
+        }
+        callbackId = 0;
+      };
+      callbackId = processingVideo.requestVideoFrameCallback(onFrame);
+    } else if (ctx) {
+      const intervalId = setInterval(() => {
+        if (processingVideo.currentTime >= clipEnd - EPS) { clearInterval(intervalId); stopProcessing(); return; }
+        drawCurrentFrame();
       }, 1000 / frameRate);
-      processingVideo.play().catch(() => {});
+      stopDrawingLoop = () => clearInterval(intervalId);
     }
+
+    // Play the video to start processing
+    console.log("[EXPORT] About to play. currentTime:", processingVideo.currentTime, "readyState:", processingVideo.readyState);
+    await processingVideo.play();
+    console.log("[EXPORT] Playing! paused:", processingVideo.paused);
+    if (canUseDirectMediaCapture) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      console.log("[EXPORT] Direct capture tracks after play:", stream.getTracks().map(t => t.kind + ":" + t.readyState));
+    }
+    mediaRecorder.start();
+    fallbackStopTimeout = setTimeout(() => {
+      console.log("[EXPORT] Fallback stop timer fired after", playbackDurationMs, "ms");
+      stopProcessing();
+    }, playbackDurationMs + 300);
   } catch (error) {
     console.error("Error processing video:", error);
+    // Clean up processing video if it was added to DOM
+    const staleVideo = document.querySelector("video[style*='right:8px']");
+    if (staleVideo) staleVideo.remove();
+    const staleCanvas = document.querySelector("canvas[style*='right:8px']");
+    if (staleCanvas) staleCanvas.remove();
     hideExportModal();
     restoreExportControls();
 
@@ -1462,38 +1934,117 @@ async function handleDownload() {
  * Handle video ended
  */
 function handleVideoEnded() {
-  // Loop within trim range if trimmed
-  if (trimEndTime > trimStartTime && videoPlayer.currentTime >= trimEndTime) {
-    videoPlayer.currentTime = trimStartTime;
+  if (trimEndTime > trimStartTime) {
+    videoPlayer.currentTime = trimEndTime;
+    videoPlayer.pause();
   }
 }
 
 async function finalizeExportDownload(downloadBlob, downloadExtension) {
-  const url = URL.createObjectURL(downloadBlob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `loomless-edited-${Date.now()}.${downloadExtension}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const fileName = `loomless-edited-${Date.now()}.${downloadExtension}`;
 
-  setTimeout(() => {
-    if (statusProgress) {
-      statusProgress.classList.add("hidden");
-    }
-
-    restoreExportControls();
-  }, 1000);
-
-  setTimeout(async () => {
+  // Use Tauri native save dialog for desktop app
+  if (window.__TAURI__) {
     try {
-      await window.videoStorage.deleteRecording(currentRecording.id);
-      console.log("Original recording cleaned up");
+      const { save } = window.__TAURI__.dialog;
+      const { writeFile } = window.__TAURI__.fs;
+
+      const filePath = await save({
+        defaultPath: fileName,
+        filters: [{
+          name: downloadExtension.toUpperCase(),
+          extensions: [downloadExtension]
+        }]
+      });
+
+      if (filePath) {
+        const arrayBuffer = await downloadBlob.arrayBuffer();
+        await writeFile(filePath, new Uint8Array(arrayBuffer));
+
+        // Show success modal and return to recorder
+        showExportSuccessAndReturn();
+      } else {
+        restoreExportControls();
+      }
     } catch (error) {
-      console.error("Error cleaning up:", error);
+      console.error("Tauri save error:", error);
+      showStatus("Error saving file: " + error.message, "error");
+      restoreExportControls();
     }
-  }, 1000);
+  } else {
+    // Browser fallback (for extension)
+    const url = URL.createObjectURL(downloadBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    restoreExportControls();
+  }
+
+  cleanupCurrentRecordingLater();
+}
+
+function showExportSuccessAndReturn() {
+  // Hide export modal if visible
+  hideExportModal();
+
+  // Create success overlay
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background: var(--bg-secondary, #111114);
+      border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+      border-radius: 20px;
+      padding: 48px;
+      text-align: center;
+      max-width: 400px;
+    ">
+      <div style="
+        width: 64px;
+        height: 64px;
+        background: rgba(16, 185, 129, 0.15);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+      ">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+      <h2 style="color: var(--text-primary, #f4f4f5); font-size: 22px; margin-bottom: 8px;">Video Exported!</h2>
+      <p style="color: var(--text-muted, #71717a); font-size: 14px;">Returning to recorder...</p>
+    </div>
+  `;
+
+  // Add fadeIn animation
+  const style = document.createElement("style");
+  style.textContent = "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }";
+  document.head.appendChild(style);
+
+  document.body.appendChild(overlay);
+
+  // Return to recorder after 2.5 seconds
+  setTimeout(() => {
+    window.location.href = "recorder.html";
+  }, 2500);
 }
 
 function restoreExportControls() {
@@ -1502,7 +2053,6 @@ function restoreExportControls() {
   trimStartBtn.disabled = false;
   trimEndBtn.disabled = false;
   resetTrimBtn.disabled = false;
-  speedSlider.disabled = false;
   presetButtons.forEach((btn) => (btn.disabled = false));
   cropModeBtn.disabled = false;
   formatButtons.forEach((btn) => (btn.disabled = false));

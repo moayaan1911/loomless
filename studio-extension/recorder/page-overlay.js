@@ -1,12 +1,14 @@
 const overlayShell = document.getElementById("overlayShell");
 const cameraShell = document.getElementById("cameraShell");
 const cameraPreview = document.getElementById("cameraPreview");
+const controlsShell = document.querySelector(".controls-shell");
 const pauseResumeBtn = document.getElementById("pauseResumeBtn");
 const stopBtn = document.getElementById("stopBtn");
 const pauseIcon = document.getElementById("pauseIcon");
 const playIcon = document.getElementById("playIcon");
 
 let overlaySession = { state: "idle", mode: "screen" };
+let overlayPreferences = { showFloatingControls: true };
 let cameraStream = null;
 let pageVisible = true;
 let pendingCommand = false;
@@ -24,6 +26,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     overlaySession = event.data.session || { state: "idle", mode: "screen" };
     pageVisible = Boolean(event.data.pageVisible);
+    overlayPreferences = {
+      showFloatingControls: true,
+      ...(event.data.preferences || {}),
+    };
     updateOverlay();
   });
 
@@ -71,8 +77,10 @@ async function updateOverlay() {
     stopCameraPreview();
   }
 
+  const showControls = overlayPreferences.showFloatingControls !== false;
+  controlsShell.classList.toggle("hidden", !showControls);
   const hasCamera = !cameraShell.classList.contains("hidden");
-  overlayShell.classList.toggle("camera-active", hasCamera);
+  overlayShell.classList.toggle("camera-active", hasCamera && showControls);
 
   if (overlaySession.state === "paused") {
     pauseIcon.classList.add("hidden");
@@ -160,12 +168,14 @@ pauseResumeBtn.addEventListener("click", () => {
 
 function postOverlaySize() {
   const hasCamera = !cameraShell.classList.contains("hidden");
-  const width = 164;
-  const height = hasCamera ? 186 : 88;
+  const showControls = overlayPreferences.showFloatingControls !== false;
+  const width = showControls ? 172 : 112;
+  const cameraOnlyWidth = 136;
+  const height = hasCamera ? (showControls ? 204 : 136) : 88;
   window.parent.postMessage(
     {
       type: "LOOMLESS_STUDIO_OVERLAY_SIZE",
-      width,
+      width: hasCamera && !showControls ? cameraOnlyWidth : width,
       height
     },
     "*"

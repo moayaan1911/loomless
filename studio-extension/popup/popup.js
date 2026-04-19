@@ -1,20 +1,25 @@
 document.addEventListener("DOMContentLoaded", function () {
   const startRecordingBtn = document.getElementById("startRecordingBtn");
+  const defaultLabel = startRecordingBtn.innerHTML;
+  const openingLabel =
+    '<span class="btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle><circle cx="12" cy="12" r="4.5" fill="currentColor"></circle></svg></span><span>Opening Recorder...</span>';
 
   startRecordingBtn.addEventListener("click", function () {
-    // Disable button to prevent multiple clicks
     startRecordingBtn.disabled = true;
-    startRecordingBtn.textContent = "Opening Recorder...";
+    startRecordingBtn.innerHTML = openingLabel;
 
-    // Send message to background script to open recorder tab
     chrome.runtime.sendMessage(
       {
         action: "OPEN_RECORDER",
       },
-      function (response) {
-        // Close the popup after opening recorder
+      function () {
         window.close();
       }
     );
+
+    window.setTimeout(() => {
+      startRecordingBtn.disabled = false;
+      startRecordingBtn.innerHTML = defaultLabel;
+    }, 1600);
   });
 });

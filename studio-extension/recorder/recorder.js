@@ -33,6 +33,14 @@ let cameraDragState = {
 };
 const SELF_CAPTURE_HANDLE = "loomless-recorder";
 let recorderTabId = null;
+const THEME_PREFERENCE_KEY = "loomless-theme-preference";
+const RECORDER_SETTINGS_KEY = "loomless-recorder-settings";
+const DEFAULT_RECORDER_SETTINGS = {
+  showFloatingControls: true,
+};
+const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+let themePreference = "system";
+let recorderSettings = { ...DEFAULT_RECORDER_SETTINGS };
 
 // DOM elements
 let recordBtn,
@@ -41,21 +49,33 @@ let recordBtn,
   timer,
   statusIndicator,
   statusText,
+  currentVersionValue,
   studioContainer,
   initialInstructions,
   recordingInstructions,
   featuresSection,
-  waveform,
   themeToggle,
   modeSelector,
   cameraPreviewContainer,
-  cameraPreview;
+  cameraPreview,
+  settingsModal,
+  settingsCloseBtn,
+  floatingControlsToggle,
+  recorderFloatingControls,
+  floatingPauseResumeBtn,
+  floatingPauseIcon,
+  floatingPlayIcon,
+  floatingPauseResumeLabel,
+  floatingStopBtn,
+  themeOptionButtons;
 
 // Initialize when DOM is loaded
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   initializeElements();
+  initializeVersionDisplay();
   setupEventListeners();
   initializeTheme();
+  await loadRecorderSettings();
   configureCaptureHandle();
   registerRecorderTab();
 });
@@ -67,24 +87,75 @@ function initializeElements() {
   timer = document.getElementById("timer");
   statusIndicator = document.getElementById("statusIndicator");
   statusText = document.getElementById("recordingStatus");
+  currentVersionValue = document.getElementById("currentVersionValue");
   studioContainer = document.querySelector(".studio-container");
   initialInstructions = document.getElementById("initialInstructions");
   recordingInstructions = document.getElementById("recordingInstructions");
   featuresSection = document.getElementById("featuresSection");
-  waveform = document.getElementById("waveform");
   themeToggle = document.getElementById("themeToggle");
   modeSelector = document.getElementById("modeSelector");
   cameraPreviewContainer = document.getElementById("cameraPreviewContainer");
   cameraPreview = document.getElementById("cameraPreview");
+  settingsModal = document.getElementById("settingsModal");
+  settingsCloseBtn = document.getElementById("settingsCloseBtn");
+  floatingControlsToggle = document.getElementById("floatingControlsToggle");
+  recorderFloatingControls = document.getElementById("recorderFloatingControls");
+  floatingPauseResumeBtn = document.getElementById("floatingPauseResumeBtn");
+  floatingPauseIcon = document.getElementById("floatingPauseIcon");
+  floatingPlayIcon = document.getElementById("floatingPlayIcon");
+  floatingPauseResumeLabel = document.getElementById("floatingPauseResumeLabel");
+  floatingStopBtn = document.getElementById("floatingStopBtn");
+  themeOptionButtons = document.querySelectorAll(".theme-option-btn");
+}
+
+function initializeVersionDisplay() {
+  if (!currentVersionValue) {
+    return;
+  }
+
+  currentVersionValue.textContent = `v${chrome.runtime.getManifest().version}`;
 }
 
 function setupEventListeners() {
-  recordBtn.addEventListener("click", toggleRecording);
-  themeToggle.addEventListener("click", toggleTheme);
+  if (recordBtn) {
+    recordBtn.addEventListener("click", toggleRecording);
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener("click", openSettingsModal);
+  }
+
+  if (settingsCloseBtn) {
+    settingsCloseBtn.addEventListener("click", closeSettingsModal);
+  }
+
+  if (settingsModal) {
+    settingsModal.addEventListener("click", (event) => {
+      if (event.target === settingsModal) {
+        closeSettingsModal();
+      }
+    });
+  }
+
+  if (floatingControlsToggle) {
+    floatingControlsToggle.addEventListener("change", handleFloatingControlsToggle);
+  }
+
+  floatingPauseResumeBtn?.addEventListener("click", () => {
+    togglePauseResume();
+  });
+  floatingStopBtn?.addEventListener("click", () => {
+    stopRecording();
+  });
+  themeOptionButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setThemePreference(button.dataset.themePreference || "system");
+    });
+  });
 
   // Mode selector buttons
-  const modeButtons = document.querySelectorAll(".mode-btn");
-  modeButtons.forEach((btn) => {
+  const modeCards = document.querySelectorAll(".mode-card[data-mode]");
+  modeCards.forEach((btn) => {
     btn.addEventListener("click", () => {
       if (recordingState === "idle") {
         setRecordingMode(btn.dataset.mode);
@@ -102,6 +173,11 @@ function setupEventListeners() {
 
   // Keyboard shortcut
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && settingsModal && !settingsModal.classList.contains("hidden")) {
+      closeSettingsModal();
+      return;
+    }
+
     if (e.code === "Space" && document.activeElement === document.body) {
       e.preventDefault();
       if (recordingState === "idle") {
@@ -140,26 +216,139 @@ function setupEventListeners() {
  * Initialize theme from localStorage or system preference
  */
 function initializeTheme() {
-  const savedTheme = localStorage.getItem("loomless-theme");
+  const savedThemePreference = localStorage.getItem(THEME_PREFERENCE_KEY);
+  themePreference = savedThemePreference || "system";
+  applyThemePreference(themePreference);
+  systemThemeQuery.addEventListener("change", handleSystemThemeChange);
+}
 
-  if (savedTheme) {
-    document.documentElement.setAttribute("data-theme", savedTheme);
-  } else {
-    // Check system preference
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+function getResolvedTheme(preference = themePreference) {
+  if (preference === "dark") {
+    return "dark";
+  }
+
+  if (preference === "light") {
+    return "light";
+  }
+
+  return systemThemeQuery.matches ? "dark" : "light";
+}
+
+function applyThemePreference(preference = "system") {
+  themePreference = preference;
+  document.documentElement.setAttribute("data-theme", getResolvedTheme(preference));
+  localStorage.setItem(THEME_PREFERENCE_KEY, preference);
+  updateThemePreferenceButtons();
+}
+
+function updateThemePreferenceButtons() {
+  themeOptionButtons.forEach((button) => {
+    button.classList.toggle(
+      "active",
+      button.dataset.themePreference === themePreference
+    );
+  });
+}
+
+function handleSystemThemeChange() {
+  if (themePreference === "system") {
+    document.documentElement.setAttribute("data-theme", getResolvedTheme("system"));
   }
 }
 
-/**
- * Toggle between light and dark themes
- */
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute("data-theme");
-  const newTheme = currentTheme === "light" ? "dark" : "light";
+function setThemePreference(preference) {
+  applyThemePreference(preference);
+}
 
-  document.documentElement.setAttribute("data-theme", newTheme);
-  localStorage.setItem("loomless-theme", newTheme);
+async function loadRecorderSettings() {
+  try {
+    const stored = await chrome.storage.local.get(RECORDER_SETTINGS_KEY);
+    recorderSettings = {
+      ...DEFAULT_RECORDER_SETTINGS,
+      ...(stored[RECORDER_SETTINGS_KEY] || {}),
+    };
+  } catch (error) {
+    recorderSettings = { ...DEFAULT_RECORDER_SETTINGS };
+  }
+
+  applyRecorderSettings();
+}
+
+function applyRecorderSettings() {
+  if (floatingControlsToggle) {
+    floatingControlsToggle.checked = recorderSettings.showFloatingControls;
+  }
+  updateRecorderFloatingControls();
+}
+
+async function persistRecorderSettings() {
+  try {
+    await chrome.storage.local.set({
+      [RECORDER_SETTINGS_KEY]: recorderSettings,
+    });
+  } catch (error) {
+    console.warn("Could not persist recorder settings:", error);
+  }
+}
+
+function handleFloatingControlsToggle(event) {
+  recorderSettings.showFloatingControls = event.target.checked;
+  persistRecorderSettings();
+  updateRecorderFloatingControls();
+
+  if (recordingState === "recording") {
+    recordingLabel.textContent = recorderSettings.showFloatingControls
+      ? "Use the floating controls to pause or stop"
+      : "Recording in progress";
+  }
+
+  if (recordingState === "paused") {
+    recordingLabel.textContent = recorderSettings.showFloatingControls
+      ? "Paused from the floating controls"
+      : "Recording paused";
+  }
+}
+
+function openSettingsModal() {
+  if (!settingsModal) {
+    return;
+  }
+
+  settingsModal.classList.remove("hidden");
+  settingsModal.setAttribute("aria-hidden", "false");
+}
+
+function closeSettingsModal() {
+  if (!settingsModal) {
+    return;
+  }
+
+  settingsModal.classList.add("hidden");
+  settingsModal.setAttribute("aria-hidden", "true");
+}
+
+function updateRecorderFloatingControls() {
+  if (!recorderFloatingControls) {
+    return;
+  }
+
+  const shouldShow =
+    recorderSettings.showFloatingControls &&
+    (recordingState === "recording" || recordingState === "paused");
+
+  recorderFloatingControls.classList.toggle("hidden", !shouldShow);
+
+  if (!shouldShow) {
+    return;
+  }
+
+  const isPaused = recordingState === "paused";
+  floatingPauseIcon?.classList.toggle("hidden", isPaused);
+  floatingPlayIcon?.classList.toggle("hidden", !isPaused);
+
+  if (floatingPauseResumeLabel) {
+    floatingPauseResumeLabel.textContent = isPaused ? "Resume" : "Pause";
+  }
 }
 
 function toggleRecording() {
@@ -438,8 +627,8 @@ function setRecordingMode(mode) {
   recordingMode = mode;
 
   // Update button states
-  const modeButtons = document.querySelectorAll(".mode-btn");
-  modeButtons.forEach((btn) => {
+  const modeCards = document.querySelectorAll(".mode-card[data-mode]");
+  modeCards.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
 
@@ -1021,7 +1210,9 @@ function updateUIForRecording() {
   recordIcon.classList.remove("hidden");
 
   // Update label
-  recordingLabel.textContent = "Use the floating controls to pause or stop";
+  recordingLabel.textContent = recorderSettings.showFloatingControls
+    ? "Use the floating controls to pause or stop"
+    : "Recording in progress";
 
   // Update status
   statusIndicator.classList.remove("paused");
@@ -1029,8 +1220,12 @@ function updateUIForRecording() {
   statusText.textContent = "Recording";
 
   // Switch instruction panels
-  initialInstructions.classList.add("hidden");
-  recordingInstructions.classList.remove("hidden");
+  if (initialInstructions) {
+    initialInstructions.classList.add("hidden");
+  }
+  if (recordingInstructions) {
+    recordingInstructions.classList.remove("hidden");
+  }
 
   // Hide mode selector during recording
   if (modeSelector) {
@@ -1048,6 +1243,8 @@ function updateUIForRecording() {
   if (isCameraModeEnabled()) {
     cameraPreviewContainer.classList.remove("hidden");
   }
+
+  updateRecorderFloatingControls();
 }
 
 function updateUIForPausedRecording() {
@@ -1055,17 +1252,25 @@ function updateUIForPausedRecording() {
 
   recordBtn.disabled = true;
   recordIcon.classList.remove("hidden");
-  recordingLabel.textContent = "Paused from the floating controls";
+  recordingLabel.textContent = recorderSettings.showFloatingControls
+    ? "Paused from the floating controls"
+    : "Recording paused";
   statusIndicator.classList.remove("recording");
   statusIndicator.classList.add("paused");
   statusText.textContent = "Paused";
 
-  initialInstructions.classList.add("hidden");
-  recordingInstructions.classList.remove("hidden");
+  if (initialInstructions) {
+    initialInstructions.classList.add("hidden");
+  }
+  if (recordingInstructions) {
+    recordingInstructions.classList.remove("hidden");
+  }
 
   if (isCameraModeEnabled()) {
     cameraPreviewContainer.classList.remove("hidden");
   }
+
+  updateRecorderFloatingControls();
 }
 
 function resetUIToInitial() {
@@ -1086,8 +1291,12 @@ function resetUIToInitial() {
   timer.textContent = "00:00";
 
   // Reset instruction panels
-  initialInstructions.classList.remove("hidden");
-  recordingInstructions.classList.add("hidden");
+  if (initialInstructions) {
+    initialInstructions.classList.remove("hidden");
+  }
+  if (recordingInstructions) {
+    recordingInstructions.classList.add("hidden");
+  }
 
   // Show mode selector
   if (modeSelector) {
@@ -1115,6 +1324,8 @@ function resetUIToInitial() {
     audioContext.close();
     audioContext = null;
   }
+
+  updateRecorderFloatingControls();
 
   // Stop camera stream
   if (cameraStream) {

@@ -11,9 +11,11 @@
 
   const FRAME_ID = "loomless-studio-page-overlay";
   const FRAME_URL = chrome.runtime.getURL("recorder/page-overlay.html");
+  const RECORDER_SETTINGS_KEY = "loomless-recorder-settings";
   const DEFAULT_MARGIN = 20;
   let overlayFrame = null;
   let session = { state: "idle", mode: "screen", overlayPosition: null };
+  let preferences = { showFloatingControls: true };
   let frameWidth = 164;
   let frameHeight = 76;
   let dragState = null;
@@ -101,7 +103,8 @@
       {
         type: "LOOMLESS_STUDIO_SESSION",
         session,
-        pageVisible: document.visibilityState === "visible"
+        pageVisible: document.visibilityState === "visible",
+        preferences
       },
       "*"
     );
@@ -109,10 +112,27 @@
 
   function applyOverlayVisibility() {
     const frame = ensureOverlayFrame();
-    const showOverlay = isOverlayActive() && document.visibilityState === "visible";
+    const showOverlay =
+      isOverlayActive() &&
+      document.visibilityState === "visible" &&
+      (preferences.showFloatingControls || session.mode === "screen-cam" || session.mode === "screen-cam-mic");
     frame.style.display = showOverlay ? "block" : "none";
     applyOverlayPosition();
     postSessionToFrame();
+  }
+
+  async function refreshPreferences() {
+    try {
+      const response = await chrome.storage.local.get(RECORDER_SETTINGS_KEY);
+      preferences = {
+        showFloatingControls: true,
+        ...(response[RECORDER_SETTINGS_KEY] || {}),
+      };
+    } catch (error) {
+      preferences = { showFloatingControls: true };
+    }
+
+    applyOverlayVisibility();
   }
 
   async function refreshSession() {
@@ -181,6 +201,18 @@
     applyOverlayVisibility();
   });
 
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[RECORDER_SETTINGS_KEY]) {
+      return;
+    }
+
+    preferences = {
+      showFloatingControls: true,
+      ...(changes[RECORDER_SETTINGS_KEY].newValue || {}),
+    };
+    applyOverlayVisibility();
+  });
+
   window.addEventListener("resize", () => {
     applyOverlayPosition();
   });
@@ -215,5 +247,6 @@
   });
 
   ensureOverlayFrame();
+  refreshPreferences();
   refreshSession();
 })();
