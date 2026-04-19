@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Camera Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      -webkit-app-region: drag;
+      cursor: grab;
+    }
+    
+    .overlay-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      position: relative;
+    }
+    
+    .camera-frame {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 3px solid rgba(99, 102, 241, 0.9);
+      box-shadow: 0 0 0 4px rgba(0,0,0,0.3), 0 8px 32px rgba(99, 102, 241, 0.4);
+      background: #1a1a1e;
+      position: relative;
+    }
+    
+    #cameraVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      border-radius: 50%;
+      background: #000;
+    }
+    
+    .recording-dot {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 12px;
+      height: 12px;
+      background: #ef4444;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 10;
+    }
+    
+    .recording-dot.active {
+      opacity: 1;
+      animation: blink 1s infinite;
+    }
+    
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    
+    .drag-hint {
+      position: absolute;
+      bottom: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      opacity: 0;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+      pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    
+    .overlay-container:hover .drag-hint {
+      opacity: 1;
+    }
+    
+    .camera-error {
+      display: none;
+      color: rgba(255,255,255,0.6);
+      font-size: 11px;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay-container" id="overlayContainer">
+    <div class="camera-frame" id="cameraFrame">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <div class="recording-dot" id="recordingDot"></div>
+    </div>
+    <div class="drag-hint">Drag to move</div>
+  </div>
+
+  <script>
+    (async function() {
+      const video = document.getElementById('cameraVideo');
+      const recordingDot = document.getElementById('recordingDot');
+      const overlayContainer = document.getElementById('overlayContainer');
+      
+      let isDragging = false;
+      let dragOffset = { x: 0, y: 0 };
+      let tauriWindow = null;
+      
+      async function init() {
+        if (window.__TAURI__) {
+          const { getCurrentWindow } = window.__TAURI__.window;
+          tauriWindow = getCurrentWindow();
+          
+          // Restore saved position
+          const savedX = localStorage.getItem('camOverlay_x');
+          const savedY = localStorage.getItem('camOverlay_y');
+          if (savedX !== null && savedY !== null) {
+            try {
+              await tauriWindow.setPosition({ 
+                type: 'Physical', 
+                x: parseInt(savedX), 
+                y: parseInt(savedY) 
+              });
+            } catch (e) {}
+          }
+          
+          // Save position on move
+          tauriWindow.onMoved(({ payload }) => {
+            localStorage.setItem('camOverlay_x', payload.x.toString());
+            localStorage.setItem('camOverlay_y', payload.y.toString());
+          });
+          
+          // Listen for recording state from main window
+          const { listen } = window.__TAURI__.event;
+          await listen('cam-overlay-state', (event) => {
+            const { isRecording } = event.payload || {};
+            recordingDot.classList.toggle('active', !!isRecording);
+          });
+        }
+      }
+      
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 30 }
+            },
+            audio: false
+          });
+          video.srcObject = stream;
+        } catch (error) {
+          console.error('Overlay camera error:', error);
+          video.style.background = '#333';
+        }
+      }
+      
+      // Drag logic - drag outside the camera circle to move the window
+      overlayContainer.addEventListener('pointerdown', async (e) => {
+        if (e.target.closest('.camera-frame')) return;
+        
+        isDragging = true;
+        
+        if (window.__TAURI__) {
+          const { getCurrentWindow } = window.__TAURI__.window;
+          const currentWin = getCurrentWindow();
+          const pos = await currentWin.outerPosition();
+          dragOffset.x = e.screenX - pos.x;
+          dragOffset.y = e.screenY - pos.y;
+        }
+        
+        e.preventDefault();
+      });
+      
+      overlayContainer.addEventListener('pointermove', async (e) => {
+        if (!isDragging || !window.__TAURI__) return;
+        
+        const { getCurrentWindow } = window.__TAURI__.window;
+        const currentWin = getCurrentWindow();
+        const newX = Math.round(e.screenX - dragOffset.x);
+        const newY = Math.round(e.screenY - dragOffset.y);
+        
+        await currentWin.setPosition({ type: 'Physical', x: newX, y: newY });
+      });
+      
+      overlayContainer.addEventListener('pointerup', () => {
+        isDragging = false;
+      });
+      
+      overlayContainer.addEventListener('pointercancel', () => {
+        isDragging = false;
+      });
+      
+      await init();
+      await startCamera();
+    })();
+  </script>
+</body>
+</html>

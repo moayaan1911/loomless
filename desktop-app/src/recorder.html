@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="recorder.css" />
+    <title>LoomLess: Free Screen Recorder & Editor</title>
+  </head>
+  <body>
+    <div class="studio-container">
+      <!-- Header -->
+      <header class="studio-header">
+        <div class="brand">
+          <img src="icon.png" alt="LoomLess" class="brand-icon-img" />
+          <span class="brand-name">LoomLess<span class="brand-pro">Studio</span></span>
+        </div>
+        <div class="status-display">
+          <div class="status-indicator" id="statusIndicator">
+            <span class="status-dot"></span>
+            <span class="status-text" id="recordingStatus">Ready</span>
+          </div>
+          <div class="timer-display" id="timer">00:00</div>
+          <button class="icon-btn settings-btn" id="settingsBtn" title="Open settings" aria-label="Open settings">
+            <span class="settings-update-dot hidden" id="settingsUpdateDot" aria-hidden="true"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="studio-main">
+        <!-- Header Text -->
+        <div class="main-header-text">
+          <h1 class="main-title" id="recordingLabel">Click to Record</h1>
+          <div class="shortcuts-hint" id="shortcutsHint">
+            <span><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> Pause</span>
+            <span class="dot-separator">•</span>
+            <span><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> Stop</span>
+          </div>
+        </div>
+
+        <div class="modes-radial-layout">
+          <!-- Top Left: Screen Only -->
+          <div class="mode-card active" data-mode="screen" id="mode-screen">
+            <div class="mode-card-content">
+              <h3 class="mode-title">Screen</h3>
+              <div class="mode-icons">
+                <div class="mode-icon active" title="Screen">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon disabled" title="No Microphone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                  <span class="cross-line"></span>
+                </div>
+                <div class="mode-icon disabled" title="No Camera">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z"></path>
+                    <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+                  </svg>
+                  <span class="cross-line"></span>
+                </div>
+              </div>
+              <p class="mode-desc">Screen only</p>
+            </div>
+          </div>
+
+          <!-- Top Right: Screen + Mic -->
+          <div class="mode-card" data-mode="screen-mic" id="mode-screen-mic">
+            <div class="mode-card-content">
+              <h3 class="mode-title">Screen + Mic</h3>
+              <div class="mode-icons">
+                <div class="mode-icon active" title="Screen">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon active" title="Microphone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon disabled" title="No Camera">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z"></path>
+                    <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+                  </svg>
+                  <span class="cross-line"></span>
+                </div>
+              </div>
+              <p class="mode-desc">With audio</p>
+            </div>
+          </div>
+
+          <!-- Bottom Left: Screen + Cam -->
+          <div class="mode-card" data-mode="screen-cam" id="mode-screen-cam">
+            <div class="mode-card-content">
+              <h3 class="mode-title">Screen + Cam</h3>
+              <div class="mode-icons">
+                <div class="mode-icon active" title="Screen">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon disabled" title="No Microphone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                  <span class="cross-line"></span>
+                </div>
+                <div class="mode-icon active" title="Camera">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z"></path>
+                    <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+                  </svg>
+                </div>
+              </div>
+              <p class="mode-desc">With facecam</p>
+            </div>
+          </div>
+
+          <!-- Bottom Right: Screen + Cam + Mic -->
+          <div class="mode-card" data-mode="screen-cam-mic" id="mode-screen-cam-mic">
+            <div class="mode-card-content">
+              <h3 class="mode-title">All</h3>
+              <div class="mode-icons">
+                <div class="mode-icon active" title="Screen">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon active" title="Microphone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                </div>
+                <div class="mode-icon active" title="Camera">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z"></path>
+                    <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+                  </svg>
+                </div>
+              </div>
+              <p class="mode-desc">Everything</p>
+            </div>
+          </div>
+
+          <!-- Center: Record Button -->
+          <div class="center-record">
+            <div class="recording-ring" id="recordingRing">
+              <div class="ring-glow"></div>
+              <button class="record-btn" id="startRecordBtn" type="button">
+                <div class="record-btn-inner">
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="record-icon" id="recordIcon">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recording Active Panel -->
+        <section class="info-panel recording-panel hidden" id="recordingInstructions">
+          <div class="panel-header">
+            <div class="panel-icon recording-active">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="8"></circle>
+              </svg>
+            </div>
+            <h2>Recording</h2>
+          </div>
+          <p class="recording-hint">Click the stop button to stop</p>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item">
+              <kbd>Cmd+Shift+P</kbd>
+              <span>Pause</span>
+            </div>
+            <div class="shortcut-item">
+              <kbd>Cmd+Shift+S</kbd>
+              <span>Stop</span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Camera Preview -->
+      <div class="camera-preview-container hidden" id="cameraPreviewContainer">
+        <video class="camera-preview" id="cameraPreview" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Footer -->
+      <footer class="studio-footer">
+        <span class="privacy-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Your Video Never Leaves your Device. Fully Free and Open Source
+        </span>
+        <div class="footer-links">
+          <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="footer-link" title="Connect with Dev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M2 12h20"></path>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+          </a>
+          <a href="https://github.com/moayaan1911/loomless" target="_blank" rel="noopener noreferrer" class="footer-link" title="Source Code">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.59 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .08 1.53 1.05 1.53 1.05.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.15-4.56-5.1 0-1.13.39-2.05 1.03-2.77-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.35 1.9-1.34 2.74-1.06 2.74-1.06.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.77 0 3.96-2.34 4.84-4.57 5.09.36.32.68.95.68 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.59 17.52 2 12 2z"></path>
+            </svg>
+          </a>
+          <a href="https://x.com/moayaan1911" target="_blank" rel="noopener noreferrer" class="footer-link" title="X (Twitter)">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.9 2H22l-6.77 7.74L23.2 22h-6.24l-4.89-7.39L5.6 22H2.5l7.24-8.28L.8 2h6.4l4.42 6.76L18.9 2Zm-1.09 18h1.72L6.25 3.9H4.4Z"/>
+            </svg>
+          </a>
+          <a href="https://moayaan.com/donate" target="_blank" rel="noopener noreferrer" class="footer-link" title="Support the Dev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 21s-6.72-4.35-9.33-8.19C.78 10.03 1.2 6.1 4.24 4.1c2.04-1.34 4.86-.94 6.76 1.03 1.9-1.97 4.72-2.37 6.76-1.03 3.04 2 3.46 5.93 1.57 8.71C18.72 16.65 12 21 12 21z"></path>
+            </svg>
+          </a>
+        </div>
+      </footer>
+
+      <div class="settings-modal hidden" id="settingsModal" aria-hidden="true">
+        <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+          <div class="settings-header">
+            <div>
+              <p class="settings-eyebrow">Studio Settings</p>
+              <h2 id="settingsTitle">Customize LoomLess</h2>
+            </div>
+            <button class="settings-close-btn" id="settingsCloseBtn" type="button" aria-label="Close settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <section class="settings-section">
+            <div class="settings-section-title">Recording</div>
+            <div class="settings-row settings-row-toggle" id="systemAudioSettingRow" hidden>
+              <div>
+                <p class="settings-label">Show Floating Controls</p>
+                <p class="settings-copy">Play/Pause and Stop buttons toggle</p>
+              </div>
+              <label class="settings-switch" for="floatingControlsToggle">
+                <input type="checkbox" id="floatingControlsToggle" />
+                <span class="settings-switch-slider"></span>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-title">Appearance</div>
+            <div class="theme-selector" id="themeSelector">
+              <button class="theme-option-btn" type="button" data-theme-preference="system">System</button>
+              <button class="theme-option-btn" type="button" data-theme-preference="light">Light</button>
+              <button class="theme-option-btn" type="button" data-theme-preference="dark">Dark</button>
+            </div>
+          </section>
+
+          <section class="settings-section settings-section-also-check">
+            <div class="settings-section-title">Also Check Out</div>
+            <div class="also-check-grid">
+              <a href="https://pizbot.com" target="_blank" rel="noopener noreferrer" class="also-check-card">
+                <div class="also-check-icon">
+                  <img src="assets/pizbot.png" alt="PizBot" />
+                </div>
+                <span class="also-check-name">PizBot</span>
+              </a>
+              <a href="https://imanvibes.vercel.app" target="_blank" rel="noopener noreferrer" class="also-check-card">
+                <div class="also-check-icon">
+                  <img src="assets/imanvibes.png" alt="ImanVibes" />
+                </div>
+                <span class="also-check-name">ImanVibes</span>
+              </a>
+              <a href="https://loomless.fun" target="_blank" rel="noopener noreferrer" class="also-check-card">
+                <div class="also-check-icon">
+                  <img src="assets/icon.png" alt="LoomLess" />
+                </div>
+                <span class="also-check-name">LoomLess</span>
+              </a>
+            </div>
+          </section>
+
+          <section class="settings-section settings-section-update-compact">
+            <div class="settings-row settings-update-row">
+              <div class="settings-update-inline">
+                <span class="settings-update-inline-title">Updates</span>
+                <span class="settings-update-inline-copy" id="updateStatusCopy">Automatic update checks run when the app launches.</span>
+                <span class="settings-update-inline-meta" id="currentVersionValue">Loading...</span>
+                <span class="settings-update-inline-meta hidden" id="latestVersionRow">
+                  Latest <span id="latestVersionValue">-</span>
+                </span>
+                <span class="settings-status-badge is-muted" id="updateStatusBadge">Loading</span>
+              </div>
+              <div class="settings-links settings-update-actions">
+                <button class="settings-link-btn settings-link-btn-primary" id="checkUpdatesBtn" type="button">Check</button>
+                <button class="settings-link-btn hidden" id="installUpdateBtn" type="button">
+                  Update
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script src="storage.js"></script>
+    <script src="recorder.js"></script>
+  </body>
+</html>

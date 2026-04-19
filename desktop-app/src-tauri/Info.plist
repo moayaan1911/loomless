@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>LoomLess needs camera access for camera overlay during screen recording</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LoomLess needs microphone access for audio recording</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>LoomLess needs screen recording access to capture your screen</string>
+</dict>
+</plist>
