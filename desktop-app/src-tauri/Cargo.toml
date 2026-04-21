@@ -1,6 +1,6 @@
 [package]
 name = "desktop-app"
-version = "1.0.0"
+version = "1.0.1"
 description = "Privacy-First Screen Recording Studio. No Sign Up, No Payment, No Cloud."
 authors = ["Mohammad Ayaan Siddiqui"]
 edition = "2021"
