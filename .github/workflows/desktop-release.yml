@@ -51,7 +51,7 @@ jobs:
         run: bash sidecar/build.sh
 
       - name: Build app and upload release assets
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         with:
           projectPath: desktop-app
           tagName: ${{ github.event.inputs.tag || github.ref_name }}

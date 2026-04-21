@@ -13,14 +13,13 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
-  X,
   UserRound,
 } from "lucide-react";
 import { FaApple, FaChrome } from "react-icons/fa";
 
 const links = {
   desktopDownload:
-    "https://github.com/moayaan1911/loomless/releases/download/v1.0.0/LoomLess_1.0.0_aarch64.dmg",
+    "https://github.com/moayaan1911/loomless/releases/download/v1.0.1/LoomLess_1.0.1_aarch64.dmg",
   chrome:
     "https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj",
   github: "https://github.com/moayaan1911/loomless",
@@ -143,7 +142,6 @@ const structuredData = [
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [isMacModalOpen, setIsMacModalOpen] = useState(false);
 
   useEffect(() => {
     const storedTheme =
@@ -159,23 +157,6 @@ export default function Home() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("loomless-theme", theme);
   }, [theme]);
-
-  useEffect(() => {
-    document.body.style.overflow = isMacModalOpen ? "hidden" : "";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsMacModalOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [isMacModalOpen]);
 
   return (
     <main className="relative overflow-hidden">
@@ -208,14 +189,15 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setIsMacModalOpen(true)}
+              <Link
+                href={links.desktopDownload}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="primary-button"
               >
                 <FaApple className="text-[1.05rem]" />
                 Download on Mac
-              </button>
+              </Link>
               <Link
                 href={links.chrome}
                 target="_blank"
@@ -329,14 +311,15 @@ export default function Home() {
               </h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <button
-                type="button"
-                onClick={() => setIsMacModalOpen(true)}
+              <Link
+                href={links.desktopDownload}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="quick-link secondary-button"
               >
                 <FaApple className="text-[1.05rem]" />
                 Mac
-              </button>
+              </Link>
               <Link
                 href={links.releases}
                 target="_blank"
@@ -446,79 +429,6 @@ export default function Home() {
         </footer>
       </div>
 
-      {isMacModalOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => setIsMacModalOpen(false)}
-        >
-          <div
-            className="modal-shell"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mac alpha install steps"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              aria-label="Close download modal"
-              className="icon-button modal-close"
-              onClick={() => setIsMacModalOpen(false)}
-            >
-              <X size={17} />
-            </button>
-
-            <div className="pr-14">
-              <p className="section-label">Mac Alpha Install</p>
-              <p className="mt-3 max-w-2xl text-[1rem] leading-7 text-[var(--muted)] sm:text-[1.04rem]">
-                LoomLess for macOS is still in alpha, so it is not signed with an
-                Apple Developer ID yet. macOS may block the first launch. Follow
-                these steps once, then you are good.
-              </p>
-            </div>
-
-            <ul className="modal-steps">
-              <li>Download the DMG, then move LoomLess into your Applications folder.</li>
-              <li>Open LoomLess once so macOS shows the security warning.</li>
-              <li>Go to System Settings, then open Privacy &amp; Security.</li>
-              <li>Scroll down and press Open Anyway.</li>
-              <li>Open LoomLess again and confirm the final Open prompt.</li>
-            </ul>
-
-            <div className="modal-shot">
-              <Image
-                src="/mac-install-warning.png"
-                alt="macOS warning flow showing where to allow LoomLess to open"
-                width={1788}
-                height={1536}
-                className="modal-shot-image rounded-[1.1rem]"
-              />
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                href={links.desktopDownload}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="primary-button"
-                onClick={() => setIsMacModalOpen(false)}
-              >
-                <FaApple className="text-[1.05rem]" />
-                Download Alpha for Mac
-              </Link>
-              <Link
-                href={links.releases}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="secondary-button"
-              >
-                <CirclePlay size={16} />
-                View release
-              </Link>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </main>
   );
 }
