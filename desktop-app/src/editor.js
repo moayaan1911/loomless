@@ -54,6 +54,7 @@ let currentRecording = null;
 let videoBlob = null;
 let trimStartTime = 0;
 let trimEndTime = 0;
+let trimEdited = false;
 let playbackSpeed = 1.0;
 let cropSettings = { aspect: "none", x: 0, y: 0, width: 0, height: 0 };
 let exportFormat = "mp4";
@@ -72,12 +73,30 @@ const MIN_CROP_SELECTION_SIZE = 20;
 // Initialize when DOM is loaded
 document.addEventListener("DOMContentLoaded", async function () {
   initializeElements();
+  initializeExportFormat();
   setupEventListeners();
   setupRightClickDisable();
   initializeTheme();
   initializeSettings();
   await loadVideoFromStorage();
 });
+
+function isDesktopApp() {
+  return typeof window !== "undefined" && !!window.__TAURI__;
+}
+
+function initializeExportFormat() {
+  if (!isDesktopApp()) return;
+
+  exportFormat = "mp4";
+
+  formatButtons.forEach((btn) => {
+    const isMp4 = btn.dataset.format === "mp4";
+    btn.classList.toggle("active", isMp4);
+    btn.removeAttribute("aria-disabled");
+    btn.removeAttribute("title");
+  });
+}
 
 function setupRightClickDisable() {
   let toastTimer = null;
@@ -530,6 +549,7 @@ async function handleVideoLoaded() {
   // Initialize trim times
   trimStartTime = 0;
   trimEndTime = duration;
+  trimEdited = false;
   videoPlayer.currentTime = trimStartTime;
   updatePlayPauseIcon();
 
@@ -803,6 +823,7 @@ function handleTrimDrag(event) {
       Math.max(time, trimStartTime + 0.5)
     );
   }
+  trimEdited = true;
 
   updateVideoInfo();
   updateTimelineProgress();
@@ -826,6 +847,7 @@ function setTrimStart() {
     0,
     Math.min(videoPlayer.currentTime, trimEndTime - 0.5)
   );
+  trimEdited = true;
   updateVideoInfo();
   updateTimelineProgress();
   showStatus("Trim start set", "success");
@@ -841,6 +863,7 @@ function setTrimEnd() {
     duration,
     Math.max(videoPlayer.currentTime, trimStartTime + 0.5)
   );
+  trimEdited = true;
   updateVideoInfo();
   updateTimelineProgress();
   showStatus("Trim end set", "success");
@@ -854,6 +877,7 @@ function resetTrim() {
   if (!duration) return;
   trimStartTime = 0;
   trimEndTime = duration;
+  trimEdited = false;
   updateVideoInfo();
   updateTimelineProgress();
   showStatus("Trim reset", "success");
@@ -903,7 +927,11 @@ function handleFormatChange(event) {
 
   // Update UI
   formatButtons.forEach((b) => b.classList.remove("active"));
-  btn.classList.add("active");
+
+  const activeButton = Array.from(formatButtons).find(
+    (button) => button.dataset.format === format
+  );
+  (activeButton || btn).classList.add("active");
 
   // Update export format
   exportFormat = format;
@@ -1291,6 +1319,42 @@ function currentRecordingIsMp4() {
   return mimeType.includes("mp4") || filename.toLowerCase().endsWith(".mp4");
 }
 
+function getCurrentRecordingExtension() {
+  const filename = currentRecording?.filename || "";
+  const mimeType = currentRecording?.mimeType || videoBlob?.type || "";
+
+  if (filename.toLowerCase().endsWith(".mp4") || mimeType.includes("mp4")) {
+    return "mp4";
+  }
+
+  return "webm";
+}
+
+function hasActiveCropSelection() {
+  return (
+    (cropSettings.aspect === "custom" &&
+      cropSettings.width > 0 &&
+      cropSettings.height > 0) ||
+    (cropSettings.aspect !== "none" && cropSettings.aspect !== "custom")
+  );
+}
+
+function canExportOriginalRecording(sourceDuration) {
+  if (!videoBlob) return false;
+  if (Math.abs(playbackSpeed - 1) > 0.001) return false;
+  if (hasActiveCropSelection()) return false;
+  if (trimEdited) return false;
+
+  const duration = Number.isFinite(sourceDuration)
+    ? sourceDuration
+    : getEditorDuration();
+  const fullTrimSelected =
+    Math.abs(trimStartTime) < 0.01 &&
+    Math.abs(trimEndTime - duration) < 0.05;
+
+  return fullTrimSelected;
+}
+
 function cleanupCurrentRecordingLater() {
   setTimeout(async () => {
     try {
@@ -1446,7 +1510,77 @@ function getMediaElementCaptureStream(element) {
   return null;
 }
 
-async function attachElementAudioTrackToStream(video, stream) {
+async function waitForCapturedElementAudio(video, waitMs = 0) {
+  const capturedElementStream = getMediaElementCaptureStream(video);
+
+  if (!capturedElementStream) {
+    return { capturedElementStream: null, capturedAudioTracks: [] };
+  }
+
+  const getLiveTracks = () =>
+    (capturedElementStream.getAudioTracks?.() || []).filter(
+      (track) => track.readyState === "live"
+    );
+
+  let capturedAudioTracks = getLiveTracks();
+
+  if (capturedAudioTracks.length > 0 || waitMs <= 0) {
+    return { capturedElementStream, capturedAudioTracks };
+  }
+
+  const deadline = performance.now() + waitMs;
+  while (performance.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 16));
+    capturedAudioTracks = getLiveTracks();
+    if (capturedAudioTracks.length > 0) {
+      break;
+    }
+  }
+
+  return { capturedElementStream, capturedAudioTracks };
+}
+
+async function attachElementAudioTrackToStream(video, stream, options = {}) {
+  const { captureWaitMs = 0 } = options;
+  const { capturedElementStream, capturedAudioTracks } =
+    await waitForCapturedElementAudio(video, captureWaitMs);
+
+  if (capturedAudioTracks.length > 0) {
+    const addedTracks = [];
+
+    for (const sourceTrack of capturedAudioTracks) {
+      try {
+        const trackToAdd =
+          typeof sourceTrack.clone === "function"
+            ? sourceTrack.clone()
+            : sourceTrack;
+        stream.addTrack(trackToAdd);
+        addedTracks.push(trackToAdd);
+      } catch (error) {
+        console.warn("[EXPORT] Could not attach captured element audio track:", error);
+      }
+    }
+
+    if (addedTracks.length > 0) {
+      return async () => {
+        addedTracks.forEach((track) => {
+          try {
+            stream.removeTrack(track);
+          } catch (error) {}
+          try {
+            track.stop();
+          } catch (error) {}
+        });
+
+        capturedElementStream.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch (error) {}
+        });
+      };
+    }
+  }
+
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) {
     return null;
@@ -1539,11 +1673,18 @@ async function handleDownload() {
     // Disable format buttons
     formatButtons.forEach((btn) => (btn.disabled = true));
 
+    const sourceDuration = getEditorDuration();
+
+    if (canExportOriginalRecording(sourceDuration)) {
+      const originalExtension = getCurrentRecordingExtension();
+      await finalizeExportDownload(videoBlob, originalExtension);
+      hideExportModal();
+      showStatus("Video exported successfully!", "success");
+      return;
+    }
+
     // Determine if crop is active
-    const hasCrop = (
-      (cropSettings.aspect === "custom" && cropSettings.width > 0 && cropSettings.height > 0) ||
-      (cropSettings.aspect !== "none" && cropSettings.aspect !== "custom")
-    );
+    const hasCrop = hasActiveCropSelection();
 
     // Create MediaRecorder with appropriate settings
     const exportSettings = selectExportSettings(exportFormat);
@@ -1623,47 +1764,32 @@ async function handleDownload() {
       }
     }
 
-    let canvas = null;
-    let ctx = null;
     let stream = null;
     let cleanupAudioPassthrough = null;
     let stopDrawingLoop = () => {};
-    const directMediaStream = !hasCrop
-      ? getMediaElementCaptureStream(processingVideo)
-      : null;
-    const canUseDirectMediaCapture =
-      !!directMediaStream && Math.abs(playbackSpeed - 1) < 0.001;
-    const exportFrameRate = playbackSpeed > 1 ? 60 : 30;
+    const exportFrameRate = 30;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-    if (canUseDirectMediaCapture) {
-      stream = directMediaStream;
-      console.log("[EXPORT] Using direct media capture stream for export");
-    } else {
-      canvas = document.createElement("canvas");
-      ctx = canvas.getContext("2d");
-      if (!ctx) {
-        throw new Error("Could not initialize export canvas");
-      }
-
-      canvas.style.cssText = getProcessingStageStyle();
-      document.body.appendChild(canvas);
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
-      console.log("[EXPORT] Canvas size:", canvasWidth, "x", canvasHeight);
-      stream = canvas.captureStream(exportFrameRate);
+    if (!ctx) {
+      throw new Error("Could not initialize export canvas");
     }
+
+    canvas.style.cssText = getProcessingStageStyle();
+    document.body.appendChild(canvas);
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    console.log("[EXPORT] Canvas size:", canvasWidth, "x", canvasHeight);
+    stream = canvas.captureStream(exportFrameRate);
 
     if (!stream) {
       throw new Error("Could not create export capture stream");
     }
 
-    if (stream.getAudioTracks().length === 0) {
-      cleanupAudioPassthrough = await attachElementAudioTrackToStream(
-        processingVideo,
-        stream
-      );
-    }
-    console.log("[EXPORT] Stream tracks:", stream.getTracks().map(t => t.kind + ":" + t.readyState));
+    console.log(
+      "[EXPORT] Stream tracks:",
+      stream.getTracks().map((t) => t.kind + ":" + t.readyState)
+    );
 
     const targetVideoBitrate = getRecommendedVideoBitrate(canvasWidth, canvasHeight);
     console.log("[EXPORT] Using mimeType:", mimeType);
@@ -1713,7 +1839,8 @@ async function handleDownload() {
           downloadBlob = await fixWebmDuration(processedBlob, playbackDuration);
         }
 
-        if (downloadBlob.size < 4096) {
+        if (downloadBlob.size <= 0) {
+          console.error("[EXPORT] Final encoded blob empty:", downloadBlob.size);
           hideExportModal();
           restoreExportControls();
           showStatus(
@@ -1738,7 +1865,7 @@ async function handleDownload() {
         showStatus("Video exported successfully!", "success");
       } finally {
         try { processingVideo.remove(); } catch (error) {}
-        try { canvas?.remove(); } catch (error) {}
+        try { canvas.remove(); } catch (error) {}
         stopDrawingLoop();
         await cleanupAudioPassthrough?.();
       }
@@ -1765,21 +1892,21 @@ async function handleDownload() {
       }
       stopRequested = true;
 
-      try { processingVideo.pause(); } catch (e) {}
       try {
-        if (ctx) {
-          ctx.drawImage(
-            processingVideo,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            sourceHeight,
-            0,
-            0,
-            canvasWidth,
-            canvasHeight
-          );
-        }
+        processingVideo.pause();
+      } catch (e) {}
+      try {
+        ctx.drawImage(
+          processingVideo,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          0,
+          0,
+          canvasWidth,
+          canvasHeight
+        );
       } catch (e) {}
       if (statusProgress && statusProgressBar) {
         statusProgressBar.style.width = `100%`;
@@ -1800,7 +1927,24 @@ async function handleDownload() {
       processingVideo.currentTime = trimStartTime;
     });
     processingVideo.playbackRate = Math.max(0.1, playbackSpeed);
-    if (ctx) {
+    ctx.drawImage(
+      processingVideo,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      canvasWidth,
+      canvasHeight
+    );
+
+    // Always draw video frames to canvas (required for WKWebView compatibility)
+    let frameCount = 0;
+    let rvfcId = null;
+    let intervalId = null;
+
+    const drawCurrentFrame = () => {
       ctx.drawImage(
         processingVideo,
         sourceX,
@@ -1812,19 +1956,16 @@ async function handleDownload() {
         canvasWidth,
         canvasHeight
       );
-    }
-
-    // Always draw video frames to canvas (required for WKWebView compatibility)
-    let frameCount = 0;
-    const drawCurrentFrame = () => {
-      if (!ctx) {
-        updateProgressFromTime();
-        return;
-      }
-      ctx.drawImage(processingVideo, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvasWidth, canvasHeight);
       frameCount++;
       if (frameCount % 30 === 1) {
-        console.log("[EXPORT] Frame", frameCount, "time:", processingVideo.currentTime.toFixed(2), "paused:", processingVideo.paused);
+        console.log(
+          "[EXPORT] Frame",
+          frameCount,
+          "time:",
+          processingVideo.currentTime.toFixed(2),
+          "paused:",
+          processingVideo.paused
+        );
       }
       updateProgressFromTime();
     };
@@ -1839,57 +1980,75 @@ async function handleDownload() {
     processingVideo.addEventListener("timeupdate", maybeStopAtTrimEnd);
     processingVideo.addEventListener("ended", stopProcessing);
 
-    if (ctx && playbackSpeed > 1) {
-      let animationFrameId = 0;
-      const onAnimationFrame = () => {
+    if (typeof processingVideo.requestVideoFrameCallback === "function") {
+      const onFrame = () => {
+        if (stopRequested) {
+          return;
+        }
         if (processingVideo.currentTime >= clipEnd - EPS) {
           stopProcessing();
           return;
         }
         drawCurrentFrame();
-        animationFrameId = requestAnimationFrame(onAnimationFrame);
+        rvfcId = processingVideo.requestVideoFrameCallback(onFrame);
       };
-      stopDrawingLoop = () => {
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-          animationFrameId = 0;
-        }
-      };
-      animationFrameId = requestAnimationFrame(onAnimationFrame);
-    } else if (ctx && typeof processingVideo.requestVideoFrameCallback === "function") {
-      let callbackId = 0;
-      const onFrame = () => {
-        if (processingVideo.currentTime >= clipEnd - EPS) { stopProcessing(); return; }
-        drawCurrentFrame();
-        callbackId = processingVideo.requestVideoFrameCallback(onFrame);
-      };
+      rvfcId = processingVideo.requestVideoFrameCallback(onFrame);
       stopDrawingLoop = () => {
         if (
-          callbackId &&
+          rvfcId !== null &&
           typeof processingVideo.cancelVideoFrameCallback === "function"
         ) {
-          processingVideo.cancelVideoFrameCallback(callbackId);
+          try {
+            processingVideo.cancelVideoFrameCallback(rvfcId);
+          } catch (error) {}
+          rvfcId = null;
         }
-        callbackId = 0;
       };
-      callbackId = processingVideo.requestVideoFrameCallback(onFrame);
-    } else if (ctx) {
-      const intervalId = setInterval(() => {
-        if (processingVideo.currentTime >= clipEnd - EPS) { clearInterval(intervalId); stopProcessing(); return; }
+    } else {
+      intervalId = setInterval(() => {
+        if (stopRequested) {
+          clearInterval(intervalId);
+          intervalId = null;
+          return;
+        }
+        if (processingVideo.currentTime >= clipEnd - EPS) {
+          clearInterval(intervalId);
+          intervalId = null;
+          stopProcessing();
+          return;
+        }
         drawCurrentFrame();
       }, 1000 / frameRate);
-      stopDrawingLoop = () => clearInterval(intervalId);
+      stopDrawingLoop = () => {
+        if (intervalId !== null) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      };
     }
 
+    cleanupAudioPassthrough = await attachElementAudioTrackToStream(
+      processingVideo,
+      stream,
+      {
+        captureWaitMs: 0,
+      }
+    );
+    console.log(
+      "[EXPORT] Audio tracks before start:",
+      stream.getAudioTracks().map((track) => `${track.kind}:${track.readyState}`)
+    );
+    mediaRecorder.start(1000);
+
     // Play the video to start processing
-    console.log("[EXPORT] About to play. currentTime:", processingVideo.currentTime, "readyState:", processingVideo.readyState);
+    console.log(
+      "[EXPORT] About to play. currentTime:",
+      processingVideo.currentTime,
+      "readyState:",
+      processingVideo.readyState
+    );
     await processingVideo.play();
     console.log("[EXPORT] Playing! paused:", processingVideo.paused);
-    if (canUseDirectMediaCapture) {
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      console.log("[EXPORT] Direct capture tracks after play:", stream.getTracks().map(t => t.kind + ":" + t.readyState));
-    }
-    mediaRecorder.start();
     fallbackStopTimeout = setTimeout(() => {
       console.log("[EXPORT] Fallback stop timer fired after", playbackDurationMs, "ms");
       stopProcessing();

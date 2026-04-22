@@ -94,6 +94,38 @@ class CameraOverlayWindow: NSWindow {
     var previewLayer: AVCaptureVideoPreviewLayer?
     weak var controlsWindow: ControlOverlayWindow?
 
+    private func controlsOrigin(for cameraFrame: NSRect, controlsSize: NSSize) -> NSPoint {
+        let visibleFrame =
+            screen?.visibleFrame ??
+            NSScreen.main?.visibleFrame ??
+            NSScreen.screens.first?.visibleFrame ??
+            NSRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let preferredX = cameraFrame.origin.x + 23
+        var preferredY = cameraFrame.origin.y - 52
+
+        // If the pill would drop below the visible screen, show it above the
+        // camera bubble instead of spawning off-screen.
+        if preferredY < visibleFrame.minY + 8 {
+            preferredY = cameraFrame.origin.y + cameraFrame.height + 10
+        }
+
+        let minX = visibleFrame.minX + 8
+        let maxX = visibleFrame.maxX - controlsSize.width - 8
+        let minY = visibleFrame.minY + 8
+        let maxY = visibleFrame.maxY - controlsSize.height - 8
+
+        return NSPoint(
+            x: min(max(preferredX, minX), maxX),
+            y: min(max(preferredY, minY), maxY)
+        )
+    }
+
+    private func emitStatus(_ status: String) {
+        print(status)
+        fflush(stdout)
+    }
+
     init() {
         let windowSize = CGSize(width: 160, height: 160)
 
@@ -145,11 +177,22 @@ class CameraOverlayWindow: NSWindow {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .notDetermined {
             AVCaptureDevice.requestAccess(for: .video) { granted in
-                if granted { DispatchQueue.main.async { self.startCameraCapture() } }
+                DispatchQueue.main.async {
+                    if granted {
+                        self.startCameraCapture()
+                    } else {
+                        self.hideOverlay()
+                        self.emitStatus("permission:camera-denied")
+                    }
+                }
             }
             return
         }
-        guard status == .authorized else { return }
+        guard status == .authorized else {
+            hideOverlay()
+            emitStatus("permission:camera-denied")
+            return
+        }
         startCameraCapture()
     }
 
@@ -210,8 +253,7 @@ class CameraOverlayWindow: NSWindow {
     func syncControlsPosition() {
         guard let controlsWindow = controlsWindow else { return }
         var controlsFrame = controlsWindow.frame
-        controlsFrame.origin.x = frame.origin.x + 23
-        controlsFrame.origin.y = frame.origin.y - 52
+        controlsFrame.origin = controlsOrigin(for: frame, controlsSize: controlsFrame.size)
         controlsWindow.setFrame(controlsFrame, display: true)
     }
 }

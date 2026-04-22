@@ -41,7 +41,7 @@ let recorderTabId = null;
 let cameraOverlayVisible = false;
 let overlayPosition = { x: 1, y: 1 };
 const updateState = {
-  currentVersion: "1.0.0",
+  currentVersion: "0.0.1",
   latestVersion: null,
   availableUpdate: null,
   isChecking: false,
@@ -345,8 +345,11 @@ function initializeTheme() {
 
 function initializeSettings() {
   const storedFloatingControls = localStorage.getItem(FLOATING_CONTROLS_STORAGE_KEY);
+  if (storedFloatingControls === null) {
+    localStorage.setItem(FLOATING_CONTROLS_STORAGE_KEY, "true");
+  }
   if (floatingControlsToggle) {
-    floatingControlsToggle.checked = storedFloatingControls !== "false";
+    floatingControlsToggle.checked = (storedFloatingControls ?? "true") !== "false";
   }
   if (systemAudioToggle) {
     systemAudioToggle.checked = localStorage.getItem(SYSTEM_AUDIO_STORAGE_KEY) === "true";
@@ -416,7 +419,7 @@ function shouldRecordSystemAudio() {
 }
 
 function shouldShowFloatingControls() {
-  return localStorage.getItem(FLOATING_CONTROLS_STORAGE_KEY) === "true";
+  return localStorage.getItem(FLOATING_CONTROLS_STORAGE_KEY) !== "false";
 }
 
 function openSettingsModal() {
@@ -919,6 +922,14 @@ function setupTauriListeners() {
     } else if (action === "stop") {
       stopRecording();
     }
+  });
+
+  window.__TAURI__.event.listen("overlay-permission-denied", async (event) => {
+    if (event.payload !== "camera") return;
+
+    await closeCameraOverlayWindow();
+    setRecordingMode("screen");
+    showPermissionDeniedModal("camera");
   });
 }
 
@@ -1609,6 +1620,12 @@ async function startRecording() {
         }
       } catch (camError) {
         console.error("Camera access error:", camError);
+        if (camError.name === "NotAllowedError" && window.__TAURI__) {
+          await closeCameraOverlayWindow();
+          showPermissionDeniedModal("camera");
+          resetUIToInitial();
+          return;
+        }
         showErrorToast("Could not access camera. Recording without camera overlay.");
       }
     }
@@ -1759,7 +1776,9 @@ function stopRecording() {
 async function handleRecordingComplete() {
   try {
     // Update UI for processing
-    statusText.textContent = "Saving...";
+    statusText.textContent = "Downloading...";
+    recordingLabel.textContent = "Preparing Download...";
+    recordingLabel.style.display = "";
 
     // Create blob from recorded chunks
     const blob = new Blob(recordedChunks, {
@@ -1772,27 +1791,39 @@ async function handleRecordingComplete() {
     const fileExtension = (recorderMimeType || "").includes("mp4") ? "mp4" : "webm";
     const filename = `loomless-recording-${timestamp}.${fileExtension}`;
 
-    // Store recording in IndexedDB
-    const recordingId = await window.videoStorage.storeRecording(
-      blob,
-      recorderMimeType || "video/webm",
-      {
-        filename,
-        duration: recordingDuration,
-        timestamp: now.toISOString(),
+    if (window.__TAURI__) {
+      const { save } = window.__TAURI__.dialog;
+      const { writeFile } = window.__TAURI__.fs;
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [
+          {
+            name: fileExtension.toUpperCase(),
+            extensions: [fileExtension],
+          },
+        ],
+      });
+
+      if (!filePath) {
+        resetUIToInitial();
+        return;
       }
-    );
 
-    console.log(`Recording stored with ID: ${recordingId}`);
+      const arrayBuffer = await blob.arrayBuffer();
+      await writeFile(filePath, new Uint8Array(arrayBuffer));
+    } else {
+      const objectUrl = URL.createObjectURL(blob);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = objectUrl;
+      downloadLink.download = filename;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
 
-    // Update UI
-    statusText.textContent = "Opening Editor...";
-    recordingLabel.textContent = "Opening Editor...";
-
-    // Open editing tab
-    setTimeout(() => {
-      openEditingTab(recordingId);
-    }, 800);
+    showSuccessMessage();
+    resetUIToInitial();
   } catch (error) {
     console.error("Error processing recording:", error);
     handleRecordingError(error);
@@ -1888,7 +1919,7 @@ function resetUIToInitial() {
   recordIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
 
   // Reset label
-  recordingLabel.textContent = "Click to Record";
+  recordingLabel.textContent = "Quick Record";
   recordingLabel.style.display = "";
 
   // Show shortcuts hint again
@@ -2160,7 +2191,7 @@ function showSuccessMessage() {
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
       <polyline points="22 4 12 14.01 9 11.01"></polyline>
     </svg>
-    Recording saved!
+    Recording downloaded!
   `;
 
   document.body.appendChild(toast);

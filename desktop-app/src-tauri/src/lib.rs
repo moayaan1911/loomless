@@ -25,6 +25,12 @@ fn emit_main_window_action(app: &AppHandle, action: &str) {
     }
 }
 
+fn emit_main_window_overlay_event(app: &AppHandle, event_name: &str, payload: &str) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit(event_name, payload);
+    }
+}
+
 fn send_overlay_command(child: &mut CommandChild, command: &str) -> Result<(), String> {
     child.write(command.as_bytes())
         .map_err(|e| format!("Failed to write overlay command '{command}': {e}"))
@@ -136,6 +142,13 @@ fn show_camera_overlay(app: AppHandle, show_controls: bool) -> Result<(), String
                     match trimmed {
                         "action:pause-resume" => emit_main_window_action(&app_handle, "pause-resume"),
                         "action:stop" => emit_main_window_action(&app_handle, "stop"),
+                        "permission:camera-denied" => {
+                            emit_main_window_overlay_event(
+                                &app_handle,
+                                "overlay-permission-denied",
+                                "camera",
+                            )
+                        }
                         _ if !trimmed.is_empty() => println!("Camera overlay: {trimmed}"),
                         _ => {}
                     }
@@ -330,7 +343,13 @@ pub fn run() {
             )?;
             let stop_i = MenuItem::with_id(app, "stop", "Stop Recording", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Quit LoomLess", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(
+                app,
+                "quit",
+                "Quit LoomLess (alpha)",
+                true,
+                None::<&str>,
+            )?;
 
             let menu = Menu::with_items(app, &[&pause_i, &stop_i, &separator, &quit_i])?;
 
@@ -338,7 +357,7 @@ pub fn run() {
                 .icon(app.default_window_icon().cloned().expect("no app icon"))
                 .menu(&menu)
                 .show_menu_on_left_click(true)
-                .tooltip("LoomLess")
+                .tooltip("LoomLess (alpha)")
                 .on_menu_event(|app_handle, event| match event.id.as_ref() {
                     "pause-resume" => {
                         if let Some(window) = app_handle.get_webview_window("main") {

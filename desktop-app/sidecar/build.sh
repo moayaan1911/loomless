@@ -2,8 +2,8 @@
 
 # Build script for camera-overlay sidecar.
 # Produces a raw Swift binary (NOT a nested .app bundle) so that when
-# Tauri bundles it into LoomLess.app/Contents/MacOS/, macOS attributes
-# its camera/mic access to LoomLess.app itself. This unifies TCC
+# Tauri bundles it into LoomLess (alpha).app/Contents/MacOS/, macOS attributes
+# its camera/mic access to LoomLess (alpha).app itself. This unifies TCC
 # permissions between the WebView and the overlay, so the user only
 # sees a single camera permission prompt.
 
