@@ -28,6 +28,9 @@ const links = {
   author: "https://moayaan.com",
   privacy: "/loomless-studio-privacy-policy",
   faq: "/faq",
+  freeRecorder: "/free-screen-recorder",
+  chromeRecorder: "/chrome-screen-recorder",
+  macRecorder: "/screen-recorder-for-mac",
 };
 
 const previewCards = [
@@ -47,10 +50,10 @@ const previewCards = [
   },
   {
     label: "Preview 03",
-    title: "Edit locally",
-    description: "Trim, refine, and export without leaving LoomLess.",
+    title: "Keep the edit flow local",
+    description: "The Chrome extension flow keeps trimming and export on your device too.",
     image: "/mac-preview-editor.png",
-    alt: "LoomLess interface preview showing the editor screen",
+    alt: "LoomLess interface preview showing the local editor flow",
   },
 ];
 
@@ -58,7 +61,7 @@ const faqItems = [
   {
     question: "What is LoomLess?",
     answer:
-      "LoomLess is a free screen recorder and editor with a macOS desktop app and a Chrome extension.",
+      "LoomLess is a free local-first screen recorder suite with a recorder-only macOS alpha app and a Chrome extension.",
   },
   {
     question: "Does LoomLess upload my recordings?",
@@ -68,7 +71,7 @@ const faqItems = [
   {
     question: "What can I download right now?",
     answer:
-      "You can download the macOS desktop app directly as a DMG and also install the Chrome extension.",
+      "You can download the macOS recorder-only alpha as a DMG and install the Chrome screen recorder extension.",
   },
 ];
 
@@ -79,7 +82,7 @@ const structuredData = [
     name: "LoomLess",
     url: "https://loomless.fun",
     description:
-      "Free Screen Recorder & Editor with a macOS desktop app and Chrome extension. Local-first, privacy-focused, and built for fast capture and clean exports.",
+      "Free screen recorder for Mac and Chrome. Local-first, privacy-focused, with a recorder-only macOS alpha and a Chrome extension recording flow.",
   },
   {
     "@context": "https://schema.org",
@@ -87,6 +90,7 @@ const structuredData = [
     name: "LoomLess for macOS",
     operatingSystem: "macOS",
     applicationCategory: "MultimediaApplication",
+    softwareVersion: "0.0.1",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -96,7 +100,7 @@ const structuredData = [
     url: "https://loomless.fun",
     image: "https://loomless.fun/loomless-icon.png",
     description:
-      "Free Screen Recorder & Editor for macOS. Record, edit, and export locally with LoomLess.",
+      "Free screen recorder for Mac. The current public macOS build is a recorder-only alpha that records locally and saves directly after capture.",
   },
   {
     "@context": "https://schema.org",
@@ -113,30 +117,18 @@ const structuredData = [
     url: "https://loomless.fun",
     image: "https://loomless.fun/loomless-icon.png",
     description:
-      "Free LoomLess Chrome extension for screen recording with a local-first workflow.",
+      "Free Chrome screen recorder extension with a local-first recording and editing workflow.",
   },
   {
     "@context": "https://schema.org",
     "@type": "VideoObject",
     name: "LoomLess desktop promo",
     description:
-      "Short preview of LoomLess, the free screen recorder and editor for macOS.",
+      "Short preview of LoomLess, the free local-first screen recorder for Mac and Chrome.",
     thumbnailUrl: ["https://loomless.fun/mac-preview-home.png"],
     contentUrl: "https://loomless.fun/loomless-desktop-demo.mp4",
     embedUrl: "https://loomless.fun",
     uploadDate: "2026-04-19",
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqItems.map((item) => ({
-      "@type": "Question",
-      name: item.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: item.answer,
-      },
-    })),
   },
 ];
 
@@ -183,7 +175,7 @@ export default function Home() {
               <div>
                 <p className="section-label">LoomLess</p>
                 <h1 className="font-display text-[2rem] leading-none text-[var(--fg)] sm:text-[2.3rem]">
-                  Free Screen Recorder &amp; Editor
+                  Free Screen Recorder for Mac &amp; Chrome
                 </h1>
               </div>
             </div>
@@ -228,18 +220,19 @@ export default function Home() {
 
             <h2 className="mt-6 max-w-xl font-display text-5xl leading-[0.94] text-[var(--fg)] sm:text-6xl lg:text-7xl">
               Clean capture.
-              <span className="block text-[var(--accent)]">Local edits.</span>
+              <span className="block text-[var(--accent)]">Local workflow.</span>
               <span className="block">Zero nonsense.</span>
             </h2>
 
             <p className="mt-5 max-w-xl text-[1.05rem] leading-8 text-[var(--muted)] sm:text-[1.12rem]">
-              LoomLess gives you a calm, local-first way to record and refine your
-              work. Download the macOS app, grab the Chrome extension, and keep the
-              whole flow on your own device.
+              LoomLess gives you a calm, local-first way to record your screen.
+              Download the recorder-only macOS alpha, grab the Chrome screen recorder
+              extension, and keep the whole flow on your own device.
             </p>
 
             <p className="mt-8 max-w-xl text-[0.98rem] leading-7 text-[var(--muted)]">
-              No sign up. No cloud upload. No forced account. Just record, edit, and export locally.
+              No sign up. No cloud upload. No forced account. Just record locally,
+              and use the Chrome extension flow when you want the fuller browser edit/export path.
             </p>
           </div>
 
@@ -361,6 +354,46 @@ export default function Home() {
         </section>
 
         <section className="py-10">
+          <div className="surface-card p-6 sm:p-7">
+            <div className="mb-6 flex flex-col gap-2">
+              <p className="section-label">Popular Searches</p>
+              <h3 className="font-display text-3xl text-[var(--fg)] sm:text-4xl">
+                Start from the page that matches what you are looking for.
+              </h3>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-3">
+              <Link href={links.freeRecorder} className="preview-card p-5">
+                <p className="section-label">Free Screen Recorder</p>
+                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
+                  Local-first recorder overview
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                  Broad overview of LoomLess for people searching for a free screen recorder without cloud upload.
+                </p>
+              </Link>
+              <Link href={links.chromeRecorder} className="preview-card p-5">
+                <p className="section-label">Chrome Screen Recorder</p>
+                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
+                  Chrome extension page
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                  Focused page for the LoomLess Chrome extension and browser-based local workflow.
+                </p>
+              </Link>
+              <Link href={links.macRecorder} className="preview-card p-5">
+                <p className="section-label">Screen Recorder for Mac</p>
+                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
+                  macOS alpha download page
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                  Focused page for the current recorder-only Mac alpha DMG and install flow.
+                </p>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-10">
           <div className="mb-8 flex flex-col gap-2">
             <p className="section-label">FAQ</p>
             <h3 className="font-display text-4xl leading-none text-[var(--fg)] sm:text-5xl">
@@ -387,7 +420,7 @@ export default function Home() {
               height={34}
               className="rounded-[0.9rem]"
             />
-            <p>LoomLess. Free Screen Recorder &amp; Editor.</p>
+            <p>LoomLess. Free local screen recorder suite.</p>
           </div>
 
           <div className="flex flex-wrap gap-4">

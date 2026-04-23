@@ -16,18 +16,24 @@ const cormorant = Cormorant_Garamond({
 export const metadata: Metadata = {
   metadataBase: new URL("https://loomless.fun"),
   title: {
-    default: "LoomLess | Free Screen Recorder & Editor",
+    default: "LoomLess | Free Screen Recorder for Mac & Chrome",
     template: "%s | LoomLess",
   },
   applicationName: "LoomLess",
   description:
-    "LoomLess is a free screen recorder and editor with a macOS app and Chrome extension. Download the DMG, install the extension, and keep your workflow local. Your video NEVER leaves your device.",
+    "LoomLess is a free local-first screen recorder for Mac and Chrome. Download the recorder-only macOS alpha DMG or install the Chrome extension. Your video NEVER leaves your device.",
   keywords: [
     "free screen recorder",
+    "free screen recorder for mac",
+    "free screen recorder chrome extension",
+    "chrome screen recorder",
     "screen recorder for mac",
     "screen recorder for macos",
+    "screen recorder for mac free",
+    "screen recorder for chrome",
     "screen recorder chrome extension",
-    "screen recorder and editor",
+    "screen recorder without sign up",
+    "screen recorder without watermark",
     "private screen recorder",
     "local screen recorder",
     "loom alternative",
@@ -63,9 +69,9 @@ export const metadata: Metadata = {
     apple: "/loomless-icon.png",
   },
   openGraph: {
-    title: "LoomLess | Free Screen Recorder & Editor",
+    title: "LoomLess | Free Screen Recorder for Mac & Chrome",
     description:
-      "Download LoomLess for macOS or install the Chrome extension. Record, edit, and keep everything local. Your video NEVER leaves your device.",
+      "Download the recorder-only macOS alpha or install the Chrome screen recorder extension. Record locally and keep your video on your own device.",
     url: "https://loomless.fun",
     siteName: "LoomLess",
     locale: "en_US",
@@ -75,22 +81,22 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "LoomLess - Free Screen Recorder & Editor",
+        alt: "LoomLess - Free Screen Recorder for Mac and Chrome",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LoomLess | Free Screen Recorder & Editor",
+    title: "LoomLess | Free Screen Recorder for Mac & Chrome",
     description:
-      "Free screen recorder and editor for macOS plus Chrome extension. Local-first by default.",
+      "Free local-first screen recorder for macOS and Chrome. Recorder-only Mac alpha plus Chrome extension.",
     images: ["/opengraph-image"],
     creator: "@moayaan1911",
     site: "@moayaan1911",
   },
   other: {
     "ai:description":
-      "LoomLess is a free screen recorder and editor with a macOS desktop app and Chrome extension. It emphasizes a local-first workflow, direct DMG download, clean previews, and privacy messaging built around the claim that your video never leaves your device.",
+      "LoomLess is a free local-first screen recorder for Mac and Chrome. The current macOS app is a recorder-only alpha DMG, and the Chrome extension covers the richer browser recording workflow. The core product promise is that your video never leaves your device.",
   },
 };
 
