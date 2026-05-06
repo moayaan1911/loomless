@@ -1,195 +1,230 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "LoomLess Studio Privacy Policy",
-  description:
-    "Privacy Policy for LoomLess Studio. Learn how LoomLess handles recordings, permissions, local storage, and privacy.",
-  alternates: {
-    canonical: "/loomless-studio-privacy-policy",
-  },
-};
+interface Section {
+  icon: string;
+  title: string;
+  bullets: string[];
+  footer?: string;
+}
 
-const sections = [
+const studioSections: Section[] = [
   {
-    title: "1. Core Privacy Principle",
-    body: [
-      "LoomLess Studio is designed to be a privacy-first screen recording studio.",
-    ],
+    icon: "🔒",
+    title: "Core Privacy Principle",
     bullets: [
-      "No account required: You do not need to sign up, log in, or provide personal information to use the extension.",
-      "No cloud uploads: Your recordings are not uploaded to our servers.",
-      "No tracking: We do not track your browsing activity, the websites you visit, or how you use the extension.",
-      "No sale of data: We do not collect or sell personal data.",
+      "No account, signup, or login required",
+      "Recordings are never uploaded to any server",
+      "No browsing activity tracking or analytics",
+      "No collection or sale of personal data",
     ],
   },
   {
-    title: "2. How Recordings Are Handled",
+    icon: "💻",
+    title: "How Recordings Work",
     bullets: [
-      "Screen, tab, window, camera, and microphone capture are processed locally by browser APIs.",
-      "Recorded media is stored temporarily on your device so it can be opened in the built-in editor.",
-      "Editing actions such as trim, crop, speed adjustment, and export are processed locally in your browser.",
-      "Final video files are saved by you to your own device.",
-    ],
-    body: [
-      "At no point are your recordings transmitted to us for storage or processing.",
+      "Screen, camera, and mic capture run locally via browser APIs",
+      "Recordings stored temporarily on your device for editing",
+      "Trim, crop, speed, and export happen entirely in your browser",
+      "Final video files are saved only by you, to your device",
     ],
   },
   {
-    title: "3. Temporary Local Storage",
-    body: [
-      "LoomLess Studio may temporarily store recording data locally on your device while you move from recording to editing and export.",
-    ],
+    icon: "📦",
+    title: "Local Storage",
     bullets: [
-      "This local storage is used only to support the extension workflow.",
-      "It is not shared with us.",
-      "It is not used for analytics, profiling, or advertising.",
+      "Temporary storage used only to move from recording to editing",
+      "Never shared, never used for analytics or profiling",
     ],
   },
   {
-    title: "4. Permissions We Use and Why",
-    body: [
-      "LoomLess Studio requests only the permissions needed to provide recording and floating controls.",
-    ],
+    icon: "🔑",
+    title: "Permissions",
     bullets: [
-      "tabs: Used to open, focus, and coordinate the recorder and editor experience.",
-      "activeTab: Used to interact with the active tab when needed for recording controls.",
-      "scripting: Used to inject the floating recording controls on supported pages during recording.",
-      "host permissions (<all_urls>): Used only so the floating recording controls can appear on the page you are recording.",
+      "tabs & activeTab — open and coordinate the recorder/editor tabs",
+      "scripting — inject floating controls during recording",
+      "Host permissions — only so controls appear on the page you record",
+      "None of these read your page content or browsing history",
     ],
-    footer:
-      "These permissions are not used to read page content for profiling, collect browsing history, or monitor your activity beyond what is necessary to provide the recording controls you intentionally use.",
   },
   {
-    title: "5. Camera and Microphone Access",
-    body: ["If you choose a mode that uses camera or microphone:"],
+    icon: "🎤",
+    title: "Camera & Microphone",
     bullets: [
-      "Access is requested at runtime by your browser.",
-      "Access is only used for the recording session you start.",
-      "Camera and microphone data are processed locally and are not sent to us.",
+      "Only accessed when you choose a camera/mic recording mode",
+      "Data processed locally, never sent anywhere",
     ],
-    footer:
-      "If you do not choose those modes, LoomLess Studio does not access your camera or microphone.",
   },
   {
-    title: "6. Floating Recording Controls",
-    body: [
-      "LoomLess Studio can display floating pause, resume, and stop controls on supported pages while you record.",
-    ],
+    icon: "📌",
+    title: "Floating Controls",
     bullets: [
-      "These controls are provided for convenience during recording.",
-      "Their purpose is to display the LoomLess Studio interface and handle your control actions.",
-      "They are not intended to inspect, store, or analyze page content.",
+      "Pause, resume, and stop buttons shown during recording",
+      "Purely functional — no page content is inspected or stored",
     ],
   },
   {
-    title: "7. Cookies and Analytics",
-    body: [
-      "LoomLess Studio does not use cookies for tracking inside the extension.",
-      "LoomLess Studio does not include third-party analytics, advertising trackers, or profiling tools in the extension.",
+    icon: "🍪",
+    title: "Cookies & Analytics",
+    bullets: ["No cookies, no third-party analytics, no trackers"],
+  },
+  {
+    icon: "👶",
+    title: "Children's Privacy",
+    bullets: ["No personal data knowingly collected from anyone"],
+  },
+  {
+    icon: "📋",
+    title: "Policy Changes",
+    bullets: ["Updated when the extension materially changes"],
+  },
+  {
+    icon: "✉️",
+    title: "Contact",
+    bullets: ["Reach out at moayaan.com or moayaan.eth@gmail.com"],
+  },
+];
+
+const downloaderSections: Section[] = [
+  {
+    icon: "🔒",
+    title: "Core Privacy Principle",
+    bullets: [
+      "One-click media downloader for Twitter/X and Reddit",
+      "Completely client-side — no data ever leaves your browser",
+      "No servers, no API keys, no signup, no telemetry",
+      "Download button only appears on posts with downloadable media",
+    ],
+    footer: "Source: github.com/moayaan1911/loomless-downloader",
+  },
+  {
+    icon: "🔑",
+    title: "Permissions",
+    bullets: [
+      "downloads — save images and videos directly to your device",
+      "storage — cache extracted video URLs and your preferences locally",
+      "Host access (twitter.com, x.com, reddit.com) — detect posts and extract media URLs from page content",
     ],
   },
   {
-    title: "8. Children's Privacy",
-    body: [
-      "LoomLess Studio is not designed to knowingly collect personal information from children. Because we do not require accounts or collect personal data for core extension use, we do not knowingly store such information.",
+    icon: "⬇️",
+    title: "How Downloads Work",
+    bullets: [
+      "Click the download button on any tweet or post with media",
+      "Files download directly from the source platform's CDN to your device",
+      "No intermediate server — pure browser-to-source transfer",
+      "Files saved with meaningful names from post content",
     ],
   },
   {
-    title: "9. Changes to This Privacy Policy",
-    body: [
-      'We may update this Privacy Policy if the extension changes materially. If we do, we will update the "Last Updated" date at the top of this policy.',
+    icon: "🚫",
+    title: "What We Don't Collect",
+    bullets: [
+      "No personal data, browsing history, or download history",
+      "No analytics, crash reporting, or telemetry of any kind",
+      "No communication with external servers besides source platforms",
     ],
   },
   {
-    title: "10. Contact",
-    body: [
-      "If you have any questions about this Privacy Policy, you can contact the developer at:",
-    ],
-    footer: "https://moayaan.com",
+    icon: "👶",
+    title: "Children's Privacy",
+    bullets: ["No personal data knowingly collected from anyone"],
+  },
+  {
+    icon: "📋",
+    title: "Policy Changes",
+    bullets: ["Updated when the extension materially changes"],
+  },
+  {
+    icon: "✉️",
+    title: "Contact",
+    bullets: ["Reach out at moayaan.com or moayaan.eth@gmail.com"],
   },
 ];
 
 export default function PrivacyPolicyPage() {
-  return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 py-10 lg:px-10">
-      <div className="glass-card rounded-3xl p-6 sm:p-8">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <Image
-            src="/loomless-icon.png"
-            alt="LoomLess logo"
-            width={72}
-            height={72}
-            className="rounded-2xl border border-white/20 bg-white/10 p-2"
-          />
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-(--accent) uppercase">
-              LoomLess Studio
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Privacy Policy
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-(--muted) sm:text-base">
-              Privacy-first screen recording studio. YOUR VIDEO NEVER LEAVES YOUR DEVICE.
-            </p>
-            <div className="mt-4 inline-flex rounded-full border border-(--line) bg-white/5 px-4 py-2 text-sm text-(--muted)">
-              Last Updated: March 9, 2026
-            </div>
-          </div>
-        </div>
+  const [tab, setTab] = useState<"studio" | "downloader">("studio");
+  const sections = tab === "studio" ? studioSections : downloaderSections;
 
-        <div className="mt-8 rounded-2xl border border-(--line) bg-white/4 p-5 text-sm leading-7 text-(--muted)">
-          Thank you for using LoomLess Studio. This Privacy Policy explains how the
-          LoomLess Studio browser extension handles your information. Our core
-          principle is simple: your recordings stay on your device.
+  return (
+    <main className="page-shell py-10 sm:py-14">
+      <Link href="/" className="section-label mb-8 inline-block">
+        &larr; Back home
+      </Link>
+
+      <div className="flex flex-col items-center text-center">
+        <Image
+          src="/loomless-icon.png"
+          alt="LoomLess"
+          width={52}
+          height={52}
+          className="rounded-[1.1rem] shadow-[0_10px_24px_rgba(110,92,219,0.2)]"
+        />
+        <h1 className="mt-4 font-display text-3xl text-[var(--fg)] sm:text-4xl">
+          Privacy Policy
+        </h1>
+        <p className="mt-1.5 text-sm text-[var(--muted)]">
+          Last Updated: May 6, 2026
+        </p>
+
+        <div className="mt-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--bg-2)] p-1.5">
+          <button
+            type="button"
+            onClick={() => setTab("studio")}
+            className={`cursor-pointer rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+              tab === "studio"
+                ? "bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(110,92,219,0.32)]"
+                : "text-[var(--muted)] hover:text-[var(--fg)]"
+            }`}
+          >
+            LoomLess Studio
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("downloader")}
+            className={`cursor-pointer rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+              tab === "downloader"
+                ? "bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(110,92,219,0.32)]"
+                : "text-[var(--muted)] hover:text-[var(--fg)]"
+            }`}
+          >
+            LoomLess Downloader
+          </button>
         </div>
       </div>
 
-      <div className="mt-8 grid gap-5">
+      <hr className="section-divider my-8" />
+
+      <div className="mx-auto max-w-2xl">
         {sections.map((section) => (
-          <section key={section.title} className="glass-card rounded-3xl p-6 sm:p-7">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          <div key={section.title} className="mt-8 first:mt-0">
+            <h2 className="flex items-center gap-2.5 font-display text-lg text-[var(--fg)] sm:text-xl">
+              <span className="text-base">{section.icon}</span>
               {section.title}
             </h2>
-            {section.body?.map((paragraph) => (
-              <p key={paragraph} className="mt-4 text-sm leading-7 text-(--muted) sm:text-base">
-                {paragraph}
-              </p>
-            ))}
-            {section.bullets?.length ? (
-              <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-7 text-(--muted) sm:text-base">
-                {section.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            ) : null}
+            <ul className="mt-2 space-y-1.5 pl-8 text-sm leading-6 text-[var(--muted)]">
+              {section.bullets.map((bullet) => (
+                <li key={bullet}>{bullet}</li>
+              ))}
+            </ul>
             {section.footer ? (
-              <p className="mt-4 text-sm leading-7 text-(--muted) sm:text-base">
-                {section.footer.startsWith("https://") ? (
-                  <Link
-                    href={section.footer}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-(--accent)"
-                  >
-                    {section.footer}
-                  </Link>
-                ) : (
-                  section.footer
-                )}
+              <p className="mt-2 pl-8 text-xs text-[var(--muted)] italic">
+                {section.footer}
               </p>
             ) : null}
-          </section>
+          </div>
         ))}
       </div>
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-(--muted)">
-        <p>LoomLess Studio - Built by Mohammad Ayaan Siddiqui</p>
-        <Link href="/" className="text-(--accent)">
-          Back to LoomLess
-        </Link>
-      </div>
+      <hr className="section-divider my-10" />
+
+      <footer className="flex flex-wrap items-center justify-between gap-4 text-sm text-[var(--muted)]">
+        <p>LoomLess. Built by moayaan.eth.</p>
+        <Link href="/" className="text-link">Back home</Link>
+      </footer>
     </main>
   );
 }

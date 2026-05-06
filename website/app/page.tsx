@@ -1,18 +1,13 @@
- "use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
   CirclePlay,
   Github,
   HeartHandshake,
   Lock,
-  MoonStar,
   ShieldQuestion,
-  ShieldCheck,
-  Sparkles,
-  Sun,
   UserRound,
 } from "lucide-react";
 import { FaApple, FaChrome } from "react-icons/fa";
@@ -54,24 +49,6 @@ const previewCards = [
     description: "The Chrome extension flow keeps trimming and export on your device too.",
     image: "/mac-preview-editor.png",
     alt: "LoomLess interface preview showing the local editor flow",
-  },
-];
-
-const faqItems = [
-  {
-    question: "What is LoomLess?",
-    answer:
-      "LoomLess is a free local-first screen recorder suite with a recorder-only macOS alpha app and a Chrome extension.",
-  },
-  {
-    question: "Does LoomLess upload my recordings?",
-    answer:
-      "No. LoomLess is built around a local-first workflow, so your video stays on your device.",
-  },
-  {
-    question: "What can I download right now?",
-    answer:
-      "You can download the macOS recorder-only alpha as a DMG and install the Chrome screen recorder extension.",
   },
 ];
 
@@ -133,28 +110,11 @@ const structuredData = [
 ];
 
 export default function Home() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const storedTheme =
-      typeof window !== "undefined" ? window.localStorage.getItem("loomless-theme") : null;
-    const nextTheme =
-      storedTheme === "dark" || storedTheme === "light" ? storedTheme : "light";
-
-    setTheme(nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem("loomless-theme", theme);
-  }, [theme]);
-
   return (
     <main className="relative overflow-hidden">
-      <div className="dot-matrix pointer-events-none absolute inset-0 opacity-60" />
-      <div className="hero-glow hero-glow-a pointer-events-none absolute top-0 left-0 h-[32rem] w-[32rem]" />
-      <div className="hero-glow hero-glow-b pointer-events-none absolute right-0 bottom-0 h-[34rem] w-[34rem]" />
+      <div className="dot-matrix pointer-events-none absolute inset-0" />
+      <div className="hero-glow hero-glow-a pointer-events-none absolute top-[-10%] left-[-10%] h-[40rem] w-[40rem]" />
+      <div className="hero-glow hero-glow-b pointer-events-none absolute right-[-10%] bottom-[-10%] h-[36rem] w-[36rem]" />
 
       <script
         type="application/ld+json"
@@ -162,33 +122,46 @@ export default function Home() {
       />
 
       <div className="page-shell">
-        <header className="flex flex-col gap-5 py-6 sm:py-8">
-          <div className="flex flex-col justify-between gap-4 rounded-[2rem] border border-[var(--line)] bg-[var(--card)] px-5 py-4 shadow-[0_24px_70px_rgba(17,24,39,0.08)] backdrop-blur md:flex-row md:items-center md:px-7">
-            <div className="flex items-center gap-4">
-              <Image
-                src="/loomless-icon.png"
-                alt="LoomLess icon"
-                width={60}
-                height={60}
-                className="rounded-[1.25rem] shadow-[0_14px_30px_rgba(84,110,255,0.2)]"
-              />
-              <div>
-                <p className="section-label">LoomLess</p>
-                <h1 className="font-display text-[2rem] leading-none text-[var(--fg)] sm:text-[2.3rem]">
-                  Free Screen Recorder for Mac &amp; Chrome
-                </h1>
-              </div>
+        <header className="flex items-center py-6 sm:py-8">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/loomless-icon.png"
+              alt="LoomLess"
+              width={48}
+              height={48}
+              className="rounded-[1.1rem] shadow-[0_12px_28px_rgba(110,92,219,0.28)]"
+            />
+            <div>
+              <h1 className="text-xl font-bold leading-tight text-[var(--fg)] sm:text-2xl">
+                LoomLess
+              </h1>
+              <p className="text-sm leading-tight text-[var(--muted)]">
+                Free Screen Recorder &amp; Editor
+              </p>
             </div>
+          </div>
+        </header>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+        <section className="grid items-center gap-10 py-4 lg:grid-cols-[1fr_1.1fr] lg:py-8">
+          <div className="max-w-xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line-strong)] bg-[var(--accent-soft)] px-3.5 py-1.5 text-[0.65rem] font-bold tracking-[0.14em] text-[var(--accent)] uppercase">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Your video never leaves your device
+            </span>
+
+            <p className="mt-5 max-w-md text-[1.1rem] leading-7 text-[var(--muted)] sm:text-[1.18rem] sm:leading-8">
+              An <span className="italic font-semibold text-[var(--accent)]">open-source</span> and privacy-first screen recorder that keeps everything local.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={links.desktopDownload}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="primary-button"
               >
-                <FaApple className="text-[1.05rem]" />
-                Download on Mac
+                <FaApple className="text-[1.1rem]" />
+                Download for Mac
               </Link>
               <Link
                 href={links.chrome}
@@ -196,218 +169,85 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="secondary-button"
               >
-                <FaChrome className="text-[1rem]" />
+                <FaChrome className="text-[1.05rem]" />
                 Add to Chrome
               </Link>
-              <button
-                type="button"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                aria-label="Toggle dark mode"
-                className="icon-button"
-              >
-                {theme === "dark" ? <Sun size={17} /> : <MoonStar size={17} />}
-              </button>
             </div>
           </div>
-        </header>
 
-        <section className="grid items-center gap-10 py-8 lg:grid-cols-[1.02fr_1fr] lg:py-12">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--accent-soft)] px-4 py-2 text-[0.73rem] font-semibold tracking-[0.22em] text-[var(--accent)] uppercase">
-              <ShieldCheck size={15} />
-              Your video NEVER leaves your device
-            </div>
-
-            <h2 className="mt-6 max-w-xl font-display text-5xl leading-[0.94] text-[var(--fg)] sm:text-6xl lg:text-7xl">
-              Clean capture.
-              <span className="block text-[var(--accent)]">Local workflow.</span>
-              <span className="block">Zero nonsense.</span>
-            </h2>
-
-            <p className="mt-5 max-w-xl text-[1.05rem] leading-8 text-[var(--muted)] sm:text-[1.12rem]">
-              LoomLess gives you a calm, local-first way to record your screen.
-              Download the recorder-only macOS alpha, grab the Chrome screen recorder
-              extension, and keep the whole flow on your own device.
-            </p>
-
-            <p className="mt-8 max-w-xl text-[0.98rem] leading-7 text-[var(--muted)]">
-              No sign up. No cloud upload. No forced account. Just record locally,
-              and use the Chrome extension flow when you want the fuller browser edit/export path.
-            </p>
-          </div>
-
-          <div className="surface-card overflow-hidden p-4 sm:p-5">
-            <div className="mb-3 flex items-center justify-between px-1">
-              <p className="section-label">Preview</p>
-              <Link
-                href={links.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-[var(--muted)] transition hover:text-[var(--fg)]"
-              >
-                <Github size={16} />
-                GitHub
-              </Link>
-            </div>
-            <video
-              src="/loomless-desktop-demo.mp4"
-              poster="/mac-preview-home.png"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              className="hero-video aspect-[16/10] w-full rounded-[1.6rem] object-cover"
-            />
-          </div>
+          <video
+            src="/loomless-desktop-demo.mp4"
+            poster="/mac-preview-home.png"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="hero-video aspect-[16/10] w-full object-cover"
+          />
         </section>
 
-        <section className="py-6 lg:py-10">
-          <div className="mb-8 flex flex-col gap-2">
-            <p className="section-label">Previews</p>
-            <h3 className="font-display text-4xl leading-none text-[var(--fg)] sm:text-5xl">
-              A quieter interface, built to feel fast.
-            </h3>
-          </div>
+        <hr className="section-divider my-8 lg:my-14" />
 
-          <div className="grid gap-5 lg:grid-cols-3">
-            {previewCards.map((card) => (
-              <article key={card.label} className="preview-card">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="section-label">{card.label}</p>
-                  <Sparkles size={15} className="text-[var(--accent)]" />
-                </div>
+        <section className="py-6 lg:py-8">
+          {previewCards.map((card, i) => (
+            <div
+              key={card.label}
+              className={`feature-row ${i < previewCards.length - 1 ? "mb-16 lg:mb-24" : ""}`}
+            >
+              <div className={i % 2 === 1 ? "lg:order-2" : ""}>
+                <p className="section-label mb-2">{card.label}</p>
+                <h3 className="font-display text-2xl text-[var(--fg)] sm:text-3xl">
+                  {card.title}
+                </h3>
+                <p className="mt-3 text-[1rem] leading-7 text-[var(--muted)] max-w-md">
+                  {card.description}
+                </p>
+              </div>
+              <div className={i % 2 === 1 ? "lg:order-1" : ""}>
                 <Image
                   src={card.image}
                   alt={card.alt}
                   width={1440}
                   height={900}
-                  className="rounded-[1.25rem] border border-[var(--line)] bg-white object-cover"
+                  className="feature-image"
                 />
-                <div className="mt-4">
-                  <h4 className="text-lg font-semibold text-[var(--fg)]">{card.title}</h4>
-                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                    {card.description}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
+              </div>
+            </div>
+          ))}
         </section>
 
-        <section className="py-10">
-          <div className="surface-card p-6 sm:p-7">
-            <div className="mb-6 flex flex-col gap-2">
-              <p className="section-label">Quick Links</p>
-              <h3 className="font-display text-3xl text-[var(--fg)] sm:text-4xl">
-                Everything important, one tap away.
-              </h3>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <Link
-                href={links.desktopDownload}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="quick-link secondary-button"
-              >
-                <FaApple className="text-[1.05rem]" />
-                Mac
-              </Link>
-              <Link
-                href={links.releases}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="quick-link secondary-button"
-              >
-                <CirclePlay size={16} />
-                Releases
-              </Link>
-              <Link
-                href={links.chrome}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="quick-link secondary-button"
-              >
-                <FaChrome className="text-[1rem]" />
-                Chrome
-              </Link>
-              <Link
-                href={links.donate}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="quick-link primary-button"
-              >
-                <HeartHandshake size={16} />
-                Support Dev
-              </Link>
-              <Link
-                href={links.author}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="quick-link primary-button"
-              >
-                <UserRound size={16} />
-                Connect with Dev
-              </Link>
-            </div>
-          </div>
-        </section>
+        <hr className="section-divider my-8 lg:my-14" />
 
-        <section className="py-10">
-          <div className="surface-card p-6 sm:p-7">
-            <div className="mb-6 flex flex-col gap-2">
-              <p className="section-label">Popular Searches</p>
-              <h3 className="font-display text-3xl text-[var(--fg)] sm:text-4xl">
-                Start from the page that matches what you are looking for.
-              </h3>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-3">
-              <Link href={links.freeRecorder} className="preview-card p-5">
-                <p className="section-label">Free Screen Recorder</p>
-                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                  Local-first recorder overview
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Broad overview of LoomLess for people searching for a free screen recorder without cloud upload.
-                </p>
-              </Link>
-              <Link href={links.chromeRecorder} className="preview-card p-5">
-                <p className="section-label">Chrome Screen Recorder</p>
-                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                  Chrome extension page
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Focused page for the LoomLess Chrome extension and browser-based local workflow.
-                </p>
-              </Link>
-              <Link href={links.macRecorder} className="preview-card p-5">
-                <p className="section-label">Screen Recorder for Mac</p>
-                <h4 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                  macOS alpha download page
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Focused page for the current recorder-only Mac alpha DMG and install flow.
-                </p>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section className="py-10">
-          <div className="mb-8 flex flex-col gap-2">
-            <p className="section-label">FAQ</p>
-            <h3 className="font-display text-4xl leading-none text-[var(--fg)] sm:text-5xl">
-              Straight answers.
+        {/* ---- Ecosystem ---- */}
+        <section className="py-8 lg:py-10">
+          <div className="mb-8 text-center">
+            <p className="section-label mb-2">Ecosystem</p>
+            <h3 className="font-display text-2xl text-[var(--fg)] sm:text-3xl">
+              More from LoomLess.
             </h3>
           </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            {faqItems.map((item) => (
-              <article key={item.question} className="surface-card p-5">
-                <h4 className="text-lg font-semibold text-[var(--fg)]">{item.question}</h4>
-                <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{item.answer}</p>
-              </article>
-            ))}
+          <div className="mx-auto max-w-lg rounded-2xl border border-[var(--line)] bg-white/50 p-6">
+            <div className="flex items-start gap-5">
+              <Image
+                src="/loomless-downloader.png"
+                alt="LoomLess Downloader"
+                width={48}
+                height={48}
+                className="rounded-xl shrink-0"
+              />
+              <div>
+                <h4 className="text-lg font-semibold text-[var(--fg)]">LoomLess Downloader</h4>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                  One-click media downloader for Twitter/X and Reddit. Save images and videos instantly, no signup.
+                </p>
+                <div className="mt-3">
+                  <a href="https://chromewebstore.google.com/detail/loomless-downloader/oghfagmhgdinagefagjpamiggcofjmii" target="_blank" rel="noopener noreferrer" className="secondary-button text-xs py-1.5 px-3">
+                    <FaChrome className="text-xs" /> Add to Chrome
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -415,53 +255,54 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Image
               src="/loomless-icon.png"
-              alt="LoomLess icon"
-              width={34}
-              height={34}
-              className="rounded-[0.9rem]"
+              alt="LoomLess"
+              width={30}
+              height={30}
+              className="rounded-[0.8rem]"
             />
             <p>LoomLess. Free local screen recorder suite.</p>
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <Link href={links.privacy} className="transition hover:text-[var(--fg)]">
+          <div className="flex flex-wrap gap-5">
+            <Link href={links.privacy} className="text-link">
               <span className="inline-flex items-center gap-2">
-                <Lock size={15} />
+                <Lock size={14} />
                 Privacy
               </span>
             </Link>
-            <Link href={links.faq} className="transition hover:text-[var(--fg)]">
+            <Link href={links.faq} className="text-link">
               <span className="inline-flex items-center gap-2">
-                <ShieldQuestion size={15} />
+                <ShieldQuestion size={14} />
                 FAQ
               </span>
             </Link>
-            <Link
-              href={links.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition hover:text-[var(--fg)]"
-            >
+            <Link href={links.github} target="_blank" rel="noopener noreferrer" className="text-link">
               <span className="inline-flex items-center gap-2">
-                <Github size={15} />
+                <Github size={14} />
                 GitHub
               </span>
             </Link>
-            <Link
-              href={links.releases}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition hover:text-[var(--fg)]"
-            >
+            <Link href={links.releases} target="_blank" rel="noopener noreferrer" className="text-link">
               <span className="inline-flex items-center gap-2">
-                <CirclePlay size={15} />
+                <CirclePlay size={14} />
                 Releases
+              </span>
+            </Link>
+            <Link href={links.donate} target="_blank" rel="noopener noreferrer" className="text-link">
+              <span className="inline-flex items-center gap-2">
+                <HeartHandshake size={14} />
+                Support
+              </span>
+            </Link>
+            <Link href={links.author} target="_blank" rel="noopener noreferrer" className="text-link">
+              <span className="inline-flex items-center gap-2">
+                <UserRound size={14} />
+                Connect
               </span>
             </Link>
           </div>
         </footer>
       </div>
-
     </main>
   );
 }

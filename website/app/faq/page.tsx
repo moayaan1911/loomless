@@ -1,69 +1,79 @@
-import type { Metadata } from "next";
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "LoomLess FAQ",
-  description:
-    "Answers about LoomLess, including the recorder-only macOS alpha, the Chrome extension workflow, privacy, permissions, and local exports.",
-  alternates: {
-    canonical: "/faq",
-  },
-  openGraph: {
-    title: "LoomLess FAQ",
-    description:
-      "Get clear answers about the LoomLess Mac alpha, Chrome extension, privacy, and local-first recording workflow.",
-    url: "https://loomless.fun/faq",
-  },
-};
+interface FaqItem {
+  question: string;
+  answer: string;
+}
 
-const faqs = [
+const studioFaq: FaqItem[] = [
   {
     question: "What is LoomLess?",
-    answer:
-      "LoomLess is a free local-first screen recorder suite. Right now it ships as a recorder-only macOS alpha plus a Chrome extension flow for browser recording and local editing.",
+    answer: "LoomLess is a free local-first screen recorder suite. Right now it ships as a recorder-only macOS alpha plus a Chrome extension flow for browser recording and local editing.",
   },
   {
     question: "Does LoomLess upload my recordings?",
-    answer:
-      "No. LoomLess is built around a local-first workflow, so your recordings stay on your device unless you choose to share them yourself.",
+    answer: "No. LoomLess is built around a local-first workflow, so your recordings stay on your device unless you choose to share them yourself.",
   },
   {
     question: "Do I need an account to use LoomLess?",
-    answer:
-      "No. LoomLess does not require sign-up, login, or cloud storage just to record your screen.",
+    answer: "No. LoomLess does not require sign-up, login, or cloud storage just to record your screen.",
   },
   {
     question: "What can I download today?",
-    answer:
-      "You can download the public macOS alpha DMG from the website and install the Chrome extension from the Chrome Web Store.",
+    answer: "You can download the public macOS alpha DMG from the website and install the Chrome extension from the Chrome Web Store.",
   },
   {
     question: "Does the macOS app include editing right now?",
-    answer:
-      "No. The current public Mac build is intentionally recorder-only alpha. When you stop a recording, LoomLess saves the file directly instead of opening a desktop editor.",
+    answer: "No. The current public Mac build is intentionally recorder-only alpha. When you stop a recording, LoomLess saves the file directly instead of opening a desktop editor.",
   },
   {
     question: "Where is the richer edit and export flow right now?",
-    answer:
-      "The fuller trim, crop, speed, and local export workflow currently lives in the Chrome extension flow rather than the public macOS alpha.",
+    answer: "The fuller trim, crop, speed, and local export workflow currently lives in the Chrome extension flow rather than the public macOS alpha.",
   },
   {
     question: "Does LoomLess support camera and microphone permissions?",
-    answer:
-      "Yes. The current tested website-download DMG flow has working permission prompts for camera and microphone when the selected recording mode needs them.",
+    answer: "Yes. The current tested website-download DMG flow has working permission prompts for camera and microphone when the selected recording mode needs them.",
   },
   {
     question: "Is LoomLess free?",
-    answer:
-      "Yes. LoomLess is positioned as a free screen recorder with a local-first workflow and no watermark-first pricing trap.",
+    answer: "Yes. LoomLess is positioned as a free screen recorder with a local-first workflow and no watermark-first pricing trap.",
+  },
+];
+
+const downloaderFaq: FaqItem[] = [
+  {
+    question: "What is LoomLess Downloader?",
+    answer: "LoomLess Downloader is a free browser extension that adds a one-click download button to Twitter/X and Reddit posts so you can save images and videos directly to your computer.",
+  },
+  {
+    question: "Which platforms does it support?",
+    answer: "Twitter / X (timelines, tweet detail pages, infinite scroll) and Reddit (www.reddit.com, old.reddit.com, feeds, subreddits, profiles, post detail pages).",
+  },
+  {
+    question: "Does it download all media from a post?",
+    answer: "Yes. It handles single images, multiple images (up to 4 on Twitter, 20+ on Reddit), videos, GIFs, and mixed media posts all in one click.",
+  },
+  {
+    question: "Is it free? Do I need an account?",
+    answer: "Completely free. No account, no signup, no API keys required. Everything runs locally in your browser.",
+  },
+  {
+    question: "Does it send my data anywhere?",
+    answer: "No. The extension is fully client-side. No telemetry, no tracking, no external servers. Media downloads directly from the source platform to your device.",
+  },
+  {
+    question: "Is it open source?",
+    answer: "Yes. Source code is available at github.com/moayaan1911/loomless-downloader.",
   },
 ];
 
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({
+  mainEntity: [...studioFaq, ...downloaderFaq].map((faq) => ({
     "@type": "Question",
     name: faq.question,
     acceptedAnswer: {
@@ -74,101 +84,72 @@ const structuredData = {
 };
 
 export default function FaqPage() {
+  const [tab, setTab] = useState<"studio" | "downloader">("studio");
+  const faqs = tab === "studio" ? studioFaq : downloaderFaq;
+
   return (
-    <main className="relative overflow-hidden">
+    <main className="page-shell py-10 sm:py-14">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
 
-      <div className="page-shell py-8 sm:py-10">
-        <section className="surface-card p-6 sm:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <Image
-              src="/loomless-icon.png"
-              alt="LoomLess logo"
-              width={72}
-              height={72}
-              className="rounded-[1.5rem] border border-[var(--line)] bg-white/80 p-2"
-            />
-            <div>
-              <p className="section-label">FAQ</p>
-              <h1 className="mt-2 font-display text-4xl text-[var(--fg)] sm:text-5xl">
-                Straight answers about LoomLess.
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-                This page covers the current public Mac alpha, the Chrome extension
-                flow, privacy, permissions, and what the product actually ships today.
-              </p>
-            </div>
-          </div>
+      <Link href="/" className="section-label mb-8 inline-block">
+        &larr; Back home
+      </Link>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <Link href="/screen-recorder-for-mac" className="preview-card p-5">
-              <p className="section-label">Mac</p>
-              <h2 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                Recorder-only alpha
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Download page for the current public DMG and install flow.
-              </p>
-            </Link>
-            <Link href="/chrome-screen-recorder" className="preview-card p-5">
-              <p className="section-label">Chrome</p>
-              <h2 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                Browser recorder flow
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Focused page for the extension and local edit/export workflow.
-              </p>
-            </Link>
-            <Link href="/free-screen-recorder" className="preview-card p-5">
-              <p className="section-label">Overview</p>
-              <h2 className="mt-2 text-lg font-semibold text-[var(--fg)]">
-                Free screen recorder guide
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Broad product overview for people comparing LoomLess to other tools.
-              </p>
-            </Link>
-          </div>
-        </section>
+      <div className="flex flex-col items-center text-center">
+        <h1 className="font-display text-3xl text-[var(--fg)] sm:text-4xl">
+          Frequently asked questions
+        </h1>
 
-        <section className="mt-8 grid gap-5">
-          {faqs.map((faq, index) => (
-            <article key={faq.question} className="surface-card p-6 sm:p-7">
-              <p className="section-label">Question {index + 1}</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[var(--fg)]">
-                {faq.question}
-              </h2>
-              <p className="mt-4 max-w-4xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-                {faq.answer}
-              </p>
-            </article>
-          ))}
-        </section>
-
-        <section className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--line)] pt-6 text-sm text-[var(--muted)]">
-          <p>LoomLess. Free local screen recorder suite.</p>
-          <div className="flex flex-wrap items-center gap-4">
-            <Link href="/" className="transition hover:text-[var(--fg)]">
-              Home
-            </Link>
-            <Link href="/screen-recorder-for-mac" className="transition hover:text-[var(--fg)]">
-              Mac Download
-            </Link>
-            <Link href="/chrome-screen-recorder" className="transition hover:text-[var(--fg)]">
-              Chrome Extension
-            </Link>
-            <Link
-              href="/loomless-studio-privacy-policy"
-              className="transition hover:text-[var(--fg)]"
-            >
-              Privacy
-            </Link>
-          </div>
-        </section>
+        <div className="mt-6 inline-flex rounded-full border border-[var(--line)] bg-[var(--bg-2)] p-1.5">
+          <button
+            type="button"
+            onClick={() => setTab("studio")}
+            className={`cursor-pointer rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+              tab === "studio"
+                ? "bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(110,92,219,0.32)]"
+                : "text-[var(--muted)] hover:text-[var(--fg)]"
+            }`}
+          >
+            LoomLess Studio
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("downloader")}
+            className={`cursor-pointer rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+              tab === "downloader"
+                ? "bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(110,92,219,0.32)]"
+                : "text-[var(--muted)] hover:text-[var(--fg)]"
+            }`}
+          >
+            LoomLess Downloader
+          </button>
+        </div>
       </div>
+
+      <hr className="section-divider my-8" />
+
+      <div className="mx-auto max-w-2xl">
+        {faqs.map((faq, i) => (
+          <div key={faq.question} className="mt-6 first:mt-0">
+            <h2 className="font-semibold text-[var(--fg)]">
+              {faq.question}
+            </h2>
+            <p className="mt-1 text-sm leading-7 text-[var(--muted)]">
+              {faq.answer}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <hr className="section-divider my-10" />
+
+      <footer className="flex flex-wrap items-center justify-between gap-4 text-sm text-[var(--muted)]">
+        <p>LoomLess. Free local screen recorder suite.</p>
+        <Link href="/" className="text-link">Back home</Link>
+      </footer>
     </main>
   );
 }
