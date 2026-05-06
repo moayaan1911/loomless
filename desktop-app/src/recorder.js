@@ -1776,8 +1776,8 @@ function stopRecording() {
 async function handleRecordingComplete() {
   try {
     // Update UI for processing
-    statusText.textContent = "Downloading...";
-    recordingLabel.textContent = "Preparing Download...";
+    statusText.textContent = "Opening Editor...";
+    recordingLabel.textContent = "Preparing Editor...";
     recordingLabel.style.display = "";
 
     // Create blob from recorded chunks
@@ -1791,39 +1791,21 @@ async function handleRecordingComplete() {
     const fileExtension = (recorderMimeType || "").includes("mp4") ? "mp4" : "webm";
     const filename = `loomless-recording-${timestamp}.${fileExtension}`;
 
-    if (window.__TAURI__) {
-      const { save } = window.__TAURI__.dialog;
-      const { writeFile } = window.__TAURI__.fs;
-      const filePath = await save({
-        defaultPath: filename,
-        filters: [
-          {
-            name: fileExtension.toUpperCase(),
-            extensions: [fileExtension],
-          },
-        ],
-      });
-
-      if (!filePath) {
-        resetUIToInitial();
-        return;
+    // Store to IndexedDB for editor access
+    const recordingId = await window.videoStorage.storeRecording(
+      blob,
+      recorderMimeType || "video/webm",
+      {
+        filename,
+        timestamp,
+        duration: recordingDuration || 0,
       }
+    );
 
-      const arrayBuffer = await blob.arrayBuffer();
-      await writeFile(filePath, new Uint8Array(arrayBuffer));
-    } else {
-      const objectUrl = URL.createObjectURL(blob);
-      const downloadLink = document.createElement("a");
-      downloadLink.href = objectUrl;
-      downloadLink.download = filename;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      downloadLink.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    }
-
-    showSuccessMessage();
-    resetUIToInitial();
+    // Navigate to editor
+    setTimeout(() => {
+      openEditingTab(recordingId);
+    }, 800);
   } catch (error) {
     console.error("Error processing recording:", error);
     handleRecordingError(error);

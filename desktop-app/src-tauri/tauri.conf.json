@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "LoomLess (alpha)",
+  "productName": "LoomLess",
   "mainBinaryName": "LoomLess",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "identifier": "com.loomless.desktop",
   "build": {
     "frontendDist": "../src"
@@ -11,7 +11,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "LoomLess (alpha): Local Screen Recorder",
+        "title": "LoomLess: Local Screen Recorder",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -34,7 +34,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/camera-overlay"],
+    "externalBin": ["binaries/camera-overlay", "binaries/video-exporter"],
     "macOS": {
       "signingIdentity": "-",
       "entitlements": "./Entitlements.plist"

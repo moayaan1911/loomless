@@ -1366,10 +1366,8 @@ function cleanupCurrentRecordingLater() {
   }, 1000);
 }
 
-async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
-  // Native desktop trim export is temporarily disabled until the macOS
-  // avconvert path is stable again. Fall back to the proven in-browser export.
-  if (true || !window.__TAURI__ || hasCrop || Math.abs(playbackSpeed - 1) > 0.001) {
+async function tryNativeDesktopMp4Export(hasCrop, clipEnd) {
+  if (!window.__TAURI__ || exportFormat !== "mp4") {
     return false;
   }
 
@@ -1377,7 +1375,7 @@ async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
     hideExportModal();
     restoreExportControls();
     showStatus(
-      "This recording was captured as WebM. Make a new desktop recording after this update so native MP4 trim export can work.",
+      "This recording was captured as WebM. Make a new desktop recording so MP4 export can use the native exporter.",
       "error"
     );
     return true;
@@ -1406,7 +1404,7 @@ async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
   }
 
   if (exportModalText) {
-    exportModalText.textContent = "Preparing native export...";
+    exportModalText.textContent = "Preparing MP4 export...";
   }
   if (exportModalProgressBar) {
     exportModalProgressBar.style.width = "25%";
@@ -1419,22 +1417,28 @@ async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
   });
 
   if (exportModalText) {
-    exportModalText.textContent = "Trimming with native exporter...";
+    exportModalText.textContent = hasCrop || Math.abs(playbackSpeed - 1) > 0.001
+      ? "Rendering MP4 edits natively..."
+      : "Trimming MP4 natively...";
   }
   if (exportModalProgressBar) {
     exportModalProgressBar.style.width = "70%";
   }
 
-  // Add timeout for native export (30 seconds max)
-  const exportPromise = invoke("native_trim_export_video", {
+  const exportPromise = invoke("native_mp4_export_video", {
     tempSourceName,
     outputPath,
     trimStart: trimStartTime,
     trimEnd: clipEnd,
+    playbackSpeed,
+    cropX: hasCrop ? cropSettings.x : 0,
+    cropY: hasCrop ? cropSettings.y : 0,
+    cropWidth: hasCrop ? cropSettings.width : 0,
+    cropHeight: hasCrop ? cropSettings.height : 0,
   });
   
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error("Export timed out after 30 seconds")), 30000);
+    setTimeout(() => reject(new Error("Export timed out after 120 seconds")), 120000);
   });
   
   try {
@@ -1449,8 +1453,10 @@ async function tryNativeDesktopTrimExport(hasCrop, clipEnd) {
     } catch (cleanupError) {
       // Ignore cleanup errors
     }
-    // Return false to fall back to canvas-based export
-    return false;
+    hideExportModal();
+    restoreExportControls();
+    showStatus(`Desktop MP4 export failed: ${error.message || error}`, "error");
+    return true;
   }
 
   if (exportModalProgressBar) {
@@ -1629,8 +1635,8 @@ async function attachElementAudioTrackToStream(video, stream, options = {}) {
 
 function handleDiscard() {
   try {
-    if (window.videoStorage && currentRecordingId) {
-      window.videoStorage.deleteRecording(currentRecordingId);
+    if (window.videoStorage && currentRecording && currentRecording.id) {
+      window.videoStorage.deleteRecording(currentRecording.id);
     }
   } catch (e) {
     console.warn("Could not delete recording:", e);
@@ -1686,6 +1692,13 @@ async function handleDownload() {
     // Determine if crop is active
     const hasCrop = hasActiveCropSelection();
 
+    const nativeClipEnd = Number.isFinite(trimEndTime)
+      ? trimEndTime
+      : sourceDuration;
+    if (await tryNativeDesktopMp4Export(hasCrop, nativeClipEnd)) {
+      return;
+    }
+
     // Create MediaRecorder with appropriate settings
     const exportSettings = selectExportSettings(exportFormat);
     const {
@@ -1721,13 +1734,6 @@ async function handleDownload() {
       ? trimEndTime
       : processingVideo.duration;
     const rawDuration = Math.max(0, clipEnd - trimStartTime);
-
-    if (await tryNativeDesktopTrimExport(hasCrop, clipEnd)) {
-      try {
-        processingVideo.remove();
-      } catch (error) {}
-      return;
-    }
 
     console.log("[EXPORT] Video dimensions:", processingVideo.videoWidth, "x", processingVideo.videoHeight);
     console.log("[EXPORT] Clip range:", trimStartTime, "to", clipEnd, "duration:", rawDuration);

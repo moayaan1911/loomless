@@ -304,6 +304,106 @@ fn native_trim_export_video(
     }
 }
 
+#[tauri::command]
+async fn native_mp4_export_video(
+    app: tauri::AppHandle,
+    temp_source_name: String,
+    output_path: String,
+    trim_start: f64,
+    trim_end: f64,
+    playback_speed: f64,
+    crop_x: f64,
+    crop_y: f64,
+    crop_width: f64,
+    crop_height: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        if trim_end <= trim_start {
+            return Err("trim end must be greater than trim start".into());
+        }
+
+        let temp_dir = app
+            .path()
+            .temp_dir()
+            .map_err(|error| format!("failed to resolve temp directory: {error}"))?;
+
+        let source_path = temp_dir.join(&temp_source_name);
+        if !source_path.exists() {
+            return Err(format!(
+                "temporary source recording was not found: {}",
+                source_path.display()
+            ));
+        }
+
+        let source_path_string = source_path.to_string_lossy().to_string();
+        let args = [
+            "--source".to_string(),
+            source_path_string,
+            "--output".to_string(),
+            output_path,
+            "--trim-start".to_string(),
+            trim_start.to_string(),
+            "--trim-end".to_string(),
+            trim_end.to_string(),
+            "--speed".to_string(),
+            playback_speed.to_string(),
+            "--crop-x".to_string(),
+            crop_x.to_string(),
+            "--crop-y".to_string(),
+            crop_y.to_string(),
+            "--crop-width".to_string(),
+            crop_width.to_string(),
+            "--crop-height".to_string(),
+            crop_height.to_string(),
+        ];
+
+        let output = app
+            .shell()
+            .sidecar("video-exporter")
+            .map_err(|error| format!("failed to create video exporter command: {error}"))?
+            .args(args)
+            .output()
+            .await
+            .map_err(|error| format!("failed to run native video exporter: {error}"));
+
+        let _ = fs::remove_file(&source_path);
+
+        let output = output?;
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !stderr.is_empty() {
+            Err(stderr)
+        } else if !stdout.is_empty() {
+            Err(stdout)
+        } else {
+            Err(format!(
+                "native video exporter failed with status: {:?}",
+                output.status
+            ))
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        let _ = temp_source_name;
+        let _ = output_path;
+        let _ = trim_start;
+        let _ = trim_end;
+        let _ = playback_speed;
+        let _ = crop_x;
+        let _ = crop_y;
+        let _ = crop_width;
+        let _ = crop_height;
+        Err("native MP4 export is only implemented for macOS".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -321,7 +421,8 @@ pub fn run() {
             set_camera_overlay_controls,
             set_camera_overlay_state,
             quit_camera_overlay,
-            native_trim_export_video
+            native_trim_export_video,
+            native_mp4_export_video
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -346,7 +447,7 @@ pub fn run() {
             let quit_i = MenuItem::with_id(
                 app,
                 "quit",
-                "Quit LoomLess (alpha)",
+                "Quit LoomLess",
                 true,
                 None::<&str>,
             )?;
@@ -357,7 +458,7 @@ pub fn run() {
                 .icon(app.default_window_icon().cloned().expect("no app icon"))
                 .menu(&menu)
                 .show_menu_on_left_click(true)
-                .tooltip("LoomLess (alpha)")
+                .tooltip("LoomLess")
                 .on_menu_event(|app_handle, event| match event.id.as_ref() {
                     "pause-resume" => {
                         if let Some(window) = app_handle.get_webview_window("main") {
