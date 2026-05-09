@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="recorder.css" />
-    <title>LoomLess: Local Screen Recorder</title>
+    <title>LoomLess: Free Screen Recorder & Editor</title>
   </head>
   <body>
     <div class="studio-container">
@@ -217,6 +217,13 @@
 
       <!-- Footer -->
       <footer class="studio-footer">
+        <div class="footer-privacy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="privacy-icon">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>YOUR VIDEO NEVER LEAVES YOUR DEVICE</span>
+        </div>
         <div class="footer-links">
           <a href="https://moayaan.com" target="_blank" rel="noopener noreferrer" class="footer-link" title="Connect with Dev">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -246,10 +253,7 @@
       <div class="settings-modal hidden" id="settingsModal" aria-hidden="true">
         <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
           <div class="settings-header">
-            <div>
-              <p class="settings-eyebrow">Studio Settings</p>
-              <h2 id="settingsTitle">Customize LoomLess</h2>
-            </div>
+            <h2 id="settingsTitle">Settings</h2>
             <button class="settings-close-btn" id="settingsCloseBtn" type="button" aria-label="Close settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -258,78 +262,73 @@
             </button>
           </div>
 
-          <section class="settings-section">
-            <div class="settings-section-title">Recording</div>
-            <div class="settings-row">
-              <div>
-                <p class="settings-label">Version 1.0.0</p>
-                <p class="settings-copy">Privacy-first screen recording. Local editor with trim, crop, and speed controls.</p>
-              </div>
-            </div>
-            <div class="settings-row settings-row-toggle" id="systemAudioSettingRow" hidden>
-              <div>
-                <p class="settings-label">Show Floating Controls</p>
-                <p class="settings-copy">Play/Pause and Stop buttons toggle</p>
+          <div class="settings-body">
+            <!-- Floating Controls Toggle -->
+            <div class="settings-item" id="systemAudioSettingRow" hidden>
+              <div class="settings-item-left">
+                <div class="settings-item-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                  </svg>
+                </div>
+                <div class="settings-item-text">
+                  <span class="settings-item-label">Show Floating Controls</span>
+                  <span class="settings-item-desc">Quick pause, resume &amp; stop during recording</span>
+                </div>
               </div>
               <label class="settings-switch" for="floatingControlsToggle">
                 <input type="checkbox" id="floatingControlsToggle" />
                 <span class="settings-switch-slider"></span>
               </label>
             </div>
-          </section>
 
-          <section class="settings-section">
-            <div class="settings-section-title">Appearance</div>
-            <div class="theme-selector" id="themeSelector">
-              <button class="theme-option-btn" type="button" data-theme-preference="system">System</button>
-              <button class="theme-option-btn" type="button" data-theme-preference="light">Light</button>
-              <button class="theme-option-btn" type="button" data-theme-preference="dark">Dark</button>
+            <div class="settings-divider"></div>
+
+            <!-- Appearance -->
+            <div class="settings-item">
+              <div class="settings-item-text">
+                <span class="settings-item-label">Appearance</span>
+                <div class="theme-selector" id="themeSelector">
+                  <button class="theme-option-btn" type="button" data-theme-preference="system">System</button>
+                  <button class="theme-option-btn" type="button" data-theme-preference="light">Light</button>
+                  <button class="theme-option-btn" type="button" data-theme-preference="dark">Dark</button>
+                </div>
+              </div>
             </div>
-          </section>
 
-          <section class="settings-section settings-section-also-check">
-            <div class="settings-section-title">Also Check Out</div>
-            <div class="also-check-grid">
-              <a href="https://pizbot.com" target="_blank" rel="noopener noreferrer" class="also-check-card">
-                <div class="also-check-icon">
-                  <img src="assets/pizbot.png" alt="PizBot" />
-                </div>
-                <span class="also-check-name">PizBot</span>
-              </a>
-              <a href="https://imanvibes.vercel.app" target="_blank" rel="noopener noreferrer" class="also-check-card">
-                <div class="also-check-icon">
-                  <img src="assets/imanvibes.png" alt="ImanVibes" />
-                </div>
-                <span class="also-check-name">ImanVibes</span>
-              </a>
-              <a href="https://loomless.fun" target="_blank" rel="noopener noreferrer" class="also-check-card">
-                <div class="also-check-icon">
+            <div class="settings-divider"></div>
+
+            <!-- Also Check Out -->
+            <div class="settings-item">
+              <span class="settings-item-label">Also try</span>
+              <div class="settings-checkout-row">
+                <a href="https://loomless.fun" target="_blank" rel="noopener noreferrer" class="settings-checkout-item">
                   <img src="assets/icon.png" alt="LoomLess" />
-                </div>
-                <span class="also-check-name">LoomLess</span>
-              </a>
+                  <span>LoomLess</span>
+                </a>
+                <a href="https://imanvibes.vercel.app" target="_blank" rel="noopener noreferrer" class="settings-checkout-item">
+                  <img src="assets/imanvibes.png" alt="ImanVibes" />
+                  <span>ImanVibes</span>
+                </a>
+              </div>
             </div>
-          </section>
 
-          <section class="settings-section settings-section-update-compact">
-            <div class="settings-row settings-update-row">
-              <div class="settings-update-inline">
-                <span class="settings-update-inline-title">Updates</span>
-                <span class="settings-update-inline-copy" id="updateStatusCopy">Automatic update checks run when the app launches.</span>
-                <span class="settings-update-inline-meta" id="currentVersionValue">Loading...</span>
-                <span class="settings-update-inline-meta hidden" id="latestVersionRow">
-                  Latest <span id="latestVersionValue">-</span>
-                </span>
+            <div class="settings-divider"></div>
+
+            <!-- Version & Updates -->
+            <div class="settings-item settings-item-inline">
+              <div class="settings-version-meta">
+                <span class="settings-version-num">v1.0.0</span>
+                <span class="settings-version-sep">&#8226;</span>
                 <span class="settings-status-badge is-muted" id="updateStatusBadge">Loading</span>
               </div>
-              <div class="settings-links settings-update-actions">
-                <button class="settings-link-btn settings-link-btn-primary" id="checkUpdatesBtn" type="button">Check</button>
-                <button class="settings-link-btn hidden" id="installUpdateBtn" type="button">
-                  Update
-                </button>
+              <div class="settings-update-actions">
+                <button class="settings-link-btn" id="checkUpdatesBtn" type="button">Check</button>
+                <button class="settings-link-btn hidden" id="installUpdateBtn" type="button">Update</button>
               </div>
             </div>
-          </section>
+          </div>
         </div>
       </div>
     </div>
