@@ -17,6 +17,10 @@ skills-lock.json
 loomless-demo
 .vscode
 
+# Other product surface folders (managed on their own branches)
+mobile/
+electron-app/
+
 # Secrets and local credentials
 *.pem
 *.key
