@@ -4,7 +4,7 @@ import { FaApple, FaChrome } from "react-icons/fa";
 
 const links = {
   desktopDownload:
-    "https://github.com/moayaan1911/loomless/releases/download/v0.0.1/LoomLess-alpha-0.0.1-aarch64.dmg",
+    "https://github.com/moayaan1911/loomless/releases/download/v1.0.0/LoomLess_1.0.0_aarch64.dmg",
   chrome:
     "https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj",
 };

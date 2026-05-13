@@ -3,12 +3,12 @@ import Link from "next/link";
 import { FaApple, FaChrome } from "react-icons/fa";
 
 const desktopDownload =
-  "https://github.com/moayaan1911/loomless/releases/download/v0.0.1/LoomLess-alpha-0.0.1-aarch64.dmg";
+  "https://github.com/moayaan1911/loomless/releases/download/v1.0.0/LoomLess_1.0.0_aarch64.dmg";
 
 export const metadata: Metadata = {
   title: "Screen Recorder for Mac",
   description:
-    "Download LoomLess for Mac, a free recorder-only alpha screen recorder DMG with local save flow, camera and microphone support, and no sign-up.",
+    "Download LoomLess for Mac, a free screen recorder DMG with local save flow, camera and microphone support, and no sign-up.",
   alternates: {
     canonical: "/screen-recorder-for-mac",
   },
