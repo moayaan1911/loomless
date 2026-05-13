@@ -36,7 +36,7 @@
     ],
     "externalBin": ["binaries/camera-overlay", "binaries/video-exporter"],
     "macOS": {
-      "signingIdentity": "-",
+      "signingIdentity": "Developer ID Application: Pritam Yadav (TAPQSCS388)",
       "entitlements": "./Entitlements.plist"
     }
   },
