@@ -56,8 +56,8 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 Today, the public shipping state is:
 
-- **macOS desktop app:** recorder-only **alpha** build. Record locally, then save/download immediately when you stop.
-- **Chrome extension:** local-first browser recording flow with the richer editor/export experience.
+- **macOS desktop app (v1.0.0):** native desktop recording with camera overlay, trim, crop, speed controls, and MP4 export.
+- **Chrome extension:** local-first browser recording flow with the full edit/export experience.
 
 Whether you want a lightweight recorder, a clean browser editing flow, or a local-first alternative to cloud-heavy tools, LoomLess keeps the experience fast, simple, and fully under your control.
 
@@ -103,16 +103,8 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 
 | Surface | Status | What Ships Right Now |
 | ------- | ------ | -------------------- |
-| 🖥️ **macOS Desktop App** | **Public alpha** | Recorder-only flow, camera/mic permission prompts, stop-to-save/download flow, local recording |
-| 🌐 **Chrome Extension** | **Primary full experience** | Screen recording plus the local edit/export workflow inside the browser flow |
-| 🧪 **Desktop editor/export** | **Not in current public macOS alpha** | Trim / crop / speed desktop flow is intentionally not part of the current shipped Mac build |
-
-### macOS Alpha Notes
-
-- The current public macOS app is intentionally **recorder-only**.
-- When recording stops, the file saves/downloads directly instead of opening a desktop editor.
-- Treat the macOS app as an **alpha** release: stable for the tested recorder flow, but not the final desktop feature set.
-- The richer edit/export workflow is still planned for future updates after the recorder-only desktop alpha.
+| 🖥️ **macOS Desktop App** | **v1.0.0** | Full recording flow with camera overlay, trim, crop, speed controls, and MP4 export |
+| 🌐 **Chrome Extension** | **Stable** | Screen recording plus the local edit/export workflow inside the browser |
 
 ---
 
@@ -120,7 +112,7 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 
 <div align="center">
 
-### 🎬 **Currently Shipping on macOS Alpha**
+### 🖥️ **macOS Desktop App (v1.0.0)**
 
 </div>
 
@@ -131,14 +123,16 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 | 🎛️ **Floating Controls**   | Pause, resume, and stop during recording                 |
 | 🔊 **Audio Support**       | Record local audio in the currently shipped tested flow  |
 | 🎙️ **Microphone Support**  | Record your voice narration simultaneously               |
-| 📷 **Camera Overlay**      | Record with facecam in supported camera modes            |
-| 💾 **Direct Save on Stop** | Stopping the recording immediately triggers file save    |
+| 📷 **Camera Overlay**      | Floating camera window that stays on top across all apps |
+| ✂️ **Trim & Crop**         | Built-in trim controls and free-form crop                |
+| ⚡ **Speed Control**       | 0.5x to 2x playback speed presets                       |
+| ⬇️ **Native MP4 Export**   | Hardware-accelerated MP4 export via AVFoundation         |
 | 🎯 **High Quality**        | Crystal clear recordings at native resolution            |
-| ⚡ **Lightweight**         | Minimal UI focused on the recorder flow                  |
+| ⚡ **Lightweight**         | Minimal UI focused on the recording flow                 |
 
 <div align="center">
 
-### 🌐 **Chrome Extension / Browser Flow**
+### 🌐 **Chrome Extension**
 
 </div>
 
@@ -201,7 +195,7 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 | ---- | --------- |
 | <img src="./assets/desktop-app-home.png" alt="LoomLess desktop app home screen" width="100%" /> | <img src="./assets/desktop-app-recording.png" alt="LoomLess desktop app active recording view" width="100%" /> |
 
-> Note: the current public macOS build is a **recorder-only alpha**. The old desktop editor/export screenshot is intentionally not shown here because that flow is not part of the current shipped Mac release.
+> Note: screenshots reflect the v1.0.0 macOS desktop app with the full recording and editing flow.
 
 ### Studio Extension
 
@@ -225,17 +219,17 @@ Or visit **[loomless.fun](https://loomless.fun)** to learn more before installin
 
 ### 🖥️ Option 2: macOS Desktop App
 
-Download the current public **recorder-only alpha** from:
+Download the latest **v1.0.0** from:
 
 - **Website:** [loomless.fun](https://loomless.fun)
-- **GitHub Releases:** [v0.0.1](https://github.com/moayaan1911/loomless/releases/tag/v0.0.1)
+- **GitHub Releases:** [v1.0.0](https://github.com/moayaan1911/loomless/releases/latest)
 
-What to expect from the current public Mac build:
+What to expect from the current Mac build:
 
-- one-time permission prompts for screen / mic / camera as needed
-- recorder-focused UI
-- direct save/download when you stop recording
-- **no desktop editor flow in this alpha**
+- floating camera overlay that stays on top across all apps
+- built-in trim, crop, and speed controls
+- native hardware-accelerated MP4 export
+- global shortcuts and tray controls
 
 For local development:
 
