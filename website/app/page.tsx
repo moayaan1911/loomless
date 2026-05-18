@@ -59,7 +59,7 @@ const structuredData = [
     name: "LoomLess",
     url: "https://loomless.fun",
     description:
-      "Free screen recorder for Mac and Chrome. Local-first, privacy-focused, with a recorder-only macOS alpha and a Chrome extension recording flow.",
+      "Free screen recorder for Mac and Chrome. Local-first, privacy-focused, with a macOS desktop app and a Chrome extension recording flow.",
   },
   {
     "@context": "https://schema.org",
@@ -67,7 +67,7 @@ const structuredData = [
     name: "LoomLess for macOS",
     operatingSystem: "macOS",
     applicationCategory: "MultimediaApplication",
-    softwareVersion: "0.0.1",
+    softwareVersion: "1.0.0",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -77,7 +77,7 @@ const structuredData = [
     url: "https://loomless.fun",
     image: "https://loomless.fun/loomless-icon.png",
     description:
-      "Free screen recorder for Mac. The current public macOS build is a recorder-only alpha that records locally and saves directly after capture.",
+      "Free screen recorder for Mac. The macOS desktop app records locally and saves directly after capture.",
   },
   {
     "@context": "https://schema.org",

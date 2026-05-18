@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   },
   applicationName: "LoomLess",
   description:
-    "LoomLess is a free local-first screen recorder for Mac and Chrome. Download the recorder-only macOS alpha DMG or install the Chrome extension. Your video NEVER leaves your device.",
+    "LoomLess is a free local-first screen recorder for Mac and Chrome. Download for macOS or install the Chrome extension. Your video NEVER leaves your device.",
   keywords: [
     "free screen recorder",
     "free screen recorder for mac",
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "LoomLess | Free Screen Recorder for Mac & Chrome",
     description:
-      "Download the recorder-only macOS alpha or install the Chrome screen recorder extension. Record locally and keep your video on your own device.",
+      "Download the macOS desktop app or install the Chrome screen recorder extension. Record locally and keep your video on your own device.",
     url: "https://loomless.fun",
     siteName: "LoomLess",
     locale: "en_US",
@@ -89,14 +89,14 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "LoomLess | Free Screen Recorder for Mac & Chrome",
     description:
-      "Free local-first screen recorder for macOS and Chrome. Recorder-only Mac alpha plus Chrome extension.",
+      "Free local-first screen recorder for macOS and Chrome. Mac desktop app plus Chrome extension.",
     images: ["/opengraph-image"],
     creator: "@moayaan1911",
     site: "@moayaan1911",
   },
   other: {
     "ai:description":
-      "LoomLess is a free local-first screen recorder for Mac and Chrome. The current macOS app is a recorder-only alpha DMG, and the Chrome extension covers the richer browser recording workflow. The core product promise is that your video never leaves your device.",
+      "LoomLess is a free local-first screen recorder for Mac and Chrome. The macOS desktop app is v1.0.0, and the Chrome extension covers the browser recording workflow. The core product promise is that your video never leaves your device.",
   },
 };
 
