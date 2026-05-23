@@ -28,6 +28,7 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 **YOUR VIDEO NEVER LEAVES YOUR DEVICE**
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install_Now-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/loomless/hpblkhdjmbiokmnemdmccpppjeoddecj)
+[![Peerlist](https://img.shields.io/badge/Peerlist-Launchpad-00D5FF?style=for-the-badge&logo=peerlist&logoColor=white)](https://peerlist.io/ayaaneth/project/loomless--screen-recorder-for-mac--chrome)
 [![Website](https://img.shields.io/badge/Website-loomless.fun-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://loomless.fun)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Support](https://img.shields.io/badge/Support_My_Work-💜_Donate-ff69b4?style=for-the-badge)](https://moayaan.com/donate)
@@ -52,12 +53,13 @@ Let’s connect and build something epic! Find me at [moayaan.com](https://moaya
 
 </div>
 
-**LoomLess** is a privacy-first screen recording suite with a **macOS desktop app**, **Chrome extension**, and **landing page** built around one simple idea: **YOUR VIDEO NEVER LEAVES YOUR DEVICE**.
+**LoomLess** is a privacy-first screen recording suite with a **macOS desktop app**, **Chrome extensions** (Studio + Downloader), and **landing page** built around one simple idea: **YOUR VIDEO NEVER LEAVES YOUR DEVICE**.
 
 Today, the public shipping state is:
 
 - **macOS desktop app (v1.0.0):** native desktop recording with camera overlay, trim, crop, speed controls, and MP4 export.
-- **Chrome extension:** local-first browser recording flow with the full edit/export experience.
+- **Chrome extension (Studio):** local-first browser recording flow with the full edit/export experience.
+- **Chrome extension (Downloader):** download media from X/Twitter and Reddit without watermarks.
 
 Whether you want a lightweight recorder, a clean browser editing flow, or a local-first alternative to cloud-heavy tools, LoomLess keeps the experience fast, simple, and fully under your control.
 
@@ -104,7 +106,9 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 | Surface | Status | What Ships Right Now |
 | ------- | ------ | -------------------- |
 | 🖥️ **macOS Desktop App** | **v1.0.0** | Full recording flow with camera overlay, trim, crop, speed controls, and MP4 export |
-| 🌐 **Chrome Extension** | **Stable** | Screen recording plus the local edit/export workflow inside the browser |
+| 🌐 **Chrome Extension (Studio)** | **Stable** | Screen recording plus the local edit/export workflow inside the browser |
+| 🧩 **Chrome Extension (Downloader)** | **Stable** | Download media from X/Twitter and Reddit without watermarks |
+| 🌍 **Landing Page** | **Live** | Product site at [loomless.fun](https://loomless.fun) — Next.js, responsive, dark/light mode |
 
 ---
 
@@ -132,7 +136,7 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 
 <div align="center">
 
-### 🌐 **Chrome Extension**
+### 🌐 **Chrome Extension (Studio)**
 
 </div>
 
@@ -142,6 +146,19 @@ Visit **[loomless.fun](https://loomless.fun)** for updates and public release in
 | 🖱️ **Drag to Reposition** | Move the camera bubble anywhere on screen before recording  |
 | 🎭 **Smart Compositing**  | Automatically handles all capture modes without duplication |
 | 🔇 **Mic + Cam Combo**    | Record screen, webcam, and microphone all at once           |
+
+<div align="center">
+
+### 🧩 **Chrome Extension (Downloader)**
+
+</div>
+
+| Feature                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| 🐦 **X / Twitter Media**  | Download videos and images without watermarks             |
+| 🔴 **Reddit Media**       | Save videos and images from Reddit posts                    |
+| 📋 **One-Click Copy**     | Copy media URLs to clipboard instantly                    |
+| 💾 **Direct Download**    | Save files locally with original quality                  |
 
 <div align="center">
 
@@ -205,7 +222,7 @@ _Screenshots coming soon after the extension release is finalized._
 
 ## 🚀 Installation
 
-### 📦 Option 1: Chrome Extension
+### 📦 Option 1: Chrome Extension (Studio)
 
 <div align="center">
 
@@ -213,11 +230,21 @@ _Screenshots coming soon after the extension release is finalized._
 
 </div>
 
-Just click the button above and hit **"Add to Chrome"** - that's it! 🎉
+Just click the button above and hit **"Add to Chrome"** — that's it! 🎉
 
 Or visit **[loomless.fun](https://loomless.fun)** to learn more before installing.
 
-### 🖥️ Option 2: macOS Desktop App
+### 🧩 Option 2: Chrome Extension (Downloader)
+
+<div align="center">
+
+[![Install Downloader](https://img.shields.io/badge/Install_Downloader-Chrome_Web_Store-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/loomless-downloader/oghfagmhgdinagefagjpamiggcofjmii)
+
+</div>
+
+Download media from X/Twitter and Reddit without watermarks.
+
+### 🖥️ Option 3: macOS Desktop App
 
 Download the latest **v1.0.0** from:
 
@@ -247,7 +274,7 @@ bash sidecar/build.sh
 npm run tauri build
 ```
 
-### 🛠️ Option 3: Manual Extension Installation (For Developers)
+### 🛠️ Option 4: Manual Extension Installation (For Developers)
 
 <details>
 <summary><b>Click to expand installation steps</b></summary>
@@ -358,6 +385,7 @@ Click puzzle icon 🧩 → Pin LoomLess 📌
 | ![Rust](https://img.shields.io/badge/Rust-Backend-000000?style=flat-square&logo=rust&logoColor=white)                   | Tauri backend                   |
 | ![Swift](https://img.shields.io/badge/Swift-Sidecar-FA7343?style=flat-square&logo=swift&logoColor=white)                | Native macOS camera overlay     |
 | ![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?style=flat-square&logo=google-chrome&logoColor=white)  | Extension platform              |
+| ![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)                | Landing page (loomless.fun)     |
 | ![MediaRecorder](https://img.shields.io/badge/API-MediaRecorder-FF6B6B?style=flat-square)                               | Screen and audio capture        |
 | ![Canvas](https://img.shields.io/badge/API-Canvas-9B59B6?style=flat-square)                                             | Overlay compositing and export  |
 | ![getUserMedia](https://img.shields.io/badge/API-getUserMedia-27AE60?style=flat-square)                                 | Webcam and microphone access    |
@@ -373,12 +401,14 @@ loomless/
 │   ├── 📂 src/            # Recorder/editor frontend
 │   ├── 📂 src-tauri/      # Rust backend and app bundle config
 │   └── 📂 sidecar/        # Swift camera overlay binary
-├── 📂 studio-extension/   # Chrome extension
+├── 📂 studio-extension/   # Chrome extension (Studio — recorder + editor)
 │   ├── 📂 popup/          # Extension popup UI
 │   ├── 📂 recorder/       # Recording and editing surface
 │   ├── background.js      # Service worker
 │   └── manifest.json      # Extension manifest
 ├── 📂 website/            # Landing page (loomless.fun)
+│   ├── 📂 app/            # Next.js app router pages
+│   └── 📂 public/         # Static assets
 ├── 📄 README.md
 └── 📄 LICENSE
 ```
@@ -402,6 +432,8 @@ loomless/
 | ✅     | Camera overlay with drag position |
 | ✅     | Screen + Mic/Cam modes           |
 | ✅     | macOS desktop app                |
+| ✅     | X / Reddit media downloader      |
+| ✅     | Responsive landing page          |
 | ✅     | 100% local, privacy-first        |
 | ✅     | No sign-up, forever free         |
 
